@@ -1,3 +1,22 @@
 export { getClinicOverview } from './application/get-clinic-overview'
-export { hasBookableBranch, activeBranches, type Clinic, type Branch } from './domain/clinic'
+export { getClinicProfile } from './application/get-clinic-profile'
+export { getClinicSessionInfo } from './application/get-clinic-session-info'
+export { getClinicFacts } from './application/get-clinic-facts'
+export {
+  getClinicSettings,
+  updateClinicProfile,
+  createBranch,
+  updateBranch,
+  setBranchWorkingHours,
+  setClinicHolidays,
+} from './application/manage-settings'
+export {
+  hasBookableBranch,
+  activeBranches,
+  leavesAnActiveBranch,
+  upcomingHolidays,
+  type Clinic,
+  type Branch,
+  type ClinicSessionInfo,
+} from './domain/clinic'
 // NOT exported: clinicRepository, or anything else under infrastructure/.

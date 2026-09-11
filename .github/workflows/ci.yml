@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [dev, develop]
+    branches: [dev, develop, 'feat/**']
   pull_request:
     branches: [dev, develop]
 
@@ -49,24 +49,10 @@ jobs:
         run: pnpm test
 
       - name: Build
-        run: pnpm build
-        env:
-          # Build-time only; the real values are injected at deploy time.
-          APP_URL: http://localhost:3000
-          MONGODB_URI: mongodb://localhost:27018/?replicaSet=rs0
-          MONGODB_DB: clinic_ci
-          MONGODB_AUDIT_URI: mongodb://localhost:27018/?replicaSet=rs0
-          REDIS_URL: redis://localhost:6379
-          AUTH_SECRET: ci-only-secret-value-at-least-32-characters
-          S3_ENDPOINT: http://localhost:9000
-          S3_BUCKET: clinic-ci
-          S3_ACCESS_KEY: ci
-          S3_SECRET_KEY: ci-secret
-          SMTP_URL: smtp://localhost:1025
-          MAIL_FROM: no-reply@clinic.local
+        run: cp .env.example .env && pnpm build
 
   database:
-    name: Migrations, seed and live database tests
+    name: Migrations, seed and live tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,10 +68,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Start a throwaway replica set
-        # Reuses the same compose file developers run locally, so CI cannot drift
-        # from the local stack. A GitHub `services:` block cannot run rs.initiate().
-        run: docker compose up -d --wait mongo mongo-init
+      - name: Start the stack
+        # The same compose file developers run locally, so CI cannot drift from it.
+        # A GitHub `services:` block cannot run rs.initiate().
+        run: docker compose up -d --wait mongo mongo-init redis mailpit
 
       - name: Environment
         run: cp .env.example .env
@@ -94,11 +80,13 @@ jobs:
         run: pnpm db:migrate
 
       - name: Migrations are reversible
-        # A migration that cannot be rolled back is a migration you cannot deploy
-        # with confidence. Proven on every run, not assumed.
+        # A migration that cannot be rolled back cannot be deployed with confidence.
+        # Roll back until nothing is applied, then forward again.
         run: |
-          pnpm --filter @clinic/db migrate:down
-          pnpm --filter @clinic/db migrate:down
+          for attempt in $(seq 1 50); do
+            pnpm --silent --filter @clinic/db migrate:status | grep -q APPLIED || break
+            pnpm --filter @clinic/db migrate:down
+          done
           pnpm db:migrate
 
       - name: Seed
@@ -116,3 +104,43 @@ jobs:
       - name: Stack logs on failure
         if: failure()
         run: docker compose logs --tail 100
+
+  e2e:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start the stack
+        run: docker compose up -d --wait mongo mongo-init redis mailpit
+
+      - name: Environment
+        run: cp .env.example .env
+
+      - name: Browser
+        run: pnpm --filter @clinic/e2e exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Journeys
+        run: pnpm test:e2e
+
+      - name: Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 7

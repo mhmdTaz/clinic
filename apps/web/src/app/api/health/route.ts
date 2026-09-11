@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * Readiness for the load balancer. Returns 503 when a dependency is down so an
- * unhealthy instance is actually removed from rotation rather than quietly serving
- * errors.
+ * Readiness for the load balancer. Returns 503 only when a CRITICAL dependency is down,
+ * so an instance that cannot serve leaves rotation — but a Redis outage, which degrades
+ * rate limiting and nothing else, does not take every instance out at once.
  */
-export const GET = withApi(async () => {
+export const GET = withApi({ auth: 'none' }, async () => {
   const payload = await checkHealth(APP_VERSION)
-  return { status: payload.status === 'ok' ? 200 : 503, data: payload }
+  return { status: payload.ready ? 200 : 503, data: payload }
 })

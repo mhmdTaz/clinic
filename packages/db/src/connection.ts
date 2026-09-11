@@ -1,5 +1,10 @@
 import mongoose, { type Connection } from 'mongoose'
-import { env } from '@clinic/config'
+import { env, processSingleton } from '@clinic/config'
+import {
+  deferAuditUntilCommit,
+  discardDeferredAudit,
+  releaseDeferredAudit,
+} from './plugins/audit-capture'
 
 /**
  * Two connections, deliberately (section 11.5):
@@ -15,14 +20,22 @@ import { env } from '@clinic/config'
  */
 type ConnectionCache = { main?: Connection; audit?: Connection }
 
-const globalCache = globalThis as typeof globalThis & { __clinicDb?: ConnectionCache }
-const cache: ConnectionCache = (globalCache.__clinicDb ??= {})
+// One pool per process, not one per bundle copy.
+const cache = processSingleton<ConnectionCache>('db:connections', () => ({}))
 
 const CONNECT_OPTIONS = {
   serverSelectionTimeoutMS: 8_000,
   maxPoolSize: 20,
   minPoolSize: 2,
   retryWrites: true,
+  /**
+   * Migrations own collections and indexes. Left on, Mongoose builds indexes in the
+   * background when a model compiles and reports conflicts as events nobody listens
+   * to — so an index could silently differ from what the migration declared. A test
+   * asserts the schema declarations and the migrated database agree instead.
+   */
+  autoIndex: false,
+  autoCreate: false,
 } as const
 
 export function getConnection(): Connection {
@@ -81,7 +94,14 @@ export async function inspectTopology(): Promise<TopologyInfo> {
   }
 }
 
-/** Runs `fn` inside a transaction. Throws a clear error if the topology cannot support one. */
+/**
+ * Runs `fn` inside a transaction. Throws a clear error if the topology cannot support one.
+ *
+ * Automatically captured audit events wait for the commit, so a write that rolls back leaves
+ * no entry (section 11.3). The driver may run `fn` again after a transient error; each attempt
+ * starts with an empty buffer. Throw to roll back: calling abortTransaction() inside `fn` is
+ * not supported, because the driver then reports success.
+ */
 export async function withTransaction<T>(
   fn: (session: mongoose.ClientSession) => Promise<T>,
 ): Promise<T> {
@@ -90,10 +110,13 @@ export async function withTransaction<T>(
   try {
     let result!: T
     await session.withTransaction(async () => {
+      deferAuditUntilCommit(session)
       result = await fn(session)
     })
+    releaseDeferredAudit(session)
     return result
   } finally {
+    discardDeferredAudit(session)
     await session.endSession()
   }
 }

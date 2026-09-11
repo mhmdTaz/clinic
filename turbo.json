@@ -24,7 +24,10 @@
     "MAIL_FROM",
     "SMTP_URL",
     "APP_URL",
-    "LOG_LEVEL"
+    "LOG_LEVEL",
+    "CLINIC_ID",
+    "TRUST_PROXY",
+    "SEED_PASSWORD"
   ],
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },

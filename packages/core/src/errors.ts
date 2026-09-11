@@ -46,8 +46,8 @@ export class NotFoundError extends DomainError {
 export class ConflictError extends DomainError {
   readonly code: string
   readonly status = 409
-  constructor(code: string, message: string) {
-    super(message)
+  constructor(code: string, message: string, details?: Array<{ field: string; issue: string }>) {
+    super(message, details)
     this.code = code
   }
 }
@@ -55,8 +55,8 @@ export class ConflictError extends DomainError {
 export class BusinessRuleError extends DomainError {
   readonly code: string
   readonly status = 422
-  constructor(code: string, message: string) {
-    super(message)
+  constructor(code: string, message: string, details?: Array<{ field: string; issue: string }>) {
+    super(message, details)
     this.code = code
   }
 }

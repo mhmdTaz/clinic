@@ -1,0 +1,21 @@
+{
+  "name": "@clinic/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint specs helpers *.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:e2e": "playwright test",
+    "browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2",
+    "dotenv": "^16.4.7",
+    "ioredis": "^6.0.0",
+    "migrate-mongo": "^11.0.0",
+    "mongodb": "^6.12.0",
+    "typescript": "^5.7.2"
+  }
+}

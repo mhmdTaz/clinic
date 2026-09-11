@@ -215,7 +215,7 @@ These are the rules every PR is reviewed against, ordered by the project's state
 | UI | **Tailwind CSS + shadcn/ui** (Radix primitives) | shadcn is *copied in*, not depended on, so we own and restyle the components. Radix supplies accessibility (keyboard nav, focus traps, ARIA) that a clinical tool genuinely needs. |
 | Data | **MongoDB 7 + Mongoose** | A visit, a chart and an invoice are each naturally one document, and the model in section 8 embeds accordingly — the allergy banner and the calendar render with no joins at all. Mongoose is chosen over Prisma's MongoDB connector because that connector has no migration history and no aggregation pipeline; the full reasoning is in section 8.1. **Must run as a replica set** — transactions and change streams both require one, in development as well as production. |
 | Data migrations | **migrate-mongo** | MongoDB has no schema migrations of its own. Ordered, numbered, reversible scripts in the repo, applied by CI — the role `prisma migrate deploy` would have played (section 8.15). |
-| Auth | **Auth.js (NextAuth v5)** | Credentials provider for v1; the session callback is where roles and permissions are attached. Adapter-based, so OIDC/SSO can be added later without touching call sites. |
+| Auth | **Own token service on `jose` + argon2id** (the `identity` and `session` modules of `@clinic/core`) | Short-lived HS256 access tokens, rotating refresh tokens with theft detection, and one verification path for the web cookie and the mobile Bearer header (section 9.1). Auth.js was named here originally and replaced in Phase 1: its credentials flow has no refresh-token rotation, its session token is not usable as a mobile Bearer token, and it would have put authentication inside the framework layer section 2.4 keeps business logic out of. OIDC/SSO arrives as another sign-in method on the same session service. See `docs/adr/0017`. |
 | Validation | **Zod** | Single source of truth for API contracts, form validation, and generated OpenAPI. |
 | Server state | **TanStack Query** | Cache, invalidation, optimistic updates. The same hooks package is reused by React Native. |
 | Files | **S3-compatible** (MinIO in dev, S3 or R2 in prod) | Presigned uploads keep large files off the app server entirely. |
@@ -389,6 +389,8 @@ Modules may only depend **downward**. Anything else is an event.
                             patients ◀───────────────────────────────────┘
                                 │
                           clinic ──▶ access ──▶ identity          ← foundation
+                            ▲          ▲          ▲
+                            └──────────┴──────────┴──── session    ← composes sign-in
 ```
 
 | Allowed | Forbidden |
@@ -397,6 +399,8 @@ Modules may only depend **downward**. Anything else is an event.
 | `billing` imports `inventory` to price consumed items | `inventory` importing `billing` — it emits `stock.consumed` instead |
 | Anything imports `access` for permission checks | `access` importing any feature module |
 | `notifications` subscribes to `appointment.booked` | `appointments` importing `notifications` directly |
+| `session` imports `identity`, `access` and `clinic` to turn a verified user into a signed-in session | `identity` importing `access` — authentication sits beneath authorisation, which is why login lives in `session` and not in `identity` |
+| Any module calls `recordAudit()` for an event that carries intent (section 11.4) | `audit` importing any feature module |
 
 ### 5.3 How boundaries are enforced
 
@@ -751,6 +755,13 @@ on every request — but a revoked permission must not survive in a stale sessio
   bumps `Clinic.permissionVersion`.
 - On each request, `withApi` compares the token's `permVersion` against the clinic's current
   value; a mismatch forces a re-resolve and re-issues the token.
+- Pages make the same comparison but cannot set cookies. A mismatch still authorises the render
+  against the re-resolved grants, and `TokenRenewal` has an API route store the replacement token
+  from the browser. It is never a redirect to the refresh route: the client router replays a
+  redirect met during a refresh or soft navigation, and loops (ADR-0018, Phase 2 amendment).
+- `TokenRenewal` lives in the portal shell, so it runs when the shell renders: a full page load or
+  a refresh. A navigation inside a portal re-renders only the page, which keeps authorising against
+  current grants until the next shell render, API call, or token expiry replaces the cookie.
 
 Net effect: **permission changes take effect on the affected user's next request**, without
 either polling or waiting for a session to expire.
@@ -900,7 +911,7 @@ const ClinicSchema = new Schema({
   locale:    { type: String, default: 'en' },
 
   branches:  [BranchSchema],                                     // bounded: tens
-  holidays:  [{ _id: false, date: Date, name: String, branchId: String }],
+  holidays:  [{ _id: false, date: String, name: String, branchId: String }], // "2026-12-25": a calendar date (ADR-0010)
 
   settings:     { type: Schema.Types.Mixed, default: {} },
   featureFlags: { type: Map, of: Boolean, default: {} },
@@ -1048,7 +1059,7 @@ const PatientSchema = new Schema({
 
   firstName: { type: String, required: true },
   lastName:  { type: String, required: true },
-  dateOfBirth: Date,
+  dateOfBirth: String,                                     // "1990-04-17": never an instant (ADR-0010)
   gender:      { type: String, enum: GENDERS },
   nationalId:  String,
   bloodType:   { type: String, enum: BLOOD_TYPES, default: 'UNKNOWN' },
@@ -1092,6 +1103,16 @@ patient, then allergies, then chronic conditions — three round trips before th
 must never fail to render, removing two failure points is worth more than the schema tidiness we
 gave up.
 
+**As built in Phase 2.** Three refinements to the sketch above. Search and duplicate matching read
+**normalised keys** stored beside the originals — `search.firstName`, `search.lastName`,
+`search.phone` (the last seven digits), `search.email`, `search.nationalId` — because an index can
+serve a regex only when it is anchored and case-sensitive. A `searchKeys` plugin derives them on
+every write path, so no use case computes one; the indexes lead with `clinicId` and target the keys
+rather than `contact.phone`. An account belongs to at most one patient, enforced by a partial unique
+index on `{ userId, clinicId }` (keys reversed, since `{ clinicId, userId }` already serves lookups).
+And every find on `patients` is recorded as a view, so reads that only decide whether someone may
+look pass `skipAudit` — a refused request is never logged as having seen a record.
+
 ```ts
 // packages/db/src/models/doctor.model.ts
 const DoctorSchema = new Schema({
@@ -1104,8 +1125,7 @@ const DoctorSchema = new Schema({
   consultationFee:   Schema.Types.Decimal128,
   defaultSlotMinutes: { type: Number, default: 30 },
 
-  specialtyIds: [String],                                  // referenced: shared vocabulary
-  specialtyNames: [String],                                // display snapshot (section 8.3)
+  specialties: [{ _id: false, id: String, name: String }], // reference + display snapshot, one entry each
 
   // Recurring weekly template — bounded at 7 days x a few blocks
   availability: [{ _id: { type: String, default: () => createId() },
@@ -1126,16 +1146,19 @@ const DoctorSchema = new Schema({
 
 DoctorSchema.index({ clinicId: 1, isActive: 1 })
 DoctorSchema.index({ userId: 1 }, { unique: true })
-DoctorSchema.index({ clinicId: 1, specialtyIds: 1 })       // multikey: "find cardiologists"
+DoctorSchema.index({ clinicId: 1, 'specialties.id': 1 })   // multikey: "find cardiologists"
 ```
 
 Availability and time-off embed for the same reason the allergy list does: slot computation
 (section 8.7) needs the template, the exceptions and the doctor's slot length **together**, on
 every calendar render. One document read replaces three queries on the hottest path in the app.
 
-`specialtyIds` plus `specialtyNames` is the snapshot pattern in miniature — the ids are the
-truth and drive the filter index; the names render the card without a lookup. A rename emits
-`specialty.renamed`, and a handler refreshes the snapshot across affected doctors.
+`specialties` is the snapshot pattern in miniature — each entry's id is the truth and drives the
+filter index; its name renders the card without a lookup. The first sketch used two parallel
+arrays, `specialtyIds` and `specialtyNames`; one array of pairs was chosen instead because parallel
+arrays drift the moment one is edited without the other, and a rename becomes a single array-filter
+update (`specialties.$[entry].name`). That refresh is a bulk write, so the rename records an
+explicit `specialty.renamed` audit entry (section 8.15).
 
 ### 8.7 Scheduling and appointments
 
@@ -1876,13 +1899,17 @@ GET    /api/v1/me/permissions                    GET    /api/v1/me/navigation
 GET    /api/v1/me/notifications                  POST   /api/v1/me/notifications/{id}/read
 
 GET    /api/v1/patients                          POST   /api/v1/patients
-GET    /api/v1/patients/{id}                     PATCH  /api/v1/patients/{id}
+GET    /api/v1/patients/{id}                     PUT    /api/v1/patients/{id}
+POST   /api/v1/patients/{id}/archive             POST   /api/v1/patients/{id}/restore
+POST   /api/v1/patients/{id}/portal-invitation
 GET    /api/v1/patients/{id}/timeline            GET    /api/v1/patients/{id}/files
 GET    /api/v1/patients/{id}/appointments        GET    /api/v1/patients/{id}/invoices
 POST   /api/v1/patients/check-duplicates
 
 GET    /api/v1/doctors                           POST   /api/v1/doctors
-GET    /api/v1/doctors/{id}                      PATCH  /api/v1/doctors/{id}
+GET    /api/v1/doctors/{id}                      PUT    /api/v1/doctors/{id}
+GET    /api/v1/specialties                       POST   /api/v1/specialties
+PUT    /api/v1/specialties/{id}
 GET    /api/v1/doctors/{id}/availability         PUT    /api/v1/doctors/{id}/availability
 GET    /api/v1/doctors/{id}/slots                POST   /api/v1/doctors/{id}/time-off
 
@@ -1914,12 +1941,18 @@ GET    /api/v1/support/tickets                   POST   /api/v1/support/tickets
 GET    /api/v1/support/tickets/{id}              POST   /api/v1/support/tickets/{id}/messages
 POST   /api/v1/support/tickets/{id}/assign       POST   /api/v1/support/tickets/{id}/status
 
-GET    /api/v1/admin/clinic                      PATCH  /api/v1/admin/clinic
+GET    /api/v1/admin/clinic                      GET    /api/v1/admin/clinic/settings
+PUT    /api/v1/admin/clinic/profile              PUT    /api/v1/admin/clinic/holidays
 GET    /api/v1/admin/branches                    POST   /api/v1/admin/branches
+PUT    /api/v1/admin/branches/{id}               PUT    /api/v1/admin/branches/{id}/working-hours
 GET    /api/v1/admin/users                       POST   /api/v1/admin/users/invite
-POST   /api/v1/admin/users/{id}/status           POST   /api/v1/admin/users/{id}/roles
+GET    /api/v1/admin/users/{id}                  PUT    /api/v1/admin/users/{id}
+POST   /api/v1/admin/users/{id}/status           PUT    /api/v1/admin/users/{id}/roles
+POST   /api/v1/admin/users/{id}/invitation       POST   /api/v1/admin/users/{id}/password-reset
 GET    /api/v1/admin/roles                       POST   /api/v1/admin/roles
-PUT    /api/v1/admin/roles/{id}/permissions      GET    /api/v1/admin/permissions
+GET    /api/v1/admin/roles/{id}                  PUT    /api/v1/admin/roles/{id}
+DELETE /api/v1/admin/roles/{id}                  PUT    /api/v1/admin/roles/{id}/permissions
+GET    /api/v1/admin/permissions
 GET    /api/v1/admin/audit-logs                  GET    /api/v1/admin/audit-logs/export
 GET    /api/v1/admin/analytics/overview
 ```
@@ -1980,67 +2013,69 @@ login lands where they left off.
 
 ### 10.2 Middleware
 
-`apps/web/src/middleware.ts` is intentionally thin — it does session presence and portal
-segment gating only. It never queries the database (middleware runs on the edge runtime and must
-stay fast); everything it needs is in the JWT.
+`apps/web/src/middleware.ts` is intentionally thin: is there a valid session, and if not, can one
+be refreshed? It never queries the database. It runs on the Node.js runtime (stable since Next.js
+15.5) but still imports only the dependency-free subset exported as `@clinic/core/edge`.
 
 ```ts
-const PORTAL_PERMISSION = {
-  admin:   'portal.admin:access',
-  staff:   'portal.staff:access',
-  doctor:  'portal.doctor:access',
-  patient: 'portal.patient:access',
-} as const
+export async function middleware(request: NextRequest) {
+  if (pathname.startsWith('/api/')) return forward()      // API routes authenticate in withApi
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl
-  if (isPublicPath(pathname)) return NextResponse.next()
-
-  const token = await getToken(req)
-  if (!token) return redirectToLogin(req)                 // preserves ?next= for post-login return
-
-  if (token.status !== 'ACTIVE') return redirectTo(req, '/account-suspended')
-  if (token.mustChangePassword && pathname !== '/change-password')
-    return redirectTo(req, '/change-password')
-
-  const portal = pathname.split('/')[1]
-  if (portal in PORTAL_PERMISSION) {
-    if (!token.permissions?.[PORTAL_PERMISSION[portal]]) {
-      return redirectTo(req, resolveLandingPortal(token))  // bounce to *their* portal, not a 403
-    }
+  const claims = await verifiedClaims(request.cookies.get(ACCESS_COOKIE))
+  if (!claims) {
+    if (isPublicPage(pathname)) return forward()
+    // The refresh cookie is scoped to /api/v1/auth and invisible here; a hint cookie says one exists.
+    return request.cookies.has(SESSION_HINT_COOKIE)
+      ? redirectTo(`/api/v1/auth/refresh?next=${next}`)   // renew silently
+      : redirectTo(`/login?next=${next}`)
   }
-  const res = NextResponse.next()
-  res.headers.set('x-request-id', crypto.randomUUID())     // correlates logs and audit entries
-  return res
+  if (pathname === '/' || pathname === '/login') return redirectTo(landingPath(claims.prt, claims.pp))
+  return forward()                                        // stamps x-request-id and x-pathname
 }
 ```
 
-Two deliberate choices:
+Four deliberate choices — the first a change from the original design:
 
+- **Portal permissions are checked in each portal's layout, not in middleware.** The original
+  sketch gated `/admin` here from the JWT. Phase 1 moved it to `requirePortal()`, which runs
+  `assertCan` against *current* grants and records `permission.denied` in the audit log before
+  redirecting. Middleware can do neither: it cannot reach the database, and its claims may be up
+  to fifteen minutes stale. Portal pages await the same `requirePortal()`, memoised per request:
+  a layout and its page render concurrently, so a page that only required an actor would run its
+  own checks mid-redirect and audit a second, misleading denial. See `docs/adr/0018`.
 - **Wrong-portal access redirects rather than 403s.** A patient who bookmarks `/staff` is not an
-  attacker, they are lost. Real enforcement is server-side at the use-case layer; middleware is
-  navigation.
-- **The JWT carries a compact permission map**, not the full catalogue, to keep the cookie small.
-  Anything the map cannot answer is resolved server-side.
+  attacker, they are lost — but the attempt is on the record either way.
+- **A valid signature on an ended session** (signed out on another device) sends the browser
+  through `/api/v1/auth/session-ended`, which clears the cookies. Without it the middleware would
+  keep trusting the token and loop between the page and the sign-in screen.
+- **The JWT carries a compact permission map** — one character per scope — so an admin's full set
+  fits comfortably in a 4 KB cookie.
 
 ### 10.3 Session shape
 
 ```ts
-interface SessionToken {
-  sub: string                                  // userId
-  clinicId: string
-  status: UserStatus
-  roles: string[]                              // role keys, for display only
-  permissions: Record<PermissionKey, Scope>    // the actual authority
-  permVersion: number                          // compared against Clinic.permissionVersion
-  doctorId?: string
-  patientId?: string
-  preferredPortal?: PortalKey
-  impersonatorId?: string                      // set during admin "view as"
-  iat: number
-  exp: number                                  // 15 min access token; refresh extends it
+interface AccessTokenClaims {   // HS256 with the algorithm pinned; 15 minutes; iss + aud checked
+  sub: string                   // user id
+  cid: string                   // clinic id — must equal the installation's CLINIC_ID (ADR-0005)
+  sid: string                   // session (refresh-token family) id — a revoked family ends the token
+  tv: number                    // user.security.tokenVersion — moves on password change and reset
+  pv: number                    // clinic.permissionVersion — a mismatch re-resolves grants (7.7)
+  name: string
+  rls: string[]                 // role keys, for display only
+  prm: Record<PermissionKey, 'O' | 'A' | 'C' | 'G'>   // the authority, one character per scope
+  prt: PortalKey[]              // portals, most relevant first
+  pp: PortalKey | null          // preferred portal
+  did?: string                  // doctor profile id — Phase 2
+  pid?: string                  // patient profile id — Phase 2
+  imp?: string                  // impersonator — Phase 2 stretch
 }
 ```
+
+**The signature is necessary, not sufficient.** Every authenticated request also confirms in the
+database that the user is still ACTIVE, that the session family is live, and that `tv` still
+matches. Suspension, signing out and a password change therefore take effect on the next request
+rather than whenever the token would have expired. That costs three indexed reads per request;
+caching them in Redis is the scale path in section 15.2.
 
 ### 10.4 Password and session policy
 
@@ -2048,7 +2083,7 @@ interface SessionToken {
 |---------|-----|
 | Hashing | argon2id, per-user salt, tuned memory cost |
 | Password rules | Minimum 12 characters, checked against a common-password list. No forced rotation, no composition rules — both push users toward weaker, written-down passwords. |
-| Brute force | Exponential backoff per account plus a per-IP Redis rate limit; `lockedUntil` after 10 failures |
+| Brute force | Per-account lockout doubling from the fifth consecutive failure (30s, 1m, 2m, 4m, 8m, then a flat 15 minutes from the tenth), forgiven after 24 hours; plus Redis rate limits per email and — behind a trusted proxy only — per IP. Every rejection spends the time of a real hash check, so response time never reveals whether an account exists |
 | Reset tokens | Single-use, 30-minute expiry, only the hash is stored, invalidated on use or on password change |
 | Session | 15-minute access token, 30-day refresh token, sliding. Refresh tokens are revocable per device from a "sessions" page. |
 | MFA | TOTP, schema is in place (`mfaSecret`); enforced for Admin in v1.1, optional for everyone else |
@@ -2082,6 +2117,7 @@ ambient request context.
 ```ts
 // packages/core/src/context/request-context.ts
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { processSingleton } from '@clinic/config'
 
 export interface RequestContext {
   requestId: string
@@ -2089,13 +2125,17 @@ export interface RequestContext {
   actorType: ActorType
   actorLabel?: string
   actorRoles: string[]
-  clinicId: string
+  clinicId?: string // absent on anonymous requests
   impersonatorId?: string
   ipAddress?: string
   userAgent?: string
 }
 
-const storage = new AsyncLocalStorage<RequestContext>()
+// One store per process, not one per bundle copy of this file — see below.
+const storage = processSingleton(
+  'core:request-context',
+  () => new AsyncLocalStorage<RequestContext>(),
+)
 
 export const runWithContext = <T>(ctx: RequestContext, fn: () => Promise<T>) =>
   storage.run(ctx, fn)
@@ -2105,6 +2145,14 @@ export const currentContext = () => storage.getStore()
 
 `withApi` opens the context for every HTTP request; the BullMQ worker opens one per job with
 `actorType: 'SYSTEM'`. Nothing downstream has to thread an actor argument.
+
+**The store must be process-wide.** Next.js can compile instrumentation, route handlers and
+pages into separate bundles, each with its own copy of the workspace packages. State that one
+copy sets and another reads — this store, the audit sink installed at startup, the scope
+resolver registry — would silently become two objects: the sink missing where the write
+happens, or reading an empty context and recording entries with no actor. Such state lives on
+`globalThis` through `processSingleton` (`@clinic/config`), and a unit test loads two module
+copies to prove it is shared.
 
 ### 11.3 Automatic capture: the Mongoose audit plugin
 
@@ -2190,6 +2238,12 @@ Six details that matter, three of them specific to Mongoose and genuinely danger
   into a second, less-protected collection.
 - **`enqueueAuditEntry` is non-blocking**, buffered and flushed by the worker over the restricted
   audit connection (section 11.5). The audit write never sits on the request's critical path.
+- **Inside a transaction, captured entries wait for the commit.** `withTransaction` keeps what the
+  hooks capture on its session and hands it to the audit sink only once the transaction commits: a
+  write that rolls back leaves no entry, and an attempt the driver retries starts with an empty
+  buffer. Reads of protected records are not deferred — a record shown inside a transaction that
+  later rolled back was still seen. Explicit `audit.record()` calls belong after the transaction
+  returns, for the same reason.
 
 > **A note on change streams.** They were considered as the capture mechanism, since they observe
 > every write including bulk operations and cannot be bypassed. They were rejected as the
@@ -2492,6 +2546,14 @@ renders a summary does not ship the full medical record to the browser.
 | Server Action | Simple form submits in the web UI — **always** delegating to the same use case the REST endpoint calls |
 | Route Handler | Everything mobile needs, plus anything a client component mutates |
 
+After a Client Component changes something through a Route Handler, it shows the result with
+`refresh()` from `@/lib/navigation/use-router`, never Next.js's own. In Phase 2 end-to-end runs,
+Next.js 15.5 sometimes received a refresh in full and never rendered it — no error, no navigation,
+nothing written to history, about one attempt in four once the server was warm — so a suspended
+account kept showing as active. The portal shell stamps every server render with its request id;
+the wrapper's `refresh()` reloads the page if no new stamp has arrived within 2.5 seconds. Lint
+refuses `useRouter` from `next/navigation` everywhere except the wrapper.
+
 ### 14.2 Permission-driven navigation
 
 The sidebar is **data**, not markup. A new role automatically gets a correct menu.
@@ -2538,9 +2600,20 @@ conventions in section 9.2, URL-synced state (so a filtered view is shareable an
 refresh), column visibility, CSV export, row actions gated by permission, and — importantly —
 loading, empty, and error states supplied once rather than per screen.
 
-**`<AutoForm schema={ZodSchema}>`** — renders fields from the Zod schema, validates client-side
-with the same schema the server validates with, maps `details[]` from the error envelope back
-onto the offending fields, and handles dirty-state guards and optimistic submission.
+**`<AutoForm schema={ZodSchema} sections={…}>`** — validates client-side with the same schema the
+server validates with, maps `details[]` from the error envelope back onto the offending fields,
+moves focus to the first of them, and warns before a page with unsaved changes is closed.
+
+As built in Phase 2, two deliberate departures. The **field list lays the form out**, not the
+schema: deriving layout from Zod breaks on the first refinement, preprocessing step or nested array,
+and a form's order and wording are decisions a schema does not hold — what the schema guarantees is
+that browser and server accept exactly the same input. Validation issues travel as **stable codes**
+(`issueCode()` in `packages/contracts`), so both sides produce "TOO_LONG" rather than an English
+sentence, and translation happens at the edge (13.6). The unsaved-changes warning covers closing or
+reloading the page; in-app navigation is not intercepted, because the App Router offers no reliable
+hook for it, so an "Unsaved changes" marker sits beside the save button instead. `<DataTable>` ships
+search, filters, cursor pages, responsive columns and all three states; CSV export and column
+visibility arrive with the audit log explorer, the first screen that needs them.
 
 Bespoke UI is reserved for the screens that genuinely deserve it: the calendar, the encounter
 workspace, the analytics dashboard.
@@ -2720,7 +2793,8 @@ violation fails the build; a query missing `clinicId` throws; staging is live.
 The spine everything else hangs from. Built first because retrofitting authorisation is the most
 expensive mistake available.
 
-- Auth.js credentials provider, argon2id, login / logout / forgot / reset / accept-invite
+- Token service (`jose`, argon2id): login / logout / refresh / forgot / reset / accept-invite, with
+  account lockout, per-IP and per-email rate limits, and refresh-token reuse detection
 - Permission catalogue, seeded roles and grants, the policy engine (`can` / `assertCan`)
 - Session resolution with the permission map; `permVersion` invalidation
 - Middleware, portal routing, landing resolution, portal switcher
@@ -2905,27 +2979,37 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0014 | Restricted-import zones instead of `eslint-plugin-boundaries` | **Accepted** | Section 5.3 — the plugin silently enforced nothing across workspace packages |
 | 0015 | Replica set in development and CI, on port 27018 | **Accepted** | `docs/adr/0015` — a standalone fails only transactions and change streams, and fails them late |
 | 0016 | Audit connection separated before auth exists | **Accepted** | `docs/adr/0016` — structural from day one; the privilege separation itself lands with auth in staging |
+| 0005 | One clinic per installation | **Accepted** | `docs/adr/0005` — `CLINIC_ID` names the installation's clinic. Every document still carries `clinicId`, so serving many clinics later means resolving it from the hostname instead: an addition, not a rewrite |
+| 0006 | Staff register patients; patients activate by emailed link | **Accepted** | `docs/adr/0006` — no public sign-up. Activation sets the first password on an account that already exists, so a leaked link cannot mint accounts |
+| 0017 | Own token service instead of Auth.js | **Accepted** | `docs/adr/0017` — rotating refresh tokens, one path for cookie and Bearer, authentication outside the framework layer |
+| 0018 | Portal permissions gated in layouts, not middleware | **Accepted** | `docs/adr/0018` — current grants rather than a token's, and every denial audited |
 | 0004 | `ASSIGNED` scope: strict, chart-wide, or break-the-glass | **OPEN** | Section 7.5 — needed before Phase 4 |
-| 0005 | Single-clinic v1 or multi-tenant SaaS from the start | **OPEN** | The model supports both; affects onboarding, billing, and how early the shard key and zone sharding matter. MongoDB has no RLS, so the tenant guard (section 8.15) is the isolation control either way |
-| 0006 | Patient self-registration, or invite-only by staff | **OPEN** | Affects identity verification and the `isDefault` role |
 | 0007 | Payment provider for online payments | **OPEN** | Deferred with P16; `PaymentGateway` interface reserves the seam |
 | 0008 | SMS provider and whether SMS is in v1 at all | **OPEN** | Cost per message drives reminder strategy |
 | 0009 | Hosting target: **Atlas or self-hosted MongoDB**, and serverless or containers | **OPEN** | Now materially bigger than a hosting preference: Atlas brings Atlas Search (patient search quality, section 8.14), managed point-in-time restore and Online Archive. Serverless also forces connection-pool caching (section 15.2). Worth deciding early |
-| 0014 | Text search: Atlas Search, or `$text` plus anchored regex | **OPEN** | Follows directly from 0009; the repository interface hides which, so it is reversible |
-| 0010 | Timezone model: single clinic timezone, or per-branch | **Proposed** | Schema already allows per-branch override |
+| 0019 | Text search: Atlas Search, or `$text` plus anchored regex | **OPEN** | Follows directly from 0009; the repository interface hides which, so it is reversible |
+| 0010 | One timezone for the whole clinic | **Accepted** | `docs/adr/0010` — branches share the clinic's IANA zone; the unused branch field keeps a per-branch override an addition. Calendar dates are `YYYY-MM-DD` strings, never instants |
+| 0020 | Possible duplicate patients warn, and saving anyway takes a reason | **Accepted** | `docs/adr/0020` — national ID, phone (last seven digits), email, or name plus date of birth; re-checked at save; overrides audited |
+| 0021 | One branch until a second exists | **Accepted** | `docs/adr/0021` — branch fields appear only in a multi-branch clinic; the last open branch cannot close |
 
-### The one to settle first
+### The ones to settle next
 
-**0005 (single-clinic vs multi-tenant)** still has the widest blast radius. The model is written
-so both work — `clinicId` is on every document either way — but it changes onboarding, the login
-flow (is there a clinic selector?), billing, and how early sharding matters. It does not block
-Phases 0–2, so it can be answered during Phase 1, but not later.
+0005 and 0006 were settled at the start of Phase 1 — one clinic per installation, and patients
+activated by staff invitation — which kept the login screen free of a clinic selector and a public
+sign-up page. 0010, 0020 and 0021 were settled at the start of Phase 2: one clinic timezone,
+duplicate warnings that need a typed reason to override, and branch fields only once a second
+branch exists.
 
-**0009 (Atlas vs self-hosted)** has been promoted by the move to MongoDB. On Postgres it was
+**0009 (Atlas vs self-hosted)** is now the decision with the widest blast radius, and the only thing
+standing between the project and a staging environment. It has been promoted by the move to MongoDB. On Postgres it was
 close to a pure operations preference. Now it decides whether patient search is fuzzy or
 prefix-only, whether point-in-time restore is managed or something we build and rehearse
 ourselves, and whether archival has a product behind it. Worth answering in Phase 0 rather than
 discovering in Phase 8.
+
+**0004 (the `ASSIGNED` scope for clinical records)** must be answered before Phase 4 ships. Until
+then the policy engine fails closed: an `ASSIGNED` grant on a subject with no registered resolver
+denies.
 
 ---
 

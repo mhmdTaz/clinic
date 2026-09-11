@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { processSingleton } from '@clinic/config'
 
 /**
  * Ambient actor context (section 11.2).
@@ -22,7 +23,13 @@ export interface RequestContext {
   userAgent?: string
 }
 
-const storage = new AsyncLocalStorage<RequestContext>()
+// Process-wide: the audit sink installed at startup reads the context a route opened, and
+// the two can be different bundle copies of this module. Two stores would mean audit
+// entries with no actor, and no error to say so.
+const storage = processSingleton(
+  'core:request-context',
+  () => new AsyncLocalStorage<RequestContext>(),
+)
 
 export function runWithContext<T>(context: RequestContext, fn: () => Promise<T>): Promise<T> {
   return storage.run(context, fn)

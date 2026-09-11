@@ -3,6 +3,7 @@ import { PERMISSION_SCOPES } from '@clinic/config'
 import { idField } from '../id'
 import { getConnection } from '../connection'
 import { tenantGuard } from '../plugins/tenant-guard'
+import { auditCapture } from '../plugins/audit-capture'
 
 /**
  * Permission grants are EMBEDDED (section 8.5). This is the RolePermission join
@@ -32,6 +33,7 @@ export const RoleSchema = new Schema(
 )
 
 RoleSchema.plugin(tenantGuard)
+RoleSchema.plugin(auditCapture, { model: 'Role' })
 RoleSchema.index({ clinicId: 1, key: 1 }, { unique: true })
 RoleSchema.index({ clinicId: 1, priority: -1 })
 

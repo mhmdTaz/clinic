@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
@@ -24,6 +25,17 @@ export default tseslint.config(
     },
   },
 
+  {
+    // A hook called conditionally is a bug React only reports at runtime, and only on the
+    // render path that skips it.
+    files: ['apps/web/src/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
+
   // ── Architecture boundaries (ARCHITECTURE.md section 5.3) ──────────────────
   //
   // These are the fast, in-editor half of boundary enforcement. The authoritative
@@ -37,6 +49,41 @@ export default tseslint.config(
   // fail is worse than no rule, so this uses explicit restricted zones instead.
   {
     files: ['apps/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@clinic/db',
+              message:
+                'Route handlers and server components call use cases, not the database ' +
+                '(section 6). Add a use case in @clinic/core instead.',
+            },
+            { name: 'mongoose', message: 'The driver belongs in a repository (section 2.4).' },
+            { name: 'mongodb', message: 'The driver belongs in a repository (section 2.4).' },
+            {
+              name: 'next/navigation',
+              importNames: ['useRouter'],
+              message:
+                "Import useRouter from '@/lib/navigation/use-router': its refresh() recovers " +
+                'when Next.js drops a refresh (see that file).',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@clinic/core/*/infrastructure/*', '@clinic/core/*/domain/*'],
+              message: 'Import a module through its public entry point (section 5.1).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The wrapper is the one file that imports Next.js's useRouter. Flat config replaces a rule's
+    // options rather than merging them, so the other restrictions are repeated here.
+    files: ['apps/web/src/lib/navigation/use-router.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

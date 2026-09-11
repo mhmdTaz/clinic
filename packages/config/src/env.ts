@@ -10,6 +10,21 @@ const EnvSchema = z.object({
   APP_URL: z.string().url(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
+  /**
+   * One clinic per installation (ADR-0005). Every request is served for this clinic;
+   * resolving the clinic from a hostname instead is the multi-tenant upgrade path.
+   */
+  CLINIC_ID: z.string().min(1),
+
+  /**
+   * Trust X-Forwarded-For only when the app sits behind a proxy you control. Left off,
+   * a client could forge the header and dodge per-IP rate limits.
+   */
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   MONGODB_URI: z
     .string()
     .min(1)
