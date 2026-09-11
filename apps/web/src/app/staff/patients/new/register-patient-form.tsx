@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   RegisterPatientRequest,
@@ -15,6 +14,7 @@ import { ApiError, apiFetch } from '@/lib/api/client'
 import { formatCalendarDate } from '@/lib/format/dates'
 import type { Option } from '@/lib/format/regions'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 import { usePatientSections } from '../patient-form-sections'
 
 const EMPTY: Partial<RegisterPatientRequest> = {

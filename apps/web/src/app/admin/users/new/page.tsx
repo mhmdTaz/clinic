@@ -4,7 +4,7 @@ import { getTranslations } from 'next-intl/server'
 import { holds, listRoleSummaries } from '@clinic/core/access'
 import { Card, CardContent } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { InviteUserForm } from './invite-user-form'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function InviteUserPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   if (!holds(actor, 'user:invite') || !holds(actor, 'role:assign')) redirect('/admin/users')
 
   const [roles, t, tUsers] = await Promise.all([

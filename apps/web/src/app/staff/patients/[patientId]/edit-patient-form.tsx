@@ -1,10 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { UpdatePatientRequest, type PatientDetail } from '@clinic/contracts'
 import { AutoForm } from '@/components/forms/auto-form'
 import type { Option } from '@/lib/format/regions'
+import { useRouter } from '@/lib/navigation/use-router'
 import { usePatientSections } from '../patient-form-sections'
 
 export function EditPatientForm({

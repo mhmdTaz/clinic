@@ -1,5 +1,5 @@
 import { E2E } from '../e2e.env'
-import { findAuditEntry } from '../helpers/database'
+import { countAuditEntries, findAuditEntry } from '../helpers/database'
 import { fillSignIn, formAlert, signIn } from '../helpers/session'
 import { expect, test } from './fixtures'
 
@@ -24,6 +24,19 @@ test('a patient who types /admin is sent back to their own portal — and it is 
     category: 'ACCESS_CONTROL',
     severity: 'WARNING',
   })
+
+  // …and only the portal gate spoke. The page under the layout renders at the same time but
+  // waits on that same check, so its own permission checks never ran. Anything they wrote
+  // would belong to this same request, so a moment is enough for it to have landed.
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  expect(
+    await countAuditEntries({
+      action: 'permission.denied',
+      'actor.label': 'Sara Karam',
+      'metadata.permission': { $ne: 'portal.admin:access' },
+      occurredAt: { $gte: since },
+    }),
+  ).toBe(0)
 })
 
 test('a direct API call without permission gets 403 and writes permission.denied', async ({

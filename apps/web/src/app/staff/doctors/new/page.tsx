@@ -6,7 +6,7 @@ import { getClinicSettings } from '@clinic/core/clinic'
 import { listSpecialties } from '@clinic/core/doctors'
 import { Card, CardContent } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { DoctorForm } from '../doctor-form'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function NewDoctorPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   if (!holds(actor, 'doctor:create')) redirect('/staff/doctors')
 
   const [settings, specialties, t, tDetail] = await Promise.all([

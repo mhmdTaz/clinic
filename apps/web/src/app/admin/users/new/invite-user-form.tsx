@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { InviteUserRequest, type UserDetail } from '@clinic/contracts'
 import { AutoForm, type AutoFormOption } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function InviteUserForm({ roles }: { roles: AutoFormOption[] }) {
   const t = useTranslations('admin.users.new')

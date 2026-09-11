@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { BranchInput, UpdateBranchRequest, type BranchDetail } from '@clinic/contracts'
 import {
@@ -20,6 +19,7 @@ import {
   DialogTrigger,
 } from '@clinic/ui'
 import { AutoForm, type AutoFormSection } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /** ADR-0021: the list always shows, so a single-site clinic can see how to add a second. */
 export function LocationsCard({

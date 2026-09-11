@@ -10,7 +10,7 @@ import { Badge, buttonVariants } from '@clinic/ui'
 import { DataTable, type DataTableRow } from '@/components/data-table/data-table'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { formatInstant } from '@/lib/format/dates'
 import { isInvalidCursor, param, type SearchParams } from '@/lib/server/page-helpers'
 
@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function UsersPage({ searchParams }: { searchParams: SearchParams }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const values = await searchParams
   const status = UserStatus.safeParse(param(values, 'status'))
   const query: UserListQuery = {

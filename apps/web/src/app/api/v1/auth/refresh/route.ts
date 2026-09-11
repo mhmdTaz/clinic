@@ -24,10 +24,11 @@ export const POST = withApi(
 )
 
 /**
- * Browser refresh during page navigation. The middleware and server components send the
- * browser here when its access token has expired or its grants went stale; it renews the
- * cookies and returns the browser to where it was going, or clears them and asks it to
- * sign in again.
+ * Browser refresh during page navigation. The middleware sends the browser here when its
+ * access token has expired (a server component does too, if it expired mid-request); it renews
+ * the cookies and returns the browser to where it was going, or clears them and asks it to sign
+ * in again. Stale grants never come this way: server components authorise against the current
+ * grants and TokenRenewal replaces the cookie (see lib/auth/server-session).
  */
 export async function GET(request: NextRequest) {
   const next = safeNextPath(request.nextUrl.searchParams.get('next'))

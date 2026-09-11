@@ -5,7 +5,7 @@ import { holds, listRoleSummaries } from '@clinic/core/access'
 import { Badge, buttonVariants } from '@clinic/ui'
 import { DataTable } from '@/components/data-table/data-table'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('admin.roles')
@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RolesPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const [roles, t] = await Promise.all([listRoleSummaries(actor), getTranslations('admin.roles')])
 
   const newRole = holds(actor, 'role:create') ? (

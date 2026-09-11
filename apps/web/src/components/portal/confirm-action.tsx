@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   Alert,
@@ -21,6 +20,7 @@ import {
 } from '@clinic/ui'
 import { apiFetch } from '@/lib/api/client'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /**
  * A consequential action behind a confirmation: suspend, archive, delete, force a reset. The

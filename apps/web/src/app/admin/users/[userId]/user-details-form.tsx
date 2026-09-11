@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { UpdateUserRequest, type UserDetail } from '@clinic/contracts'
 import { Alert } from '@clinic/ui'
 import { AutoForm } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function UserDetailsForm({ user, readOnly }: { user: UserDetail; readOnly: boolean }) {
   const t = useTranslations('admin.users.detail')

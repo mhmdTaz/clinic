@@ -9,7 +9,7 @@ import { listPatients } from '@clinic/core/patients'
 import { Badge, buttonVariants } from '@clinic/ui'
 import { DataTable } from '@/components/data-table/data-table'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
 import { isInvalidCursor, param, type SearchParams } from '@/lib/server/page-helpers'
 
@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PatientsPage({ searchParams }: { searchParams: SearchParams }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const values = await searchParams
   const query: PatientListQuery = {
     q: param(values, 'q')?.slice(0, 80),

@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react'
+import { headers } from 'next/headers'
 import { getTranslations } from 'next-intl/server'
 import type { PortalKey } from '@clinic/config'
 import { PORTALS, type Actor } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { getMyNavigation } from '@clinic/core/session'
+import { TokenRenewal } from '@/components/auth/token-renewal'
+import { accessTokenIsStale } from '@/lib/auth/server-session'
 import { BottomNav } from './bottom-nav'
 import { Sidebar } from './sidebar'
 import { TopBar } from './top-bar'
@@ -21,11 +24,16 @@ export async function PortalShell({
   portal: PortalKey
   children: ReactNode
 }) {
-  const [navigation, clinic, t] = await Promise.all([
+  const [navigation, clinic, t, staleToken, requestHeaders] = await Promise.all([
     getMyNavigation(actor, portal),
     getClinicSessionInfo(actor.clinicId),
     getTranslations(),
+    accessTokenIsStale(),
+    headers(),
   ])
+  // A new value on every server render, so a client refresh can tell whether it actually
+  // rendered (lib/navigation/use-router).
+  const renderId = requestHeaders.get('x-request-id') ?? crypto.randomUUID()
 
   const sections = navigation.sections.map((section) => ({
     id: section.id,
@@ -46,7 +54,7 @@ export async function PortalShell({
   const portalLabel = t(PORTALS[navigation.portal].labelKey)
 
   return (
-    <div className="bg-background min-h-dvh">
+    <div className="bg-background min-h-dvh" data-render-id={renderId}>
       <a
         href="#main"
         className="focus:bg-card sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:px-4 focus:py-2 focus:shadow"
@@ -67,6 +75,8 @@ export async function PortalShell({
         </main>
       </div>
       <BottomNav items={items.slice(0, 4)} />
+      {/* The menu above already reflects the current grants; this only stores the new token. */}
+      {staleToken ? <TokenRenewal /> : null}
     </div>
   )
 }

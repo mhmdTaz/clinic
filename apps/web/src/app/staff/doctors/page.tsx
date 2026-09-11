@@ -8,7 +8,7 @@ import { Badge, buttonVariants } from '@clinic/ui'
 import { DataTable } from '@/components/data-table/data-table'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { formatMoney } from '@/lib/format/money'
 import { param, type SearchParams } from '@/lib/server/page-helpers'
 import { SpecialtiesCard } from './specialties-card'
@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function DoctorsPage({ searchParams }: { searchParams: SearchParams }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const values = await searchParams
   const status = param(values, 'status')
   const query: DoctorListQuery = {

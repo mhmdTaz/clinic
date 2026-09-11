@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Input, Spinner } from '@clinic/ui'
 import { Field } from '@/components/forms/field'
 import { apiFetch } from '@/lib/api/client'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 type Status = { kind: 'idle' | 'saving' | 'saved' } | { kind: 'error'; message: string }
 

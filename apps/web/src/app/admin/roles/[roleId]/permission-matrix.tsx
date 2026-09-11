@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   Alert,
@@ -20,6 +19,7 @@ import {
 } from '@clinic/ui'
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 const EDITABLE_SCOPES = ['OWN', 'ASSIGNED', 'CLINIC'] as const
 type EditableScope = (typeof EDITABLE_SCOPES)[number]

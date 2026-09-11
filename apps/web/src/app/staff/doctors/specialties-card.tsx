@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { UpdateSpecialtyRequest, type Specialty } from '@clinic/contracts'
 import {
@@ -26,6 +25,7 @@ import {
 import { AutoForm } from '@/components/forms/auto-form'
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /** The specialty vocabulary: added, renamed and retired here, never deleted (section 8.3). */
 export function SpecialtiesCard({

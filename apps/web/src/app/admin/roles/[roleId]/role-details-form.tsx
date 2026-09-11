@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { UpdateRoleRequest, type RoleDetail } from '@clinic/contracts'
 import { AutoForm } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function RoleDetailsForm({ role, readOnly }: { role: RoleDetail; readOnly: boolean }) {
   const t = useTranslations('admin.roles.new')

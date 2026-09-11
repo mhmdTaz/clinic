@@ -15,7 +15,7 @@ import {
   buttonVariants,
 } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('admin.overview')
@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminOverviewPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const [overview, roles, health, t] = await Promise.all([
     getClinicOverview(actor),
     listRoleSummaries(actor),

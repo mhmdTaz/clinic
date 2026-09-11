@@ -7,7 +7,7 @@ import { getPatient } from '@clinic/core/patients'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@clinic/ui'
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { formatInstant } from '@/lib/format/dates'
 import { countryOptions } from '@/lib/format/regions'
 import { orNotFound, param, type RouteParams, type SearchParams } from '@/lib/server/page-helpers'
@@ -19,7 +19,7 @@ export async function generateMetadata({
 }: {
   params: RouteParams<'patientId'>
 }): Promise<Metadata> {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const patient = await getPatient(actor, (await params).patientId).catch(() => null)
   const t = await getTranslations('staff.patients')
   return { title: patient ? `${patient.firstName} ${patient.lastName}` : t('title') }
@@ -32,7 +32,7 @@ export default async function PatientPage({
   params: RouteParams<'patientId'>
   searchParams: SearchParams
 }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const { patientId } = await params
   const registered = param(await searchParams, 'registered')
 

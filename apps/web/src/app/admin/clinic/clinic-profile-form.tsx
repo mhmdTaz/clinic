@@ -1,10 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { ClinicProfileInput, type ClinicSettings } from '@clinic/contracts'
 import { AutoForm, type AutoFormSection } from '@/components/forms/auto-form'
 import type { Option } from '@/lib/format/regions'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function ClinicProfileForm({
   settings,

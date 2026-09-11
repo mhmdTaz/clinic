@@ -1,9 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { CreateRoleRequest, type RoleDetail } from '@clinic/contracts'
 import { AutoForm, type AutoFormOption } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function CreateRoleForm({ copyOptions }: { copyOptions: AutoFormOption[] }) {
   const t = useTranslations('admin.roles.new')

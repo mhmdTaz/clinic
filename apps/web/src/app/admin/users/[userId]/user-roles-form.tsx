@@ -1,10 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { SetUserRolesRequest } from '@clinic/contracts'
 import { Alert } from '@clinic/ui'
 import { AutoForm, type AutoFormOption } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function UserRolesForm({
   userId,

@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { SetHolidaysRequest, issueCode, issuePath, type Holiday } from '@clinic/contracts'
 import {
@@ -21,6 +20,7 @@ import {
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { formatCalendarDate } from '@/lib/format/dates'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /**
  * Closures save as they are added or removed — there is no half-finished list to lose. Past

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Laptop } from 'lucide-react'
 import { useFormatter, useTranslations } from 'next-intl'
 import type { SessionSummary } from '@clinic/contracts'
@@ -18,6 +17,7 @@ import {
 import { apiFetch } from '@/lib/api/client'
 import { describeUserAgent } from '@/lib/format/user-agent'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export function SessionsCard({
   sessions,

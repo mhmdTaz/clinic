@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Alert, Button, Spinner } from '@clinic/ui'
 import { apiFetch } from '@/lib/api/client'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /** Creates the portal account and emails the link, or sends a fresh link to one still waiting. */
 export function PortalInviteButton({ patientId, label }: { patientId: string; label: string }) {

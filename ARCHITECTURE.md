@@ -755,6 +755,13 @@ on every request — but a revoked permission must not survive in a stale sessio
   bumps `Clinic.permissionVersion`.
 - On each request, `withApi` compares the token's `permVersion` against the clinic's current
   value; a mismatch forces a re-resolve and re-issues the token.
+- Pages make the same comparison but cannot set cookies. A mismatch still authorises the render
+  against the re-resolved grants, and `TokenRenewal` has an API route store the replacement token
+  from the browser. It is never a redirect to the refresh route: the client router replays a
+  redirect met during a refresh or soft navigation, and loops (ADR-0018, Phase 2 amendment).
+- `TokenRenewal` lives in the portal shell, so it runs when the shell renders: a full page load or
+  a refresh. A navigation inside a portal re-renders only the page, which keeps authorising against
+  current grants until the next shell render, API call, or token expiry replaces the cookie.
 
 Net effect: **permission changes take effect on the affected user's next request**, without
 either polling or waiting for a session to expire.
@@ -2033,7 +2040,9 @@ Four deliberate choices — the first a change from the original design:
   sketch gated `/admin` here from the JWT. Phase 1 moved it to `requirePortal()`, which runs
   `assertCan` against *current* grants and records `permission.denied` in the audit log before
   redirecting. Middleware can do neither: it cannot reach the database, and its claims may be up
-  to fifteen minutes stale. See `docs/adr/0018`.
+  to fifteen minutes stale. Portal pages await the same `requirePortal()`, memoised per request:
+  a layout and its page render concurrently, so a page that only required an actor would run its
+  own checks mid-redirect and audit a second, misleading denial. See `docs/adr/0018`.
 - **Wrong-portal access redirects rather than 403s.** A patient who bookmarks `/staff` is not an
   attacker, they are lost — but the attempt is on the record either way.
 - **A valid signature on an ended session** (signed out on another device) sends the browser
@@ -2536,6 +2545,14 @@ renders a summary does not ship the full medical record to the browser.
 | Client Component + TanStack Query | Anything interactive: calendar, filters, live queues |
 | Server Action | Simple form submits in the web UI — **always** delegating to the same use case the REST endpoint calls |
 | Route Handler | Everything mobile needs, plus anything a client component mutates |
+
+After a Client Component changes something through a Route Handler, it shows the result with
+`refresh()` from `@/lib/navigation/use-router`, never Next.js's own. In Phase 2 end-to-end runs,
+Next.js 15.5 sometimes received a refresh in full and never rendered it — no error, no navigation,
+nothing written to history, about one attempt in four once the server was warm — so a suspended
+account kept showing as active. The portal shell stamps every server render with its request id;
+the wrapper's `refresh()` reloads the page if no new stamp has arrived within 2.5 seconds. Lint
+refuses `useRouter` from `next/navigation` everywhere except the wrapper.
 
 ### 14.2 Permission-driven navigation
 

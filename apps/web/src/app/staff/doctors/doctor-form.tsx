@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   CreateDoctorRequest,
@@ -10,6 +9,7 @@ import {
 } from '@clinic/contracts'
 import { Alert } from '@clinic/ui'
 import { AutoForm, type AutoFormField, type AutoFormOption } from '@/components/forms/auto-form'
+import { useRouter } from '@/lib/navigation/use-router'
 
 /**
  * One form for adding and editing a doctor. Adding asks for the email the account is created

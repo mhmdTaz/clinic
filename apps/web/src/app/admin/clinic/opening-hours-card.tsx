@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
@@ -25,6 +24,7 @@ import {
 } from '@clinic/ui'
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
+import { useRouter } from '@/lib/navigation/use-router'
 
 interface Block {
   key: string

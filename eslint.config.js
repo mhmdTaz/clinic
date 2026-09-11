@@ -62,6 +62,41 @@ export default tseslint.config(
             },
             { name: 'mongoose', message: 'The driver belongs in a repository (section 2.4).' },
             { name: 'mongodb', message: 'The driver belongs in a repository (section 2.4).' },
+            {
+              name: 'next/navigation',
+              importNames: ['useRouter'],
+              message:
+                "Import useRouter from '@/lib/navigation/use-router': its refresh() recovers " +
+                'when Next.js drops a refresh (see that file).',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@clinic/core/*/infrastructure/*', '@clinic/core/*/domain/*'],
+              message: 'Import a module through its public entry point (section 5.1).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The wrapper is the one file that imports Next.js's useRouter. Flat config replaces a rule's
+    // options rather than merging them, so the other restrictions are repeated here.
+    files: ['apps/web/src/lib/navigation/use-router.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@clinic/db',
+              message:
+                'Route handlers and server components call use cases, not the database ' +
+                '(section 6). Add a use case in @clinic/core instead.',
+            },
+            { name: 'mongoose', message: 'The driver belongs in a repository (section 2.4).' },
+            { name: 'mongodb', message: 'The driver belongs in a repository (section 2.4).' },
           ],
           patterns: [
             {

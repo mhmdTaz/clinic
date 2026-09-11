@@ -6,7 +6,7 @@ import { getDoctor, listSpecialties } from '@clinic/core/doctors'
 import { Alert, Badge, Card, CardContent } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { orNotFound, param, type RouteParams, type SearchParams } from '@/lib/server/page-helpers'
 import { DoctorForm } from '../doctor-form'
 
@@ -15,7 +15,7 @@ export async function generateMetadata({
 }: {
   params: RouteParams<'doctorId'>
 }): Promise<Metadata> {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const doctor = await getDoctor(actor, (await params).doctorId).catch(() => null)
   return { title: doctor?.displayName ?? (await getTranslations('staff.doctors'))('title') }
 }
@@ -27,7 +27,7 @@ export default async function DoctorPage({
   params: RouteParams<'doctorId'>
   searchParams: SearchParams
 }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   const { doctorId } = await params
   const created = param(await searchParams, 'created')
 

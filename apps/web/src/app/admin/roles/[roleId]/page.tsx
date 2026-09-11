@@ -14,7 +14,7 @@ import { Alert, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 import { PermissionMatrix, type MatrixGroup } from './permission-matrix'
 import { RoleDetailsForm } from './role-details-form'
@@ -26,13 +26,13 @@ export async function generateMetadata({
 }: {
   params: RouteParams<'roleId'>
 }): Promise<Metadata> {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const role = await getRole(actor, (await params).roleId).catch(() => null)
   return { title: role?.name ?? (await getTranslations('admin.roles'))('title') }
 }
 
 export default async function RolePage({ params }: { params: RouteParams<'roleId'> }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const { roleId } = await params
   const role = await orNotFound(getRole(actor, roleId))
 

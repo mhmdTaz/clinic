@@ -2,11 +2,12 @@
 
 import { Fragment, useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button, Input, Select, cn } from '@clinic/ui'
 import { EmptyState } from '@/components/portal/empty-state'
+import { useRouter } from '@/lib/navigation/use-router'
 
 export interface DataTableColumn {
   id: string

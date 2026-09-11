@@ -5,7 +5,7 @@ import { holds } from '@clinic/core/access'
 import { getClinicSettings } from '@clinic/core/clinic'
 import { Card, CardContent, CardHeader, CardTitle } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { WEEK_ORDER, weekdayName } from '@/lib/format/weekdays'
 import {
   countryOptions,
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ClinicSettingsPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const [settings, t, locale] = await Promise.all([
     getClinicSettings(actor),
     getTranslations('admin.clinic'),

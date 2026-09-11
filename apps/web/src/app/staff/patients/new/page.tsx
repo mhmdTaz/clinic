@@ -6,7 +6,7 @@ import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { Card, CardContent } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { countryOptions } from '@/lib/format/regions'
 import { RegisterPatientForm } from './register-patient-form'
 
@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RegisterPatientPage() {
-  const actor = await requireActor()
+  const actor = await requirePortal('staff')
   if (!holds(actor, 'patient:create')) redirect('/staff/patients')
 
   const [clinic, t, tDetail, locale] = await Promise.all([

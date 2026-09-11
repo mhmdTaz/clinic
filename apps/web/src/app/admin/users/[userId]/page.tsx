@@ -7,7 +7,7 @@ import { Alert, Card, CardContent, CardDescription, CardHeader, CardTitle } from
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
-import { requireActor } from '@/lib/auth/server-session'
+import { requirePortal } from '@/lib/auth/server-session'
 import { formatInstant } from '@/lib/format/dates'
 import { orNotFound, param, type RouteParams, type SearchParams } from '@/lib/server/page-helpers'
 import { UserDetailsForm } from './user-details-form'
@@ -18,7 +18,7 @@ export async function generateMetadata({
 }: {
   params: RouteParams<'userId'>
 }): Promise<Metadata> {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const user = await getUser(actor, (await params).userId).catch(() => null)
   return { title: user?.displayName ?? (await getTranslations('admin.users'))('title') }
 }
@@ -30,7 +30,7 @@ export default async function UserPage({
   params: RouteParams<'userId'>
   searchParams: SearchParams
 }) {
-  const actor = await requireActor()
+  const actor = await requirePortal('admin')
   const { userId } = await params
   const created = param(await searchParams, 'created')
 

@@ -9,8 +9,8 @@ import { ACCESS_COOKIE } from './cookies'
 import { requestMetaFrom } from './request-meta'
 
 type Resolution =
-  | { status: 'authenticated'; actor: Actor }
-  | { status: 'anonymous' | 'expired' | 'stale' | 'ended' }
+  | { status: 'authenticated'; actor: Actor; stale: boolean }
+  | { status: 'anonymous' | 'expired' | 'ended' }
 
 /** Resolved once per request, however many layouts and pages ask for it. */
 const resolveSession = cache(async (): Promise<Resolution> => {
@@ -18,9 +18,12 @@ const resolveSession = cache(async (): Promise<Resolution> => {
   if (!token) return { status: 'anonymous' }
   try {
     const { actor, reissued } = await authenticateAccessToken(token)
-    // A server component cannot set cookies. A token whose grants went stale is sent
-    // through the refresh route, which can, so the browser ends up holding the new one.
-    return reissued ? { status: 'stale' } : { status: 'authenticated', actor }
+    // A token whose grants went stale still authenticates: the actor was just built from the
+    // current grants, so this request is authorised correctly. A server component cannot store
+    // the replacement token, so TokenRenewal has an API route do it from the browser. Sending
+    // the browser through the refresh route instead looped: the client router replays a
+    // redirect met during a refresh or a soft navigation, and never settles.
+    return { status: 'authenticated', actor, stale: reissued !== null }
   } catch (error) {
     if (isDomainError(error) && error.code === 'TOKEN_EXPIRED') return { status: 'expired' }
     if (isDomainError(error) && error.code === 'UNAUTHENTICATED') return { status: 'ended' }
@@ -37,14 +40,20 @@ export async function optionalActor(): Promise<Actor | null> {
   return resolution.status === 'authenticated' ? resolution.actor : null
 }
 
+/** True when this request was authorised with outdated grants whose token should be replaced. */
+export async function accessTokenIsStale(): Promise<boolean> {
+  const resolution = await resolveSession()
+  return resolution.status === 'authenticated' && resolution.stale
+}
+
 export async function requireActor(): Promise<Actor> {
   const resolution = await resolveSession()
   if (resolution.status === 'authenticated') return resolution.actor
 
   const next = encodeURIComponent(await currentPath())
-  if (resolution.status === 'expired' || resolution.status === 'stale') {
-    return redirect(`/api/v1/auth/refresh?next=${next}`)
-  }
+  // The middleware renews an expired token before the page renders; this covers a token that
+  // expired in between.
+  if (resolution.status === 'expired') return redirect(`/api/v1/auth/refresh?next=${next}`)
   // The signature is still valid but the session was signed out elsewhere. The cookies
   // must be cleared by a route handler, or the middleware would keep trusting them.
   if (resolution.status === 'ended') return redirect(`/api/v1/auth/session-ended?next=${next}`)
@@ -55,8 +64,14 @@ export async function requireActor(): Promise<Actor> {
  * The authoritative portal gate. A denial is recorded in the audit log with the request's
  * id and address, then the user is sent to a portal they can enter — someone who typed
  * /admin is usually lost, not attacking, but either way it is on the record.
+ *
+ * Portal pages call this too, not requireActor: Next.js renders a layout and its page at the
+ * same time, so a page that only required an actor would run its own permission checks while
+ * the layout was still deciding to redirect — and each refusal there writes a second,
+ * misleading permission.denied. Memoised per request, so the layout and the page share one
+ * check: one redirect, one audit entry.
  */
-export async function requirePortal(portal: PortalKey): Promise<Actor> {
+export const requirePortal = cache(async (portal: PortalKey): Promise<Actor> => {
   const actor = await requireActor()
   const requestHeaders = await headers()
   const meta = requestMetaFrom(requestHeaders)
@@ -82,4 +97,4 @@ export async function requirePortal(portal: PortalKey): Promise<Actor> {
     throw error
   }
   return actor
-}
+})
