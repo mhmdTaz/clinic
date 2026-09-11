@@ -1,0 +1,35 @@
+{
+  "name": "@clinic/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./models": "./src/models/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src scripts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "migrate:up": "migrate-mongo up -f migrate-mongo-config.cjs",
+    "migrate:down": "migrate-mongo down -f migrate-mongo-config.cjs",
+    "migrate:status": "migrate-mongo status -f migrate-mongo-config.cjs",
+    "seed": "tsx scripts/seed.ts",
+    "verify:replica-set": "tsx scripts/verify-replica-set.ts"
+  },
+  "dependencies": {
+    "@clinic/config": "workspace:*",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "mongoose": "^8.9.2"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.7",
+    "migrate-mongo": "^11.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

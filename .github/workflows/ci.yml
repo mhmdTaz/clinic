@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, develop]
+  pull_request:
+    branches: [dev, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  quality:
+    name: Lint, types, graph, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Architecture boundaries
+        # Fails on a cycle, a framework import inside packages/core, a deep
+        # cross-module import, or an app reaching past a use case to the database.
+        run: pnpm graph
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build-time only; the real values are injected at deploy time.
+          APP_URL: http://localhost:3000
+          MONGODB_URI: mongodb://localhost:27018/?replicaSet=rs0
+          MONGODB_DB: clinic_ci
+          MONGODB_AUDIT_URI: mongodb://localhost:27018/?replicaSet=rs0
+          REDIS_URL: redis://localhost:6379
+          AUTH_SECRET: ci-only-secret-value-at-least-32-characters
+          S3_ENDPOINT: http://localhost:9000
+          S3_BUCKET: clinic-ci
+          S3_ACCESS_KEY: ci
+          S3_SECRET_KEY: ci-secret
+          SMTP_URL: smtp://localhost:1025
+          MAIL_FROM: no-reply@clinic.local
+
+  database:
+    name: Migrations, seed and live database tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start a throwaway replica set
+        # Reuses the same compose file developers run locally, so CI cannot drift
+        # from the local stack. A GitHub `services:` block cannot run rs.initiate().
+        run: docker compose up -d --wait mongo mongo-init
+
+      - name: Environment
+        run: cp .env.example .env
+
+      - name: Migrate
+        run: pnpm db:migrate
+
+      - name: Migrations are reversible
+        # A migration that cannot be rolled back is a migration you cannot deploy
+        # with confidence. Proven on every run, not assumed.
+        run: |
+          pnpm --filter @clinic/db migrate:down
+          pnpm --filter @clinic/db migrate:down
+          pnpm db:migrate
+
+      - name: Seed
+        run: pnpm db:seed
+
+      - name: Seed is idempotent
+        run: pnpm db:seed
+
+      - name: Verify transactions and change streams
+        run: pnpm db:verify
+
+      - name: Live database tests
+        run: pnpm test:integration
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --tail 100
