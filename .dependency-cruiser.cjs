@@ -65,11 +65,10 @@ module.exports = {
         "package's manifest — which is how a boundary gets crossed by accident.",
       severity: 'error',
       // Skipped: migrations (loaded by migrate-mongo, not imported), and next-env.d.ts.
-      // Skipped targets: node: builtins, and the app's own "@/" tsconfig alias — tsc
-      // already proves those resolve, and teaching depcruise every package's paths
-      // would mean a second copy of the same mapping to keep in sync.
+      // The web app's "@/" alias IS resolved (tsconfig.depcruise.json), so a broken
+      // "@/" import fails here like any other.
       from: { pathNot: ['^packages/db/migrations/', 'next-env\\.d\\.ts$'] },
-      to: { couldNotResolve: true, pathNot: '^(node:|server-only$|@/)' },
+      to: { couldNotResolve: true, pathNot: '^(node:|server-only$)' },
     },
     {
       name: 'no-orphans',
@@ -89,7 +88,9 @@ module.exports = {
   options: {
     doNotFollow: { path: 'node_modules' },
     exclude: { path: '(node_modules|\\.next|dist|coverage|__tests__|\\.test\\.ts)' },
-    tsConfig: { fileName: 'tsconfig.base.json' },
+    // The base config plus the web app's "@/" path alias. Without it every file reached
+    // only through "@/" looks orphaned and a mistyped "@/" import goes unnoticed.
+    tsConfig: { fileName: 'tsconfig.depcruise.json' },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
       exportsFields: ['exports'],

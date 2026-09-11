@@ -17,6 +17,17 @@ export interface Clinic {
   branches: Branch[]
 }
 
+/** What every authenticated request needs to know about the installation's clinic. */
+export interface ClinicSessionInfo {
+  id: string
+  name: string
+  timezone: string
+  locale: string
+  /** Moves on any role, grant or assignment change (section 7.7). */
+  permissionVersion: number
+  featureFlags: Record<string, boolean>
+}
+
 /** A clinic with no active branch cannot take a booking — surfaced in Phase 3. */
 export function hasBookableBranch(clinic: Clinic): boolean {
   return clinic.branches.some((b) => b.isActive)

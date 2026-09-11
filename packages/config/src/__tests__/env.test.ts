@@ -4,6 +4,7 @@ import { env, resetEnvCache } from '../env'
 const VALID = {
   NODE_ENV: 'test',
   APP_URL: 'http://localhost:3000',
+  CLINIC_ID: 'clinic_test',
   MONGODB_URI: 'mongodb://localhost:27017/?replicaSet=rs0',
   MONGODB_DB: 'clinic_test',
   MONGODB_AUDIT_URI: 'mongodb://localhost:27017/?replicaSet=rs0',
@@ -20,7 +21,7 @@ const VALID = {
 describe('env', () => {
   beforeEach(() => {
     resetEnvCache()
-    for (const key of Object.keys(VALID)) delete process.env[key]
+    for (const key of [...Object.keys(VALID), 'TRUST_PROXY']) delete process.env[key]
   })
 
   it('parses a complete environment', () => {
@@ -30,9 +31,15 @@ describe('env', () => {
   })
 
   it('refuses to start when a variable is missing', () => {
-    Object.assign(process.env, { ...VALID, MONGODB_URI: undefined })
+    Object.assign(process.env, VALID)
     delete process.env.MONGODB_URI
     expect(() => env()).toThrow(/MONGODB_URI/)
+  })
+
+  it('requires the installation clinic id (ADR-0005)', () => {
+    Object.assign(process.env, VALID)
+    delete process.env.CLINIC_ID
+    expect(() => env()).toThrow(/CLINIC_ID/)
   })
 
   it('rejects a short AUTH_SECRET rather than accepting a weak one', () => {
@@ -43,5 +50,20 @@ describe('env', () => {
   it('rejects a connection string that is not mongodb', () => {
     Object.assign(process.env, { ...VALID, MONGODB_URI: 'postgres://localhost:5432/clinic' })
     expect(() => env()).toThrow(/mongodb/)
+  })
+
+  it('does not trust proxy headers unless told to', () => {
+    Object.assign(process.env, VALID)
+    expect(env().TRUST_PROXY).toBe(false)
+  })
+
+  it('parses TRUST_PROXY into a real boolean, not a truthy string', () => {
+    Object.assign(process.env, { ...VALID, TRUST_PROXY: 'true' })
+    expect(env().TRUST_PROXY).toBe(true)
+  })
+
+  it('rejects an ambiguous TRUST_PROXY value', () => {
+    Object.assign(process.env, { ...VALID, TRUST_PROXY: 'yes' })
+    expect(() => env()).toThrow(/TRUST_PROXY/)
   })
 })

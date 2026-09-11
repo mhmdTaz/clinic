@@ -9,6 +9,33 @@ export type PermissionScope = (typeof PERMISSION_SCOPES)[number]
 export const USER_STATUSES = ['INVITED', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED'] as const
 export type UserStatus = (typeof USER_STATUSES)[number]
 
+/**
+ * Audit taxonomy (section 8.13). Declared here because both the model in @clinic/db
+ * and the recorder in @clinic/core need it, and neither may import the other's
+ * internals.
+ */
+export const AUDIT_CATEGORIES = [
+  'AUTH',
+  'ACCESS_CONTROL',
+  'CLINICAL',
+  'FINANCIAL',
+  'INVENTORY',
+  'ADMIN',
+  'FILE',
+  'SUPPORT',
+  'SYSTEM',
+] as const
+export type AuditCategory = (typeof AUDIT_CATEGORIES)[number]
+
+export const AUDIT_SEVERITIES = ['INFO', 'NOTICE', 'WARNING', 'CRITICAL'] as const
+export type AuditSeverity = (typeof AUDIT_SEVERITIES)[number]
+
+export const AUDIT_OUTCOMES = ['SUCCESS', 'FAILURE', 'DENIED'] as const
+export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number]
+
+export const ACTOR_TYPES = ['USER', 'SYSTEM', 'API_CLIENT', 'ANONYMOUS'] as const
+export type ActorType = (typeof ACTOR_TYPES)[number]
+
 /** Smallest bookable increment, and the slot-reservation grid size (section 8.7). */
 export const SLOT_GRID_MINUTES = 5
 

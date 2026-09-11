@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
@@ -21,6 +22,17 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': ['warn', { prefer: 'type-imports' }],
       eqeqeq: ['error', 'smart'],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+
+  {
+    // A hook called conditionally is a bug React only reports at runtime, and only on the
+    // render path that skips it.
+    files: ['apps/web/src/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 
