@@ -12,6 +12,7 @@ import {
   nullableCountry,
   nullableEmail,
   nullableText,
+  overlappingDayRanges,
   requiredText,
 } from './common'
 import { PaginationQuery } from './envelope'
@@ -63,21 +64,13 @@ export const WorkingHoursInput = z
 export function overlappingHours(
   entries: ReadonlyArray<{ dayOfWeek: number; opensAt: string; closesAt: string }>,
 ): number[] {
-  const overlapping = new Set<number>()
-  entries.forEach((a, i) => {
-    entries.forEach((b, j) => {
-      if (
-        i < j &&
-        a.dayOfWeek === b.dayOfWeek &&
-        a.opensAt < b.closesAt &&
-        b.opensAt < a.closesAt
-      ) {
-        overlapping.add(i)
-        overlapping.add(j)
-      }
-    })
-  })
-  return [...overlapping].sort((x, y) => x - y)
+  return overlappingDayRanges(
+    entries.map((entry) => ({
+      dayOfWeek: entry.dayOfWeek,
+      from: entry.opensAt,
+      to: entry.closesAt,
+    })),
+  )
 }
 
 export const SetWorkingHoursRequest = z

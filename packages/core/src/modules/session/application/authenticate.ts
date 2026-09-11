@@ -9,7 +9,7 @@ import {
   isSessionActive,
   verifyAccessToken,
 } from '../../identity'
-import { buildActor, issueAccessToken } from './session-user'
+import { buildActor, issueAccessToken, resolveProfileIds } from './session-user'
 import type { IssuedAccessToken } from './types'
 
 export interface Authentication {
@@ -54,7 +54,7 @@ export async function authenticateAccessToken(
   if (claims.pv !== clinic.permissionVersion) {
     const access = await resolveAccess(user.clinicId, user.roleIds)
     return {
-      actor: buildActor(user, access, claims.sid),
+      actor: buildActor(user, access, claims.sid, await resolveProfileIds(user, access)),
       reissued: await issueAccessToken(user, access, clinic, claims.sid, now),
     }
   }
@@ -70,6 +70,9 @@ export async function authenticateAccessToken(
       portals: claims.prt,
       preferredPortal: claims.pp,
       sessionId: claims.sid,
+      // The profile ids an ASSIGNED or OWN grant resolves against (ADR-0004).
+      ...(claims.did ? { doctorId: claims.did } : {}),
+      ...(claims.pid ? { patientId: claims.pid } : {}),
     },
     reissued: null,
   }

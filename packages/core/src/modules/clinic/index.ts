@@ -3,6 +3,12 @@ export { getClinicProfile } from './application/get-clinic-profile'
 export { getClinicSessionInfo } from './application/get-clinic-session-info'
 export { getClinicFacts } from './application/get-clinic-facts'
 export {
+  getSchedulingFacts,
+  findBookingWindow,
+  saveBookingWindow,
+  type SchedulingFacts,
+} from './application/get-scheduling-facts'
+export {
   getClinicSettings,
   updateClinicProfile,
   createBranch,

@@ -11,6 +11,8 @@ const MODEL_CATEGORY: Readonly<Record<string, AuditCategory>> = {
   // A patient record is personal health information: 7-year retention, clinical category.
   Patient: 'CLINICAL',
   Doctor: 'ADMIN',
+  // An appointment names a patient and a reason: clinical, 7-year retention.
+  Appointment: 'CLINICAL',
   Specialty: 'ADMIN',
 }
 

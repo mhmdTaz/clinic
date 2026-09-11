@@ -3,7 +3,9 @@ import type { SessionUser } from '@clinic/contracts'
 import { UnauthenticatedError } from '../../../errors'
 import { encodePermissions, landingPath, type Actor, type ResolvedAccess } from '../../access'
 import type { ClinicSessionInfo } from '../../clinic'
+import { findDoctorIdForUser } from '../../doctors'
 import { AUTH_POLICY, displayNameOf, signAccessToken, type AuthUser } from '../../identity'
+import { findPatientIdForUser } from '../../patients'
 import type { IssuedAccessToken } from './types'
 
 /** A saved portal preference only counts while the user can still enter that portal. */
@@ -34,7 +36,12 @@ export function buildSessionUser(
   }
 }
 
-export function buildActor(user: AuthUser, access: ResolvedAccess, sessionId: string): Actor {
+export function buildActor(
+  user: AuthUser,
+  access: ResolvedAccess,
+  sessionId: string,
+  profiles: { doctorId?: string; patientId?: string } = {},
+): Actor {
   return {
     kind: 'USER',
     userId: user.id,
@@ -45,16 +52,34 @@ export function buildActor(user: AuthUser, access: ResolvedAccess, sessionId: st
     portals: access.portals,
     preferredPortal: effectivePreferredPortal(user, access),
     sessionId,
+    ...(profiles.doctorId ? { doctorId: profiles.doctorId } : {}),
+    ...(profiles.patientId ? { patientId: profiles.patientId } : {}),
   }
 }
 
-export function issueAccessToken(
+/**
+ * The profile ids an ASSIGNED or OWN grant resolves against (ADR-0004). Looked up only for the
+ * portals the user can actually enter, so staff and administrators pay nothing for them.
+ */
+export async function resolveProfileIds(
+  user: AuthUser,
+  access: ResolvedAccess,
+): Promise<{ doctorId?: string; patientId?: string }> {
+  const [doctorId, patientId] = await Promise.all([
+    access.portals.includes('doctor') ? findDoctorIdForUser(user.clinicId, user.id) : null,
+    access.portals.includes('patient') ? findPatientIdForUser(user.clinicId, user.id) : null,
+  ])
+  return { ...(doctorId ? { doctorId } : {}), ...(patientId ? { patientId } : {}) }
+}
+
+export async function issueAccessToken(
   user: AuthUser,
   access: ResolvedAccess,
   clinic: ClinicSessionInfo,
   sessionId: string,
   now: Date = new Date(),
 ): Promise<IssuedAccessToken> {
+  const profiles = await resolveProfileIds(user, access)
   return signAccessToken(
     {
       sub: user.id,
@@ -67,6 +92,8 @@ export function issueAccessToken(
       prm: encodePermissions(access.permissions),
       prt: access.portals,
       pp: effectivePreferredPortal(user, access),
+      ...(profiles.doctorId ? { did: profiles.doctorId } : {}),
+      ...(profiles.patientId ? { pid: profiles.patientId } : {}),
     },
     env().AUTH_SECRET,
     AUTH_POLICY.accessTokenTtlSeconds,

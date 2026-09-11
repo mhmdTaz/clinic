@@ -43,6 +43,28 @@ export const SLOT_GRID_MINUTES = 5
 export const SLOT_MINUTE_OPTIONS = [10, 15, 20, 30, 45, 60] as const
 export type SlotMinutes = (typeof SLOT_MINUTE_OPTIONS)[number]
 
+/** Appointment lifecycle (section 8.7). COMPLETED, CANCELLED and NO_SHOW are terminal. */
+export const APPOINTMENT_STATUSES = [
+  'SCHEDULED',
+  'CHECKED_IN',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+] as const
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number]
+
+/** Who booked. Self-service is held to the clinic's window; the front desk is not (ADR-0022). */
+export const APPOINTMENT_SOURCES = ['STAFF', 'PATIENT'] as const
+export type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number]
+
+/** Self-service booking limits, overridable per clinic (ADR-0022). */
+export const BOOKING_WINDOW_DEFAULTS = {
+  horizonDays: 60,
+  minimumNoticeHours: 2,
+  cancellationCutoffHours: 24,
+} as const
+
 /** Patient demographics (section 8.6): closed sets, so an enum in both layers. */
 export const GENDERS = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'] as const
 export type Gender = (typeof GENDERS)[number]

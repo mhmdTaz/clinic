@@ -14,6 +14,9 @@ export interface StoredDoctor {
   defaultSlotMinutes: number
   specialties: Array<{ id: string; name: string }>
   branchIds: string[]
+  /** The doctor's week and the days away, local to the clinic (section 8.7). */
+  availability: Array<{ dayOfWeek: number; startsAt: string; endsAt: string }>
+  timeOff: Array<{ id: string; startDate: string; endDate: string; reason: string | null }>
   isAcceptingNew: boolean
   isActive: boolean
   createdAt: Date | null
@@ -43,6 +46,8 @@ interface DoctorRecord {
   defaultSlotMinutes?: number | null
   specialties?: Array<{ id: string; name: string }> | null
   branchIds?: string[] | null
+  availability?: Array<{ dayOfWeek: number; startsAt: string; endsAt: string }> | null
+  timeOff?: Array<{ id: string; startDate: string; endDate: string; reason?: string | null }> | null
   isAcceptingNew?: boolean | null
   isActive?: boolean | null
   createdAt?: Date | null
@@ -62,6 +67,17 @@ function toDoctor(doc: DoctorRecord): StoredDoctor {
     defaultSlotMinutes: doc.defaultSlotMinutes ?? 30,
     specialties: (doc.specialties ?? []).map(({ id, name }) => ({ id, name })),
     branchIds: doc.branchIds ?? [],
+    availability: (doc.availability ?? []).map(({ dayOfWeek, startsAt, endsAt }) => ({
+      dayOfWeek,
+      startsAt,
+      endsAt,
+    })),
+    timeOff: (doc.timeOff ?? []).map((entry) => ({
+      id: entry.id,
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+      reason: entry.reason ?? null,
+    })),
     isAcceptingNew: doc.isAcceptingNew ?? true,
     isActive: doc.isActive ?? true,
     createdAt: doc.createdAt ?? null,
@@ -99,6 +115,11 @@ export const doctorRepository = {
 
   async findById(clinicId: string, doctorId: string): Promise<StoredDoctor | null> {
     const doc = await DoctorModel().findOne({ clinicId, _id: doctorId }).lean()
+    return doc ? toDoctor(doc as unknown as DoctorRecord) : null
+  },
+
+  async findByUserId(clinicId: string, userId: string): Promise<StoredDoctor | null> {
+    const doc = await DoctorModel().findOne({ clinicId, userId }).lean()
     return doc ? toDoctor(doc as unknown as DoctorRecord) : null
   },
 
@@ -163,6 +184,72 @@ export const doctorRepository = {
       { arrayFilters: [{ 'entry.id': specialtyId }] },
     )
     return result.modifiedCount
+  },
+
+  /** The week itself. Replaced whole: a schedule is edited as one thing, not block by block. */
+  async setSchedule(
+    clinicId: string,
+    doctorId: string,
+    input: {
+      defaultSlotMinutes: number
+      availability: ReadonlyArray<{ dayOfWeek: number; startsAt: string; endsAt: string }>
+    },
+    updatedBy: PersonRef,
+  ): Promise<StoredDoctor | null> {
+    const doc = await DoctorModel()
+      .findOneAndUpdate(
+        { clinicId, _id: doctorId },
+        {
+          $set: {
+            defaultSlotMinutes: input.defaultSlotMinutes,
+            availability: input.availability.map(({ dayOfWeek, startsAt, endsAt }) => ({
+              dayOfWeek,
+              startsAt,
+              endsAt,
+            })),
+            updatedBy,
+          },
+        },
+        { new: true },
+      )
+      .lean()
+    return doc ? toDoctor(doc as unknown as DoctorRecord) : null
+  },
+
+  async addTimeOff(
+    clinicId: string,
+    doctorId: string,
+    entry: { startDate: string; endDate: string; reason: string | null },
+    updatedBy: PersonRef,
+  ): Promise<{ doctor: StoredDoctor; timeOffId: string } | null> {
+    const timeOffId = newId()
+    const doc = await DoctorModel()
+      .findOneAndUpdate(
+        { clinicId, _id: doctorId },
+        {
+          $push: { timeOff: { id: timeOffId, ...entry } },
+          $set: { updatedBy },
+        },
+        { new: true },
+      )
+      .lean()
+    return doc ? { doctor: toDoctor(doc as unknown as DoctorRecord), timeOffId } : null
+  },
+
+  async removeTimeOff(
+    clinicId: string,
+    doctorId: string,
+    timeOffId: string,
+    updatedBy: PersonRef,
+  ): Promise<StoredDoctor | null> {
+    const doc = await DoctorModel()
+      .findOneAndUpdate(
+        { clinicId, _id: doctorId },
+        { $pull: { timeOff: { id: timeOffId } }, $set: { updatedBy } },
+        { new: true },
+      )
+      .lean()
+    return doc ? toDoctor(doc as unknown as DoctorRecord) : null
   },
 
   async countBySpecialty(clinicId: string): Promise<Map<string, number>> {

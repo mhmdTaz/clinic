@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { connect, disconnect, newId, withTransaction } from '../index'
 import {
+  AppointmentModel,
   AuditLogModel,
   ClinicModel,
   DoctorModel,
@@ -9,6 +10,7 @@ import {
   PatientModel,
   RefreshTokenModel,
   RoleModel,
+  SlotReservationModel,
   SpecialtyModel,
   UserModel,
 } from '../models/index'
@@ -191,6 +193,8 @@ describe('schema and migrations agree', () => {
       PatientModel(),
       DoctorModel(),
       SpecialtyModel(),
+      AppointmentModel(),
+      SlotReservationModel(),
     ]
 
     for (const model of models) {
