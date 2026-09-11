@@ -4,6 +4,7 @@ import { idField } from '../id'
 import { getConnection } from '../connection'
 import { tenantGuard } from '../plugins/tenant-guard'
 import { softDelete } from '../plugins/soft-delete'
+import { auditCapture } from '../plugins/audit-capture'
 
 export const UserSchema = new Schema(
   {
@@ -33,7 +34,14 @@ export const UserSchema = new Schema(
     lastLoginAt: Date,
     security: {
       failedLoginCount: { type: Number, default: 0 },
+      lastFailedLoginAt: Date,
       lockedUntil: Date,
+      /**
+       * Bumped on a password change, a reset, and "sign out everywhere". Every access
+       * token carries the value it was issued with, so one bump ends them all.
+       */
+      tokenVersion: { type: Number, default: 0 },
+      passwordChangedAt: Date,
       mfaSecretEncrypted: String, // CSFLE in production (section 16.1)
       mfaEnabledAt: Date,
       mustChangePassword: { type: Boolean, default: false },
@@ -45,6 +53,18 @@ export const UserSchema = new Schema(
 
 UserSchema.plugin(tenantGuard)
 UserSchema.plugin(softDelete)
+UserSchema.plugin(auditCapture, {
+  model: 'User',
+  // The change is recorded; the value never is.
+  sensitivePaths: ['passwordHash', 'security.mfaSecretEncrypted'],
+  // Churn on every sign-in attempt. The explicit auth.* events already say what happened.
+  ignoredPaths: [
+    'lastLoginAt',
+    'security.failedLoginCount',
+    'security.lastFailedLoginAt',
+    'security.lockedUntil',
+  ],
+})
 
 /**
  * Case-insensitive uniqueness, scoped per clinic, ignoring soft-deleted users.

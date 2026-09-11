@@ -1,5 +1,5 @@
 import mongoose, { type Connection } from 'mongoose'
-import { env } from '@clinic/config'
+import { env, processSingleton } from '@clinic/config'
 
 /**
  * Two connections, deliberately (section 11.5):
@@ -15,14 +15,22 @@ import { env } from '@clinic/config'
  */
 type ConnectionCache = { main?: Connection; audit?: Connection }
 
-const globalCache = globalThis as typeof globalThis & { __clinicDb?: ConnectionCache }
-const cache: ConnectionCache = (globalCache.__clinicDb ??= {})
+// One pool per process, not one per bundle copy.
+const cache = processSingleton<ConnectionCache>('db:connections', () => ({}))
 
 const CONNECT_OPTIONS = {
   serverSelectionTimeoutMS: 8_000,
   maxPoolSize: 20,
   minPoolSize: 2,
   retryWrites: true,
+  /**
+   * Migrations own collections and indexes. Left on, Mongoose builds indexes in the
+   * background when a model compiles and reports conflicts as events nobody listens
+   * to — so an index could silently differ from what the migration declared. A test
+   * asserts the schema declarations and the migrated database agree instead.
+   */
+  autoIndex: false,
+  autoCreate: false,
 } as const
 
 export function getConnection(): Connection {

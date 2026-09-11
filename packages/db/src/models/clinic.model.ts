@@ -1,6 +1,7 @@
 import { Schema, type Model, type InferSchemaType } from 'mongoose'
 import { idField } from '../id'
 import { getConnection } from '../connection'
+import { auditCapture } from '../plugins/audit-capture'
 
 const WorkingHourSchema = new Schema(
   {
@@ -51,7 +52,9 @@ export const ClinicSchema = new Schema(
   { timestamps: true, collection: 'clinics' },
 )
 
-// The clinic IS the tenant, so tenantGuard does not apply to it.
+// The clinic IS the tenant, so tenantGuard does not apply and the audit entry's
+// clinic id is the document's own _id.
+ClinicSchema.plugin(auditCapture, { model: 'Clinic', tenantField: '_id' })
 ClinicSchema.index({ isActive: 1 })
 
 export type ClinicDoc = InferSchemaType<typeof ClinicSchema> & { _id: string }

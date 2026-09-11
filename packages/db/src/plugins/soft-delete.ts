@@ -8,12 +8,15 @@ import type { MongooseQueryMiddleware, Query, Schema } from 'mongoose'
  * Note the interaction with unique indexes: any unique index on a soft-deletable
  * model needs partialFilterExpression: { deletedAt: null }, or a deactivated user
  * reserves their email address forever.
+ *
+ * The plugin declares no index of its own. Indexes are owned by migrations
+ * (autoIndex is off), and every query already leads with clinicId, so a standalone
+ * { deletedAt: 1 } index would cost writes and serve nothing.
  */
 const READ_HOOKS: MongooseQueryMiddleware[] = ['find', 'findOne', 'countDocuments', 'distinct']
 
 export function softDelete(schema: Schema): void {
   schema.add({ deletedAt: { type: Date, default: null } })
-  schema.index({ deletedAt: 1 })
 
   schema.pre<Query<unknown, unknown>>(READ_HOOKS, { document: false, query: true }, function () {
     const options = this.getOptions() as { withDeleted?: boolean }

@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "appName": "Clinic"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save changes",
+    "signOut": "Sign out",
+    "backToSignIn": "Back to sign in",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "retry": "Try again"
+  },
+  "portals": {
+    "admin": "Admin",
+    "staff": "Staff",
+    "doctor": "Doctor",
+    "patient": "Patient"
+  },
+  "nav": {
+    "sections": {
+      "administration": "Administration",
+      "frontDesk": "Front desk",
+      "practice": "Practice",
+      "myCare": "My care",
+      "account": "Account"
+    },
+    "items": {
+      "clinicOverview": "Clinic overview",
+      "overview": "Overview",
+      "account": "Profile & security"
+    }
+  },
+  "shell": {
+    "skipToContent": "Skip to content",
+    "primaryNavigation": "Primary navigation",
+    "breadcrumb": "Breadcrumb",
+    "switchPortal": "Switch portal",
+    "userMenu": "Account menu",
+    "account": "Profile & security"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Use the email address the clinic has on file.",
+      "email": "Email",
+      "password": "Password",
+      "forgot": "Forgot password?",
+      "submit": "Sign in",
+      "notices": {
+        "ended": "Your session has ended. Please sign in again.",
+        "reset": "Your password has been changed. Sign in with the new one."
+      }
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "Enter your email and we will send you a link to choose a new password.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "sent": "If an account exists for that address, a reset link is on its way. It expires in 30 minutes."
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "subtitle": "The link works once. Other devices will be signed out.",
+      "password": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Set new password",
+      "missingLink": "This link is incomplete. Open it again from the email, or request a new one.",
+      "requestNew": "Request a new link"
+    },
+    "invite": {
+      "title": "Activate your account",
+      "checking": "Checking your activation link…",
+      "greeting": "Welcome, {firstName}. Choose a password for your {clinicName} account.",
+      "account": "Account",
+      "password": "Password",
+      "confirm": "Confirm password",
+      "submit": "Activate and sign in",
+      "invalid": "This activation link is invalid or has expired. Ask the clinic to send you a new one."
+    }
+  },
+  "password": {
+    "requirements": "At least 12 characters. Longer is stronger — a short sentence works well.",
+    "mismatch": "The passwords do not match.",
+    "issues": {
+      "TOO_SHORT": "Use at least 12 characters.",
+      "TOO_LONG": "Use 128 characters or fewer.",
+      "TOO_COMMON": "This password is too common. Choose something less predictable.",
+      "TOO_REPETITIVE": "Use a greater variety of characters.",
+      "CONTAINS_PERSONAL_INFO": "Do not include your name or email address.",
+      "SAME_AS_CURRENT": "Choose a password different from your current one.",
+      "INCORRECT": "The current password is incorrect."
+    }
+  },
+  "errors": {
+    "INVALID_CREDENTIALS": "The email or password is incorrect.",
+    "TOO_MANY_ATTEMPTS": "Too many attempts. Please try again in {minutes, plural, one {# minute} other {# minutes}}.",
+    "TOO_MANY_ATTEMPTS_SOON": "Too many attempts. Please wait a moment and try again.",
+    "ACCOUNT_DISABLED": "This account has been disabled. Please contact the clinic.",
+    "INVALID_OR_EXPIRED_LINK": "This link is invalid or has expired. Request a new one.",
+    "PASSWORD_POLICY": "The password does not meet the requirements.",
+    "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect.",
+    "VALIDATION_FAILED": "Some fields need attention.",
+    "UNAUTHENTICATED": "Please sign in to continue.",
+    "TOKEN_EXPIRED": "Your session has expired. Please sign in again.",
+    "FORBIDDEN": "You do not have permission to do that.",
+    "NOT_FOUND": "That could not be found.",
+    "CSRF_REJECTED": "This request was blocked for your security. Reload the page and try again.",
+    "PAYLOAD_TOO_LARGE": "That request is too large.",
+    "PORTAL_NOT_AVAILABLE": "You do not have access to that portal.",
+    "NETWORK_ERROR": "Could not reach the server. Check your connection and try again.",
+    "INTERNAL_ERROR": "Something went wrong on our side. Please try again.",
+    "generic": "Something went wrong. Please try again."
+  },
+  "greeting": {
+    "morning": "Good morning, {name}",
+    "afternoon": "Good afternoon, {name}",
+    "evening": "Good evening, {name}"
+  },
+  "clinic": {
+    "hoursTitle": "Opening hours",
+    "hoursNote": "Times are local to the clinic ({timezone}).",
+    "closed": "Closed",
+    "noHours": "Opening hours have not been published yet.",
+    "contactTitle": "Contact the clinic",
+    "phone": "Phone",
+    "email": "Email",
+    "address": "Address",
+    "notProvided": "Not provided"
+  },
+  "admin": {
+    "overview": {
+      "title": "Clinic overview",
+      "subtitle": "The installation at a glance.",
+      "clinicTitle": "Clinic",
+      "name": "Name",
+      "timezone": "Timezone",
+      "currency": "Currency",
+      "locale": "Language",
+      "branches": "Branches",
+      "peopleTitle": "People and roles",
+      "users": "Users",
+      "roles": "Roles",
+      "healthTitle": "System health",
+      "healthOk": "All systems operational",
+      "healthDegraded": "Degraded",
+      "up": "Up",
+      "down": "Down",
+      "rolesTitle": "Roles",
+      "rolesSubtitle": "Editing roles and their permissions arrives with user management.",
+      "role": "Role",
+      "members": "Members",
+      "permissions": "Permissions",
+      "system": "System",
+      "custom": "Custom"
+    }
+  },
+  "staff": {
+    "overview": {
+      "subtitle": "Here is how the clinic is set up today."
+    }
+  },
+  "doctor": {
+    "overview": {
+      "subtitle": "Your practice at {clinicName}."
+    }
+  },
+  "patient": {
+    "overview": {
+      "subtitle": "Your care at {clinicName}."
+    }
+  },
+  "account": {
+    "title": "Profile & security",
+    "subtitle": "Your details, your password, and the devices you are signed in on.",
+    "profile": {
+      "title": "Profile",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "emailNote": "Contact the clinic to change your email address.",
+      "phone": "Phone",
+      "preferredPortal": "Open this portal when I sign in",
+      "readOnly": "Your role does not allow editing these details.",
+      "saved": "Your profile has been updated."
+    },
+    "password": {
+      "title": "Password",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Change password",
+      "changed": "Your password has been changed. Your other devices have been signed out."
+    },
+    "sessions": {
+      "title": "Where you are signed in",
+      "subtitle": "Sign out any device you do not recognise.",
+      "current": "This device",
+      "device": "{browser} on {os}",
+      "unknownDevice": "Unknown device",
+      "started": "Signed in {date}",
+      "lastActive": "Last active {date}",
+      "ipUnknown": "IP address not recorded",
+      "revoke": "Sign out",
+      "revokeAll": "Sign out everywhere",
+      "revokeAllNote": "Signs out every device, including this one."
+    },
+    "access": {
+      "title": "Your access",
+      "subtitle": "What your roles allow. Areas appear in the menu as they become available.",
+      "roles": "Roles",
+      "permissionCount": "{count, plural, one {# permission} other {# permissions}}"
+    }
+  },
+  "permissionGroups": {
+    "portals": "Portals",
+    "clinic": "Clinic",
+    "users": "Users",
+    "roles": "Roles",
+    "audit": "Audit log",
+    "patients": "Patients",
+    "doctors": "Doctors",
+    "scheduling": "Scheduling",
+    "clinical": "Clinical records",
+    "files": "Files",
+    "billing": "Billing",
+    "inventory": "Inventory",
+    "support": "Support",
+    "reports": "Reports"
+  },
+  "noAccess": {
+    "title": "No portal assigned yet",
+    "body": "You are signed in, but your account does not have a portal. Ask the clinic administrator to assign you a role."
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "body": "An unexpected error occurred. Try again, and if it keeps happening, contact the clinic.",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The page you are looking for does not exist or has moved.",
+    "home": "Go to my home page"
+  }
+}

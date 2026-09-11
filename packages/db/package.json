@@ -17,7 +17,6 @@
     "migrate:up": "migrate-mongo up -f migrate-mongo-config.cjs",
     "migrate:down": "migrate-mongo down -f migrate-mongo-config.cjs",
     "migrate:status": "migrate-mongo status -f migrate-mongo-config.cjs",
-    "seed": "tsx scripts/seed.ts",
     "verify:replica-set": "tsx scripts/verify-replica-set.ts"
   },
   "dependencies": {

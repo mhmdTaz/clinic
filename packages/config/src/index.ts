@@ -1,4 +1,5 @@
 export { env, resetEnvCache, type Env } from './env'
+export { processSingleton } from './process-singleton'
 export {
   FEATURE_FLAGS,
   resolveFeatureFlags,
@@ -9,6 +10,10 @@ export {
   PORTAL_KEYS,
   PERMISSION_SCOPES,
   USER_STATUSES,
+  AUDIT_CATEGORIES,
+  AUDIT_SEVERITIES,
+  AUDIT_OUTCOMES,
+  ACTOR_TYPES,
   SLOT_GRID_MINUTES,
   MAX_PAGE_SIZE,
   DEFAULT_PAGE_SIZE,
@@ -16,4 +21,8 @@ export {
   type PortalKey,
   type PermissionScope,
   type UserStatus,
+  type AuditCategory,
+  type AuditSeverity,
+  type AuditOutcome,
+  type ActorType,
 } from './constants'

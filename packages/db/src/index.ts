@@ -12,5 +12,16 @@ export { newId, isValidId, idField } from './id'
 export { nextSequence, nextFormatted } from './counters'
 export { tenantGuard, filterHasTenant } from './plugins/tenant-guard'
 export { softDelete } from './plugins/soft-delete'
+export {
+  auditCapture,
+  setAuditSink,
+  hasAuditSink,
+  AuditSinkNotConfiguredError,
+  type AuditCaptureEvent,
+  type AuditCaptureOptions,
+  type AuditOperation,
+  type AuditSink,
+} from './plugins/audit-capture'
+export { diffDocuments, REDACTED, type PlainObject, type DocumentDiff } from './plugins/audit-diff'
 export { MissingTenantFilterError, MissingTenantFieldError } from './errors'
 export * from './models'

@@ -7,21 +7,38 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./edge": "./src/edge.ts",
+    "./access": "./src/modules/access/index.ts",
+    "./audit": "./src/modules/audit/index.ts",
+    "./clinic": "./src/modules/clinic/index.ts",
     "./health": "./src/modules/health/index.ts",
-    "./clinic": "./src/modules/clinic/index.ts"
+    "./identity": "./src/modules/identity/index.ts",
+    "./session": "./src/modules/session/index.ts"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@clinic/config": "workspace:*",
     "@clinic/contracts": "workspace:*",
     "@clinic/db": "workspace:*",
-    "@clinic/events": "workspace:*"
+    "@clinic/events": "workspace:*",
+    "@node-rs/argon2": "^2.2.1",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
+    "nodemailer": "^10.0.3",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.1",
+    "dotenv": "^16.4.7",
+    "migrate-mongo": "^11.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

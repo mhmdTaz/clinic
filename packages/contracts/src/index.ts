@@ -1,3 +1,5 @@
 export * from './envelope'
 export * from './health'
 export * from './clinic'
+export * from './auth'
+export * from './me'

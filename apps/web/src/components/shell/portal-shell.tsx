@@ -1,0 +1,72 @@
+import type { ReactNode } from 'react'
+import { getTranslations } from 'next-intl/server'
+import type { PortalKey } from '@clinic/config'
+import { PORTALS, type Actor } from '@clinic/core/access'
+import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { getMyNavigation } from '@clinic/core/session'
+import { BottomNav } from './bottom-nav'
+import { Sidebar } from './sidebar'
+import { TopBar } from './top-bar'
+
+/**
+ * The frame every portal page sits in. The menu is computed on the server from the
+ * actor's permissions (section 14.2); the client only highlights the active item.
+ */
+export async function PortalShell({
+  actor,
+  portal,
+  children,
+}: {
+  actor: Actor
+  portal: PortalKey
+  children: ReactNode
+}) {
+  const [navigation, clinic, t] = await Promise.all([
+    getMyNavigation(actor, portal),
+    getClinicSessionInfo(actor.clinicId),
+    getTranslations(),
+  ])
+
+  const sections = navigation.sections.map((section) => ({
+    id: section.id,
+    label: t(section.labelKey),
+    items: section.items.map((item) => ({
+      id: item.id,
+      href: item.href,
+      icon: item.icon,
+      label: t(item.labelKey),
+    })),
+  }))
+  const items = sections.flatMap((section) => section.items)
+  const portals = actor.portals.map((key) => ({
+    key,
+    href: PORTALS[key].homePath,
+    label: t(PORTALS[key].labelKey),
+  }))
+  const portalLabel = t(PORTALS[navigation.portal].labelKey)
+
+  return (
+    <div className="bg-background min-h-dvh">
+      <a
+        href="#main"
+        className="focus:bg-card sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:px-4 focus:py-2 focus:shadow"
+      >
+        {t('shell.skipToContent')}
+      </a>
+      <Sidebar sections={sections} portalLabel={portalLabel} clinicName={clinic.name} />
+      <div className="md:ps-20 lg:ps-64">
+        <TopBar
+          portal={navigation.portal}
+          portalLabel={portalLabel}
+          portals={portals}
+          items={items}
+          userName={actor.displayName}
+        />
+        <main id="main" className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 md:pb-12">
+          {children}
+        </main>
+      </div>
+      <BottomNav items={items.slice(0, 4)} />
+    </div>
+  )
+}
