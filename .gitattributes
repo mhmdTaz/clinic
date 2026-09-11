@@ -1,0 +1,15 @@
+# Development happens on Windows; Docker entrypoints and CI run on Linux. CRLF in a
+# shell script or a YAML entrypoint fails there in ways that are painful to diagnose,
+# so line endings are normalised to LF in the repository regardless of platform.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+pnpm-lock.yaml linguist-generated=true -diff

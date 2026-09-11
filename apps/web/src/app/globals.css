@@ -1,0 +1,5 @@
+@import '@clinic/ui/styles/tokens.css';
+
+/* Workspace packages are scanned so their Tailwind classes are not tree-shaken away. */
+@source '../../../../packages/ui/src';
+@source '../';

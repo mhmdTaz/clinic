@@ -402,12 +402,25 @@ Modules may only depend **downward**. Anything else is an event.
 
 Three mechanisms, from cheapest to strongest:
 
-1. **`eslint-plugin-boundaries`** — declares element types (`module-public`, `module-internal`,
-   `app`) and the legal edges between them. A cross-module deep import fails `pnpm lint`.
-2. **`dependency-cruiser`** in CI — validates the graph in 5.2, forbids cycles, and forbids
-   `next/*` or `react` appearing anywhere under `packages/core`.
+1. **`@typescript-eslint/no-restricted-imports` zones** — fast in-editor feedback on the
+   package-level rules: apps may not import `@clinic/db` or a driver, `packages/core` may not
+   import a framework, contracts and UI stay free of both. Each zone carries its rationale in
+   the error message.
+2. **`dependency-cruiser`** in CI — the authoritative gate. Validates the graph in 5.2, forbids
+   cycles, forbids `next/*` or `react` anywhere under `packages/core`, forbids deep cross-module
+   imports, and fails on any import it cannot resolve (which is how a boundary gets crossed by
+   accident: an import of a package the manifest does not declare).
 3. **Package manifests** — `packages/core/package.json` does not list `next` or `react` as
    dependencies at all, so those imports cannot resolve even if lint is bypassed.
+
+> `eslint-plugin-boundaries` was specified here originally and removed during Phase 0. Tested
+> with a real violation, it did not fail: it matches element patterns against resolved file
+> paths and cannot map a workspace specifier like `@clinic/db` onto `packages/db` without an
+> import resolver, so every cross-package rule was silently passing. A rule that passes when it
+> should fail is worse than no rule. See `docs/adr/0014`.
+>
+> **Every rule above is verified by introducing a deliberate violation and confirming a non-zero
+> exit.** A boundary rule nobody has seen fail is a boundary rule nobody should trust.
 
 ```jsonc
 // .dependency-cruiser.json (excerpt)
@@ -2682,11 +2695,12 @@ sequencing, not as a contract.
 
 Monorepo, tooling, and the walking skeleton.
 
-- pnpm workspaces, Turborepo, TypeScript strict, ESLint + Prettier, `eslint-plugin-boundaries`,
-  dependency-cruiser rules from section 5.3
+- pnpm workspaces, Turborepo, TypeScript strict, ESLint + Prettier, restricted-import zones and
+  the dependency-cruiser rules from section 5.3, each proven against a deliberate violation
 - `docker-compose.yml`: MongoDB **as a single-node replica set** (`--replSet rs0` plus an
-  auto-`rs.initiate()` init container), Redis, MinIO, Mailpit. The replica set is the first thing
-  built, not a later production concern — transactions and change streams do not exist without it
+  auto-`rs.initiate()` init container, on port **27018** so the stack cannot collide with another
+  local MongoDB), Redis, MinIO, Mailpit. The replica set is the first thing built, not a later
+  production concern — transactions and change streams do not exist without it
 - Mongoose connection, `packages/db` skeleton, the tenant-guard and soft-delete plugins
 - `migrate-mongo` wired up; migration 0001 creates the `clinics`, `users` and `roles` collections
   with their indexes and `$jsonSchema` validators; seed script for a demo clinic and four users
@@ -2888,6 +2902,9 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0011 | **MongoDB + Mongoose**, not Prisma's MongoDB connector | **Accepted** | Section 8.1 — driven by the absence of migrations and of the aggregation pipeline in that connector. Revisit if Prisma ships real MongoDB migrations |
 | 0012 | Embed-or-reference rule and the per-entity verdicts | **Accepted** | Section 8.2 — the highest-leverage decision in a document model, so it is a stated rule rather than per-entity taste |
 | 0013 | Slot reservation documents for booking concurrency | **Accepted** | Section 8.7 — MongoDB transactions do not prevent phantom-read double-booking; a unique `_id` does |
+| 0014 | Restricted-import zones instead of `eslint-plugin-boundaries` | **Accepted** | Section 5.3 — the plugin silently enforced nothing across workspace packages |
+| 0015 | Replica set in development and CI, on port 27018 | **Accepted** | `docs/adr/0015` — a standalone fails only transactions and change streams, and fails them late |
+| 0016 | Audit connection separated before auth exists | **Accepted** | `docs/adr/0016` — structural from day one; the privilege separation itself lands with auth in staging |
 | 0004 | `ASSIGNED` scope: strict, chart-wide, or break-the-glass | **OPEN** | Section 7.5 — needed before Phase 4 |
 | 0005 | Single-clinic v1 or multi-tenant SaaS from the start | **OPEN** | The model supports both; affects onboarding, billing, and how early the shard key and zone sharding matter. MongoDB has no RLS, so the tenant guard (section 8.15) is the isolation control either way |
 | 0006 | Patient self-registration, or invite-only by staff | **OPEN** | Affects identity verification and the `isDefault` role |

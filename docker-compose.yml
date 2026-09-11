@@ -1,0 +1,124 @@
+# Local development stack. `pnpm infra:up` brings this up and waits for health.
+#
+# MongoDB runs as a SINGLE-NODE REPLICA SET, not a standalone. Transactions
+# (section 8.10) and change streams (section 13.4) do not exist without one, and a
+# standalone fails those paths late rather than loudly. See docs/adr/0015.
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: clinic-mongo
+    # Port 27018, not the default 27017, so this stack never collides with another
+    # MongoDB already running on the machine. The container listens on the SAME port
+    # it is published on, because the replica set advertises its own address: a
+    # host:container port mismatch would make the driver discover a member address
+    # that points somewhere else entirely.
+    command: ['--replSet', 'rs0', '--bind_ip_all', '--port', '27018']
+    ports:
+      - '27018:27018'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Deliberately asserts rs.status(), not a plain ping: the container is only
+      # "healthy" once mongo-init has actually initiated the replica set.
+      test:
+        [
+          'CMD',
+          'mongosh',
+          '--port',
+          '27018',
+          '--quiet',
+          '--eval',
+          'rs.status().ok === 1 || quit(1)',
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  mongo-init:
+    image: mongo:7.0
+    container_name: clinic-mongo-init
+    depends_on:
+      mongo:
+        condition: service_started
+    restart: 'no'
+    entrypoint:
+      - bash
+      - -c
+      - |
+        until mongosh --host mongo:27018 --quiet --eval 'db.adminCommand({ ping: 1 })' >/dev/null 2>&1; do
+          echo "waiting for mongod..."; sleep 1;
+        done
+        mongosh --host mongo:27018 --quiet --eval '
+          try {
+            rs.status();
+            print("replica set already initiated");
+          } catch (e) {
+            rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27018" }] });
+            print("replica set rs0 initiated");
+          }
+        '
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: clinic-redis
+    ports:
+      - '6379:6379'
+    command: ['redis-server', '--save', '60', '1', '--loglevel', 'warning']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: clinic-minio
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: clinic
+      MINIO_ROOT_PASSWORD: clinic-dev-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    container_name: clinic-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint:
+      - sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 clinic clinic-dev-secret &&
+        mc mb --ignore-existing local/clinic-dev &&
+        mc anonymous set none local/clinic-dev &&
+        echo "bucket clinic-dev ready (private)"
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: clinic-mailpit
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  mongo-data:
+  redis-data:
+  minio-data:
