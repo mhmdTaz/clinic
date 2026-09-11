@@ -1,11 +1,14 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ClinicProfile } from '@clinic/contracts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@clinic/ui'
+import { formatCalendarDate } from '@/lib/format/dates'
 import { WEEK_ORDER, weekdayName } from '@/lib/format/weekdays'
 
 export async function ClinicHoursCard({ clinic }: { clinic: ClinicProfile }) {
   const [t, locale] = await Promise.all([getTranslations('clinic'), getLocale()])
   const branches = clinic.branches.filter((branch) => branch.isActive)
+  const branchName = (id: string | null) =>
+    id ? (clinic.branches.find((branch) => branch.id === id)?.name ?? '') : t('closureEverywhere')
 
   return (
     <Card>
@@ -44,6 +47,33 @@ export async function ClinicHoursCard({ clinic }: { clinic: ClinicProfile }) {
             </div>
           ))
         )}
+
+        {clinic.upcomingHolidays.length > 0 ? (
+          <div>
+            <p className="mb-1 text-sm font-medium">{t('closuresTitle')}</p>
+            <ul className="divide-border divide-y text-sm">
+              {clinic.upcomingHolidays.map((holiday) => (
+                <li
+                  key={`${holiday.date}-${holiday.branchId ?? 'all'}`}
+                  className="flex justify-between gap-4 py-2"
+                >
+                  <span>
+                    {holiday.name}
+                    {branches.length > 1 ? (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {branchName(holiday.branchId)}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 tabular-nums">
+                    {formatCalendarDate(holiday.date, locale)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

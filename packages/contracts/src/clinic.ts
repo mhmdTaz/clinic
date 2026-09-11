@@ -23,11 +23,19 @@ export const ClinicOverviewResponse = successResponse(ClinicOverview)
 export const WorkingHours = z.object({
   /** 0 = Sunday */
   dayOfWeek: z.number().int().min(0).max(6),
-  /** "09:00", local to the branch */
+  /** "09:00", local to the clinic */
   opensAt: z.string(),
   closesAt: z.string(),
 })
 export type WorkingHours = z.infer<typeof WorkingHours>
+
+/** A day the clinic — or one branch, when branchId is set — is closed. `date` is "2026-12-25". */
+export const Holiday = z.object({
+  date: z.string(),
+  name: z.string(),
+  branchId: z.string().nullable(),
+})
+export type Holiday = z.infer<typeof Holiday>
 
 /** What every portal may show about the clinic: how to reach it and when it is open. */
 export const ClinicProfile = z.object({
@@ -51,5 +59,7 @@ export const ClinicProfile = z.object({
       workingHours: z.array(WorkingHours),
     }),
   ),
+  /** The next few closures, soonest first, counted from today in the clinic's timezone. */
+  upcomingHolidays: z.array(Holiday),
 })
 export type ClinicProfile = z.infer<typeof ClinicProfile>

@@ -14,7 +14,10 @@
     "./clinic": "./src/modules/clinic/index.ts",
     "./health": "./src/modules/health/index.ts",
     "./identity": "./src/modules/identity/index.ts",
-    "./session": "./src/modules/session/index.ts"
+    "./session": "./src/modules/session/index.ts",
+    "./users": "./src/modules/users/index.ts",
+    "./patients": "./src/modules/patients/index.ts",
+    "./doctors": "./src/modules/doctors/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

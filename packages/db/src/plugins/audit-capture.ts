@@ -63,6 +63,51 @@ export function hasAuditSink(): boolean {
   return installed.sink !== null
 }
 
+/**
+ * Events captured inside a transaction wait here for the commit (section 11.3), so a write
+ * that rolls back leaves no entry behind. Keyed by the driver session, and process-wide for
+ * the same reason as the sink: the model's hooks and the transaction can belong to different
+ * bundle copies of this file.
+ */
+const deferred = processSingleton(
+  'db:deferred-audit',
+  () => new WeakMap<ClientSession, AuditCaptureEvent[]>(),
+)
+
+/** Starts an empty buffer for one attempt of a transaction. */
+export function deferAuditUntilCommit(session: ClientSession): void {
+  deferred.set(session, [])
+}
+
+/** The transaction committed: its captured events go to the sink, in the order they happened. */
+export function releaseDeferredAudit(session: ClientSession): void {
+  const events = deferred.get(session) ?? []
+  deferred.delete(session)
+  for (const event of events) {
+    // The write hooks refused to run without a sink, so one existed moments ago. If it has
+    // since been removed (a test tearing down), the data is committed and the entry cannot
+    // be refused — say so loudly rather than throw after the fact.
+    if (installed.sink) installed.sink(event)
+    else console.error('[audit] sink removed before a committed transaction released', event)
+  }
+}
+
+/** The transaction failed or is being retried: what it captured never happened. */
+export function discardDeferredAudit(session: ClientSession): void {
+  deferred.delete(session)
+}
+
+/** Inside a transaction an event waits for the commit; outside one it goes straight out. */
+function deliver(event: AuditCaptureEvent, session: ClientSession | null | undefined): void {
+  const pending = session ? deferred.get(session) : undefined
+  if (pending) {
+    pending.push(event)
+    return
+  }
+  if (!installed.sink) throw new AuditSinkNotConfiguredError(event.model)
+  installed.sink(event)
+}
+
 export interface AuditCaptureOptions {
   model: string
   ignoredPaths?: readonly string[]
@@ -158,7 +203,8 @@ export function auditCapture(schema: Schema, options: AuditCaptureOptions): void
   })
 
   schema.post<Document>('save', function () {
-    const emit = requireSink()
+    requireSink()
+    const session = this.$session()
     const wasNew = this.$locals.auditWasNew === true
     const before = wasNew ? null : ((this.$locals.auditOriginal as PlainObject | undefined) ?? null)
     const after = toPlain(this)
@@ -167,16 +213,19 @@ export function auditCapture(schema: Schema, options: AuditCaptureOptions): void
     const diff = diffDocuments(before, after, diffOptions)
     if (!wasNew && diff.changedPaths.length === 0) return
 
-    emit({
-      model: options.model,
-      operation: wasNew ? 'created' : 'updated',
-      entityId: idOf(after),
-      entityIds: [],
-      clinicId: tenantOf(after, tenantField),
-      before: diff.before,
-      after: diff.after,
-      changedPaths: diff.changedPaths,
-    })
+    deliver(
+      {
+        model: options.model,
+        operation: wasNew ? 'created' : 'updated',
+        entityId: idOf(after),
+        entityIds: [],
+        clinicId: tenantOf(after, tenantField),
+        before: diff.before,
+        after: diff.after,
+        changedPaths: diff.changedPaths,
+      },
+      session,
+    )
   })
 
   // ── Writes through a query: the diff needs an explicit pre-image ──────────
@@ -194,8 +243,9 @@ export function auditCapture(schema: Schema, options: AuditCaptureOptions): void
     WRITE_HOOKS,
     { document: false, query: true },
     async function () {
-      if ((this.getOptions() as CaptureQueryOptions).skipAudit) return
-      const emit = requireSink()
+      const queryOptions = this.getOptions() as CaptureQueryOptions
+      if (queryOptions.skipAudit) return
+      requireSink()
 
       const before = preImages.get(this) ?? null
       preImages.delete(this)
@@ -218,16 +268,19 @@ export function auditCapture(schema: Schema, options: AuditCaptureOptions): void
       if (operation === 'updated' && diff.changedPaths.length === 0) return
 
       const subject = after ?? before
-      emit({
-        model: options.model,
-        operation,
-        entityId: idOf(subject),
-        entityIds: [],
-        clinicId: tenantOf(subject, tenantField),
-        before: diff.before,
-        after: diff.after,
-        changedPaths: diff.changedPaths,
-      })
+      deliver(
+        {
+          model: options.model,
+          operation,
+          entityId: idOf(subject),
+          entityIds: [],
+          clinicId: tenantOf(subject, tenantField),
+          before: diff.before,
+          after: diff.after,
+          changedPaths: diff.changedPaths,
+        },
+        queryOptions.session,
+      )
     },
   )
 
@@ -244,7 +297,8 @@ export function auditCapture(schema: Schema, options: AuditCaptureOptions): void
         const ids = documents.map(idOf).filter((id): id is string => id !== null)
         if (ids.length === 0) return
 
-        // The id of what was viewed, never the payload.
+        // The id of what was viewed, never the payload. Not deferred: a read inside a
+        // transaction that later rolls back still showed the record to someone.
         emit({
           model: options.model,
           operation: 'viewed',

@@ -9,3 +9,6 @@ export {
   PasswordResetTokenSchema,
   type PasswordResetTokenDoc,
 } from './password-reset-token.model'
+export { PatientModel, PatientSchema, type PatientDoc } from './patient.model'
+export { DoctorModel, DoctorSchema, type DoctorDoc } from './doctor.model'
+export { SpecialtyModel, SpecialtySchema, type SpecialtyDoc } from './specialty.model'

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import type { z } from 'zod'
 import { env } from '@clinic/config'
+import { issueCode, issuePath } from '@clinic/contracts'
 import {
   UnauthenticatedError,
   ValidationError,
@@ -58,6 +59,8 @@ export interface ApiContext<TActor, TBody, TQuery> {
 export interface ApiResult<T> {
   status?: number
   data: T
+  /** Collection pagination (section 9.2), carried in the envelope's meta beside the request id. */
+  meta?: { nextCursor?: string | null; hasMore?: boolean }
   /** Cookie changes and extra headers, applied to the final response. */
   respond?: (response: NextResponse) => void
 }
@@ -154,7 +157,7 @@ export function withApi(
       })
 
       const response = NextResponse.json(
-        { data: result.data, meta: { requestId } },
+        { data: result.data, meta: { requestId, ...result.meta } },
         { status: result.status ?? 200, headers },
       )
       // Grants changed mid-session: the replacement token goes back in this response (7.7).
@@ -217,16 +220,16 @@ function readQuery<S extends Schema>(request: NextRequest, schema: S): z.output<
 /**
  * Parsing builds a new object holding only declared fields, so an unexpected key — a
  * "$ne" smuggled in to become a query operator, say — never reaches a use case (16.1).
+ *
+ * Each issue is reported as a stable code, the same one the forms compute client-side, so
+ * the message is translated at the edge rather than shipped in English (13.6).
  */
 function parse<S extends Schema>(schema: S, raw: unknown): z.output<S> {
   const parsed = schema.safeParse(raw)
   if (!parsed.success) {
     throw new ValidationError(
       'Some fields are invalid.',
-      parsed.error.issues.map((issue) => ({
-        field: issue.path.join('.') || '(body)',
-        issue: issue.message,
-      })),
+      parsed.error.issues.map((issue) => ({ field: issuePath(issue), issue: issueCode(issue) })),
     )
   }
   return parsed.data

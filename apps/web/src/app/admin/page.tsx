@@ -1,10 +1,19 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { APP_VERSION } from '@clinic/config'
-import { listRoleSummaries } from '@clinic/core/access'
+import { holds, listRoleSummaries } from '@clinic/core/access'
 import { getClinicOverview } from '@clinic/core/clinic'
 import { checkHealth } from '@clinic/core/health'
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@clinic/ui'
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  buttonVariants,
+} from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
 import { requireActor } from '@/lib/auth/server-session'
 
@@ -103,8 +112,20 @@ export default async function AdminOverviewPage() {
 
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle>{t('rolesTitle')}</CardTitle>
-          <CardDescription>{t('rolesSubtitle')}</CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <CardTitle>{t('rolesTitle')}</CardTitle>
+              <CardDescription>{t('rolesSubtitle')}</CardDescription>
+            </div>
+            {holds(actor, 'role:read') ? (
+              <Link
+                href="/admin/roles"
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                {t('manageRoles')}
+              </Link>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           {/* Table from 768px; stacked rows below it (section 14.4). */}

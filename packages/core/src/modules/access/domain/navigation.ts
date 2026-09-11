@@ -1,15 +1,19 @@
 import type { FeatureFlagKey, FeatureFlags, PortalKey } from '@clinic/config'
 import type { PermissionKey } from './permissions.catalog'
-import type { PermissionMap } from './scopes'
+import { scopeAtLeast, type PermissionMap, type Scope } from './scopes'
 
 export const NAV_ICONS = [
   'building',
   'clipboard-list',
+  'contact',
   'heart-pulse',
+  'key-round',
   'layout-dashboard',
+  'settings',
   'shield',
   'shield-check',
   'stethoscope',
+  'users',
 ] as const
 export type NavIcon = (typeof NAV_ICONS)[number]
 
@@ -20,6 +24,12 @@ export interface NavItemDefinition {
   icon: NavIcon
   /** null means any signed-in user. */
   permission: PermissionKey | null
+  /**
+   * The narrowest scope at which the page is any use. A directory of every patient is no use
+   * to someone who may see only their own record, so the item stays hidden rather than lead
+   * to a refusal.
+   */
+  minScope?: Scope
   flag?: FeatureFlagKey
 }
 
@@ -64,6 +74,28 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           icon: 'building',
           permission: 'portal.admin:access',
         },
+        {
+          id: 'admin.clinic',
+          labelKey: 'nav.items.clinicSettings',
+          href: '/admin/clinic',
+          icon: 'settings',
+          permission: 'clinic:update',
+        },
+        {
+          id: 'admin.users',
+          labelKey: 'nav.items.users',
+          href: '/admin/users',
+          icon: 'users',
+          permission: 'user:read',
+          minScope: 'CLINIC',
+        },
+        {
+          id: 'admin.roles',
+          labelKey: 'nav.items.roles',
+          href: '/admin/roles',
+          icon: 'key-round',
+          permission: 'role:read',
+        },
       ],
     },
     accountSection,
@@ -79,6 +111,21 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           href: '/staff',
           icon: 'layout-dashboard',
           permission: 'portal.staff:access',
+        },
+        {
+          id: 'staff.patients',
+          labelKey: 'nav.items.patients',
+          href: '/staff/patients',
+          icon: 'contact',
+          permission: 'patient:read',
+          minScope: 'CLINIC',
+        },
+        {
+          id: 'staff.doctors',
+          labelKey: 'nav.items.doctors',
+          href: '/staff/doctors',
+          icon: 'stethoscope',
+          permission: 'doctor:read',
         },
       ],
     },
@@ -118,6 +165,18 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
   ],
 }
 
+function itemVisible(
+  item: NavItemDefinition,
+  permissions: PermissionMap,
+  flags: FeatureFlags,
+): boolean {
+  if (item.flag !== undefined && !flags[item.flag]) return false
+  if (item.permission === null) return true
+  const scope = permissions.get(item.permission)
+  if (!scope) return false
+  return item.minScope === undefined || scopeAtLeast(scope, item.minScope)
+}
+
 /** Sections left with no visible items disappear entirely, so there are no empty headers. */
 export function visibleNavigation(
   portal: PortalKey,
@@ -127,11 +186,7 @@ export function visibleNavigation(
   return NAVIGATION[portal]
     .map((section) => ({
       ...section,
-      items: section.items.filter(
-        (item) =>
-          (item.permission === null || permissions.has(item.permission)) &&
-          (item.flag === undefined || flags[item.flag]),
-      ),
+      items: section.items.filter((item) => itemVisible(item, permissions, flags)),
     }))
     .filter((section) => section.items.length > 0)
 }

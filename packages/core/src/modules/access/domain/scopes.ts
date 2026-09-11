@@ -14,6 +14,11 @@ export function widerScope(a: Scope, b: Scope): Scope {
   return RANK[a] >= RANK[b] ? a : b
 }
 
+/** True when a grant at `held` reaches at least the rows a grant at `needed` would. */
+export function scopeAtLeast(held: Scope, needed: Scope): boolean {
+  return RANK[held] >= RANK[needed]
+}
+
 export interface GrantInput {
   key: string
   scope?: string | null

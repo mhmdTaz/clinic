@@ -1,5 +1,10 @@
 import mongoose, { type Connection } from 'mongoose'
 import { env, processSingleton } from '@clinic/config'
+import {
+  deferAuditUntilCommit,
+  discardDeferredAudit,
+  releaseDeferredAudit,
+} from './plugins/audit-capture'
 
 /**
  * Two connections, deliberately (section 11.5):
@@ -89,7 +94,14 @@ export async function inspectTopology(): Promise<TopologyInfo> {
   }
 }
 
-/** Runs `fn` inside a transaction. Throws a clear error if the topology cannot support one. */
+/**
+ * Runs `fn` inside a transaction. Throws a clear error if the topology cannot support one.
+ *
+ * Automatically captured audit events wait for the commit, so a write that rolls back leaves
+ * no entry (section 11.3). The driver may run `fn` again after a transient error; each attempt
+ * starts with an empty buffer. Throw to roll back: calling abortTransaction() inside `fn` is
+ * not supported, because the driver then reports success.
+ */
 export async function withTransaction<T>(
   fn: (session: mongoose.ClientSession) => Promise<T>,
 ): Promise<T> {
@@ -98,10 +110,13 @@ export async function withTransaction<T>(
   try {
     let result!: T
     await session.withTransaction(async () => {
+      deferAuditUntilCommit(session)
       result = await fn(session)
     })
+    releaseDeferredAudit(session)
     return result
   } finally {
+    discardDeferredAudit(session)
     await session.endSession()
   }
 }

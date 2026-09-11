@@ -11,8 +11,24 @@ export {
   type IssuedRefreshToken,
 } from './application/sessions'
 export { changePassword, requestPasswordReset, resetPassword } from './application/passwords'
-export { issueInvitation, previewInvitation, redeemInvitation } from './application/invitations'
+export {
+  issueInvitation,
+  tryIssueInvitation,
+  previewInvitation,
+  redeemInvitation,
+} from './application/invitations'
 export { findUser, updateProfile } from './application/users'
+export {
+  createAccount,
+  listAccounts,
+  findAccounts,
+  updateAccountDetails,
+  setAccountStatus,
+  setAccountRoles,
+  forcePasswordReset,
+  latestInvitation,
+} from './application/accounts'
+export type { UserListFilter } from './infrastructure/user.repository'
 export { assertPasswordAllowed } from './application/password-rules'
 export { pingRateLimitStore } from './application/dependencies'
 

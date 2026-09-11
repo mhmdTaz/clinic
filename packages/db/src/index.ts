@@ -12,6 +12,7 @@ export { newId, isValidId, idField } from './id'
 export { nextSequence, nextFormatted } from './counters'
 export { tenantGuard, filterHasTenant } from './plugins/tenant-guard'
 export { softDelete } from './plugins/soft-delete'
+export { searchKeys, type KeyFunction, type SearchKeyOptions } from './plugins/search-keys'
 export {
   auditCapture,
   setAuditSink,

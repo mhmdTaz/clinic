@@ -95,6 +95,24 @@ describe('navigation', () => {
     expect(without.map((section) => section.id)).toEqual(['account'])
   })
 
+  it('hides a directory from someone who may read only their own record in it', () => {
+    const ownOnly = new Map([
+      ['portal.staff:access', 'CLINIC'],
+      ['patient:read', 'OWN'],
+    ]) as PermissionMap
+    const clinicWide = new Map([
+      ['portal.staff:access', 'CLINIC'],
+      ['patient:read', 'CLINIC'],
+    ]) as PermissionMap
+
+    const itemIds = (permissions: PermissionMap) =>
+      visibleNavigation('staff', permissions, FEATURE_FLAGS).flatMap((section) =>
+        section.items.map((item) => item.id),
+      )
+    expect(itemIds(ownOnly)).not.toContain('staff.patients')
+    expect(itemIds(clinicWide)).toContain('staff.patients')
+  })
+
   it('gives every portal the account section', () => {
     for (const portal of PORTAL_KEYS) {
       expect(NAVIGATION[portal].some((section) => section.id === 'account')).toBe(true)

@@ -89,6 +89,36 @@ export async function issueInvitation(
   return { link, expiresAt }
 }
 
+/**
+ * For a caller that has just created the account. A mail server that is down must not turn a
+ * saved registration into an error, so a failure is recorded and answered with `false`; the
+ * screen then offers to resend. Explicit resends call issueInvitation and see the error.
+ */
+export async function tryIssueInvitation(
+  input: Parameters<typeof issueInvitation>[0],
+  now: Date = new Date(),
+): Promise<boolean> {
+  try {
+    await issueInvitation(input, now)
+    return true
+  } catch (error) {
+    console.error('[identity] the activation email could not be sent', {
+      userId: input.userId,
+      error,
+    })
+    await recordAudit({
+      action: 'user.invitation_failed',
+      category: 'ACCESS_CONTROL',
+      severity: 'WARNING',
+      outcome: 'FAILURE',
+      clinicId: input.clinicId,
+      entity: { type: 'User', id: input.userId },
+      metadata: { reason: error instanceof Error ? error.message : 'unknown' },
+    })
+    return false
+  }
+}
+
 async function findRedeemable(
   clinicId: string,
   token: string,

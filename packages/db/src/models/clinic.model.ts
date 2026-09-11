@@ -41,7 +41,16 @@ export const ClinicSchema = new Schema(
     locale: { type: String, default: 'en' },
 
     branches: [BranchSchema],
-    holidays: [{ _id: false, date: Date, name: String, branchId: String }],
+    // `date` is a calendar date, "2026-12-25", in the clinic's timezone — never an instant,
+    // or a holiday would start at the wrong hour everywhere but UTC. branchId null = everywhere.
+    holidays: [
+      {
+        _id: false,
+        date: { type: String, required: true },
+        name: { type: String, required: true },
+        branchId: { type: String, default: null },
+      },
+    ],
 
     settings: { type: Schema.Types.Mixed, default: {} },
     featureFlags: { type: Map, of: Boolean, default: {} },
@@ -54,7 +63,12 @@ export const ClinicSchema = new Schema(
 
 // The clinic IS the tenant, so tenantGuard does not apply and the audit entry's
 // clinic id is the document's own _id.
-ClinicSchema.plugin(auditCapture, { model: 'Clinic', tenantField: '_id' })
+ClinicSchema.plugin(auditCapture, {
+  model: 'Clinic',
+  tenantField: '_id',
+  // Bumped by every role or assignment change, each of which records its own explicit entry.
+  ignoredPaths: ['permissionVersion'],
+})
 ClinicSchema.index({ isActive: 1 })
 
 export type ClinicDoc = InferSchemaType<typeof ClinicSchema> & { _id: string }

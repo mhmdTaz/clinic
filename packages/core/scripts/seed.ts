@@ -1,19 +1,33 @@
 /**
- * Seeds the installation clinic (CLINIC_ID), the four system roles, one active user per
- * portal, and one patient still waiting to activate their account.
+ * Seeds the installation clinic (CLINIC_ID), the four system roles, one active user per portal,
+ * one account with no role yet, one patient still waiting to activate their account, the
+ * specialty vocabulary, a doctor profile and a handful of patient records.
  *
- * Idempotent: re-running updates in place rather than duplicating, and only touches
- * what actually differs, so a re-run does not flood the audit log with no-op changes.
+ * Idempotent: re-running updates in place rather than duplicating, and only touches what
+ * actually differs, so a re-run does not flood the audit log with no-op changes. Records an
+ * administrator may have changed during a demo — roles given to the unassigned account, a
+ * renamed specialty — are left as they are.
  *
- * Every write runs as the SYSTEM actor with audit capture installed — seeding is
- * "something done on the system" like anything else.
+ * Every write runs as the SYSTEM actor with audit capture installed — seeding is "something
+ * done on the system" like anything else.
  *
- * Demo passwords come from SEED_PASSWORD, or a documented default that is refused
- * outright when NODE_ENV is production.
+ * Demo passwords come from SEED_PASSWORD, or a documented default that is refused outright
+ * when NODE_ENV is production.
  */
 import './bootstrap-env'
-import { env } from '@clinic/config'
-import { ClinicModel, RoleModel, UserModel, connect, disconnect, newId } from '@clinic/db'
+import { env, nameKey, type BloodType, type Gender } from '@clinic/config'
+import {
+  ClinicModel,
+  DoctorModel,
+  PatientModel,
+  RoleModel,
+  SpecialtyModel,
+  UserModel,
+  connect,
+  disconnect,
+  newId,
+  nextFormatted,
+} from '@clinic/db'
 import { runWithContext, systemContext } from '../src/context/request-context'
 import { SYSTEM_ROLES } from '../src/modules/access'
 import { flushAudit, installAuditCapture } from '../src/modules/audit'
@@ -23,6 +37,7 @@ import { passwordHasher } from '../src/modules/identity/infrastructure/password-
 
 const DEFAULT_DEMO_PASSWORD = 'Clinic-Demo-2026!'
 const EMAIL_COLLATION = { locale: 'en', strength: 2 } as const
+const SEEDED_BY = { id: 'system', name: 'Seed' }
 
 type RoleKey = (typeof SYSTEM_ROLES)[number]['key']
 
@@ -30,23 +45,97 @@ interface UserSpec {
   email: string
   firstName: string
   lastName: string
-  role: RoleKey
+  role: RoleKey | null
 }
 
-const ACTIVE_USERS: readonly UserSpec[] = [
+const ACTIVE_USERS: ReadonlyArray<UserSpec & { role: RoleKey }> = [
   { email: 'admin@clinic.local', firstName: 'Amal', lastName: 'Haddad', role: 'admin' },
   { email: 'staff@clinic.local', firstName: 'Rami', lastName: 'Khoury', role: 'staff' },
   { email: 'doctor@clinic.local', firstName: 'Nabil', lastName: 'Saad', role: 'doctor' },
   { email: 'patient@clinic.local', firstName: 'Sara', lastName: 'Karam', role: 'patient' },
 ]
 
+/** Signed in, but holding no role: the account the Head Nurse walkthrough gives a role to. */
+const UNASSIGNED_USER: UserSpec = {
+  email: 'nurse@clinic.local',
+  firstName: 'Hana',
+  lastName: 'Aoun',
+  role: null,
+}
+
 /** Registered by staff, not yet activated — exercises the activation flow (ADR-0006). */
-const INVITED_USER: UserSpec = {
+const INVITED_USER: UserSpec & { role: RoleKey } = {
   email: 'invited@clinic.local',
   firstName: 'Layla',
   lastName: 'Nassar',
   role: 'patient',
 }
+
+const SPECIALTIES = [
+  'General Practice',
+  'Pediatrics',
+  'Cardiology',
+  'Dermatology',
+  'Gynecology',
+  'Orthopedics',
+  'Ophthalmology',
+  'Ear, Nose and Throat',
+] as const
+
+interface PatientSpec {
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  gender: Gender
+  phone: string | null
+  email: string | null
+  /** The portal account this record belongs to, by its email. */
+  account?: string
+  nationalId?: string
+  bloodType?: BloodType
+  emergencyContacts?: Array<{ name: string; relationship: string; phone: string }>
+}
+
+const PATIENTS: readonly PatientSpec[] = [
+  {
+    firstName: 'Sara',
+    lastName: 'Karam',
+    dateOfBirth: '1991-03-14',
+    gender: 'FEMALE',
+    phone: '+961 3 214 587',
+    email: 'patient@clinic.local',
+    account: 'patient@clinic.local',
+    bloodType: 'O+',
+  },
+  {
+    firstName: 'Layla',
+    lastName: 'Nassar',
+    dateOfBirth: '1988-11-02',
+    gender: 'FEMALE',
+    phone: '+961 71 408 233',
+    email: 'invited@clinic.local',
+    account: 'invited@clinic.local',
+  },
+  {
+    firstName: 'Omar',
+    lastName: 'Fakhoury',
+    dateOfBirth: '1975-06-30',
+    gender: 'MALE',
+    phone: '+961 70 555 010',
+    email: null,
+    nationalId: 'LB-1975-44821',
+    bloodType: 'A-',
+  },
+  {
+    firstName: 'Rana',
+    lastName: 'Haddad',
+    dateOfBirth: '2012-01-09',
+    gender: 'FEMALE',
+    phone: null,
+    email: null,
+    emergencyContacts: [{ name: 'Ziad Haddad', relationship: 'Father', phone: '+961 3 887 120' }],
+  },
+]
 
 function demoPassword(): string {
   const configured = process.env.SEED_PASSWORD
@@ -72,7 +161,9 @@ function sameGrants(a: readonly Grant[], b: readonly Grant[]): boolean {
   return normalise(a) === normalise(b)
 }
 
-async function seedClinic(clinicId: string): Promise<{ name: string }> {
+async function seedClinic(
+  clinicId: string,
+): Promise<{ name: string; mainBranchId: string | null }> {
   const Clinic = ClinicModel()
   await Clinic.findOneAndUpdate(
     { _id: clinicId },
@@ -109,7 +200,7 @@ async function seedClinic(clinicId: string): Promise<{ name: string }> {
     })
     await clinic.save()
   }
-  return { name: clinic.name }
+  return { name: clinic.name, mainBranchId: clinic.branches[0]?._id ?? null }
 }
 
 async function seedRoles(clinicId: string): Promise<Map<RoleKey, string>> {
@@ -151,7 +242,7 @@ async function seedRoles(clinicId: string): Promise<Map<RoleKey, string>> {
 async function seedUser(
   clinicId: string,
   spec: UserSpec,
-  roleId: string,
+  roleId: string | null,
   password: string | null,
 ): Promise<{ id: string; status: string }> {
   const User = UserModel()
@@ -159,12 +250,9 @@ async function seedUser(
     .collation(EMAIL_COLLATION)
     .lean()
 
-  const set: Record<string, unknown> = {
-    firstName: spec.firstName,
-    lastName: spec.lastName,
-    preferredPortal: spec.role,
-  }
-  if (!existing?.roles?.some((role) => role.roleId === roleId)) {
+  const set: Record<string, unknown> = { firstName: spec.firstName, lastName: spec.lastName }
+  if (spec.role) set.preferredPortal = spec.role
+  if (roleId && !existing?.roles?.some((role) => role.roleId === roleId)) {
     set.roles = [{ roleId, assignedAt: new Date() }]
   }
 
@@ -185,13 +273,104 @@ async function seedUser(
     set.status = 'INVITED'
   }
 
+  const onInsert: Record<string, unknown> = {
+    _id: newId(),
+    clinicId,
+    email: spec.email,
+    deletedAt: null,
+  }
+  // The unassigned account starts with no role, and keeps whatever a demo gave it since.
+  if (!roleId) onInsert.roles = []
+
   const doc = await User.findOneAndUpdate(
     { clinicId, email: spec.email },
-    { $set: set, $setOnInsert: { _id: newId(), clinicId, email: spec.email, deletedAt: null } },
+    { $set: set, $setOnInsert: onInsert },
     { upsert: true, new: true, collation: EMAIL_COLLATION },
   ).lean()
   if (!doc) throw new Error(`User ${spec.email} could not be seeded`)
   return { id: doc._id, status: doc.status ?? 'INVITED' }
+}
+
+async function seedSpecialties(clinicId: string): Promise<Map<string, string>> {
+  const ids = new Map<string, string>()
+  for (const name of SPECIALTIES) {
+    const existing = await SpecialtyModel()
+      .findOne({ clinicId, 'search.name': nameKey(name) })
+      .lean()
+    const id =
+      existing?._id ??
+      (await SpecialtyModel().create({ _id: newId(), clinicId, name, isActive: true }))._id
+    ids.set(name, id)
+  }
+  return ids
+}
+
+async function seedDoctorProfile(
+  clinicId: string,
+  userId: string,
+  specialty: { id: string; name: string },
+  branchId: string | null,
+): Promise<void> {
+  if (await DoctorModel().exists({ clinicId, userId })) return
+  await DoctorModel().create({
+    _id: newId(),
+    clinicId,
+    userId,
+    title: 'Dr',
+    licenseNumber: 'LB-MD-10421',
+    bio: 'Family medicine, with a particular interest in preventive care.',
+    yearsOfExperience: 12,
+    consultationFee: '40.00',
+    defaultSlotMinutes: 20,
+    specialties: [specialty],
+    branchIds: branchId ? [branchId] : [],
+    isAcceptingNew: true,
+    isActive: true,
+    createdBy: SEEDED_BY,
+    updatedBy: SEEDED_BY,
+    deletedAt: null,
+  })
+}
+
+async function seedPatients(
+  clinicId: string,
+  accounts: ReadonlyMap<string, string>,
+): Promise<number> {
+  let created = 0
+  for (const spec of PATIENTS) {
+    const exists = await PatientModel()
+      .exists({
+        clinicId,
+        'search.lastName': nameKey(spec.lastName),
+        'search.firstName': nameKey(spec.firstName),
+        dateOfBirth: spec.dateOfBirth,
+      })
+      .setOptions({ skipAudit: true })
+    if (exists) continue
+
+    await PatientModel().create({
+      _id: newId(),
+      clinicId,
+      userId: spec.account ? (accounts.get(spec.account) ?? null) : null,
+      medicalRecordNo: await nextFormatted(`mrn:${clinicId}`, 'MRN', 6),
+      firstName: spec.firstName,
+      lastName: spec.lastName,
+      dateOfBirth: spec.dateOfBirth,
+      gender: spec.gender,
+      nationalId: spec.nationalId ?? null,
+      bloodType: spec.bloodType ?? 'UNKNOWN',
+      contact: { phone: spec.phone, email: spec.email },
+      address: { line1: null, city: 'Beirut', country: 'LB' },
+      emergencyContacts: spec.emergencyContacts ?? [],
+      adminNotes: null,
+      isActive: true,
+      createdBy: SEEDED_BY,
+      updatedBy: SEEDED_BY,
+      deletedAt: null,
+    })
+    created += 1
+  }
+  return created
 }
 
 async function main(): Promise<void> {
@@ -205,6 +384,7 @@ async function main(): Promise<void> {
     actorLabel: 'seed',
   }
   const activationLinks: string[] = []
+  let patientsCreated = 0
 
   await runWithContext(context, async () => {
     const clinic = await seedClinic(clinicId)
@@ -217,9 +397,15 @@ async function main(): Promise<void> {
       return id
     }
 
-    for (const spec of ACTIVE_USERS) await seedUser(clinicId, spec, roleId(spec.role), password)
+    const accounts = new Map<string, string>()
+    for (const spec of ACTIVE_USERS) {
+      const { id } = await seedUser(clinicId, spec, roleId(spec.role), password)
+      accounts.set(spec.email, id)
+    }
+    await seedUser(clinicId, UNASSIGNED_USER, null, password)
 
     const invited = await seedUser(clinicId, INVITED_USER, roleId(INVITED_USER.role), null)
+    accounts.set(INVITED_USER.email, invited.id)
     if (invited.status === 'INVITED') {
       const { link } = await issueInvitation({
         clinicId,
@@ -230,6 +416,20 @@ async function main(): Promise<void> {
       })
       activationLinks.push(`${INVITED_USER.email}: ${link}`)
     }
+
+    const specialties = await seedSpecialties(clinicId)
+    const generalPractice = specialties.get('General Practice')
+    const doctorUserId = accounts.get('doctor@clinic.local')
+    if (generalPractice && doctorUserId) {
+      await seedDoctorProfile(
+        clinicId,
+        doctorUserId,
+        { id: generalPractice, name: 'General Practice' },
+        clinic.mainBranchId,
+      )
+    }
+
+    patientsCreated = await seedPatients(clinicId, accounts)
   })
 
   await flushAudit()
@@ -237,8 +437,10 @@ async function main(): Promise<void> {
 
   console.warn(
     [
-      `seeded clinic "${clinicId}": ${SYSTEM_ROLES.length} roles, ${ACTIVE_USERS.length} active users`,
+      `seeded clinic "${clinicId}": ${SYSTEM_ROLES.length} roles, ${ACTIVE_USERS.length} active users, ` +
+        `${SPECIALTIES.length} specialties, ${patientsCreated} new patient records`,
       `  sign in as ${ACTIVE_USERS.map((user) => user.email).join(', ')}`,
+      `  ${UNASSIGNED_USER.email} can sign in but has no role yet — give it one in Admin → Users`,
       process.env.SEED_PASSWORD
         ? '  with the password from SEED_PASSWORD'
         : `  with the demo password ${DEFAULT_DEMO_PASSWORD}`,

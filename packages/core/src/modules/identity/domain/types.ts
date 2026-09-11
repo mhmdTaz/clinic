@@ -14,6 +14,10 @@ export interface AuthUser {
   preferredPortal: PortalKey | null
   tokenVersion: number
   lockedUntil: Date | null
+  /** Set when the account was activated — and kept through a later forced password reset. */
+  emailVerifiedAt: Date | null
+  lastLoginAt: Date | null
+  createdAt: Date | null
 }
 
 /** One issued refresh token. Tokens sharing a familyId are one signed-in device. */

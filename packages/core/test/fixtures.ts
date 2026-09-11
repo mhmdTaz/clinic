@@ -1,8 +1,8 @@
 import { env } from '@clinic/config'
 import { ClinicModel, RoleModel, UserModel, newId } from '@clinic/db'
-import { SYSTEM_ROLES, type SystemRoleKey } from '../src/modules/access'
+import { SYSTEM_ROLES, type Actor, type SystemRoleKey } from '../src/modules/access'
 import { passwordHasher } from '../src/modules/identity/infrastructure/password-hasher'
-import type { RequestMeta } from '../src/modules/session'
+import { authenticateAccessToken, login, type RequestMeta } from '../src/modules/session'
 
 export const TEST_PASSWORD = 'Integration-Suite-2026!'
 export const NEW_PASSWORD = 'Brand-New-Secret-2026!'
@@ -52,33 +52,55 @@ export async function ensureClinic(): Promise<Map<SystemRoleKey, string>> {
   return ids
 }
 
+export async function roleIdOf(key: SystemRoleKey): Promise<string> {
+  const id = (await ensureClinic()).get(key)
+  if (!id) throw new Error(`no role ${key}`)
+  return id
+}
+
 let sequence = 0
+
+export function uniqueEmail(prefix = 'member'): string {
+  sequence += 1
+  return `${prefix}${Date.now()}n${sequence}@itest.local`
+}
 
 export async function createUser(
   options: {
     role?: SystemRoleKey
     roleId?: string
+    /** Exactly these roles — possibly none. Wins over `role` and `roleId`. */
+    roleIds?: string[]
     status?: 'ACTIVE' | 'INVITED' | 'SUSPENDED'
     password?: string | null
+    firstName?: string
+    lastName?: string
   } = {},
 ): Promise<{ id: string; email: string }> {
   const ids = await ensureClinic()
-  const roleId = options.roleId ?? ids.get(options.role ?? 'patient')
-  if (!roleId) throw new Error('no role for test user')
+  let assigned: string[]
+  if (options.roleIds) {
+    assigned = options.roleIds
+  } else {
+    const roleId = options.roleId ?? ids.get(options.role ?? 'patient')
+    if (!roleId) throw new Error('no role for test user')
+    assigned = [roleId]
+  }
 
-  sequence += 1
-  const email = `member${Date.now()}n${sequence}@itest.local`
+  const email = uniqueEmail()
   const password = options.password === undefined ? TEST_PASSWORD : options.password
+  const status = options.status ?? 'ACTIVE'
 
   const doc = await UserModel().create({
     _id: newId(),
     clinicId: env().CLINIC_ID,
     email,
-    firstName: 'Maya',
-    lastName: 'Haddad',
-    status: options.status ?? 'ACTIVE',
+    firstName: options.firstName ?? 'Maya',
+    lastName: options.lastName ?? 'Haddad',
+    status,
     passwordHash: password ? await passwordHasher.hash(password) : undefined,
-    roles: [{ roleId }],
+    emailVerifiedAt: status === 'ACTIVE' ? new Date() : null,
+    roles: assigned.map((roleId) => ({ roleId })),
     deletedAt: null,
   })
   return { id: doc._id, email }
@@ -94,6 +116,19 @@ export function meta(): RequestMeta {
   }
 }
 
+/**
+ * The actor a real request would run as: an account created, signed in, and its access token
+ * authenticated — not a hand-built object that could hold permissions no role grants.
+ */
+export async function signedInActor(
+  options: Parameters<typeof createUser>[0] = {},
+): Promise<{ actor: Actor; user: { id: string; email: string }; accessToken: string }> {
+  const user = await createUser(options)
+  const session = await login({ email: user.email, password: TEST_PASSWORD, meta: meta() })
+  const { actor } = await authenticateAccessToken(session.accessToken)
+  return { actor, user, accessToken: session.accessToken }
+}
+
 export const secondsAfter = (from: Date, seconds: number) =>
   new Date(from.getTime() + seconds * 1000)
 
@@ -104,5 +139,17 @@ export async function outcome(promise: Promise<unknown>): Promise<string> {
     return 'RESOLVED'
   } catch (error) {
     return (error as { code?: string }).code ?? String(error)
+  }
+}
+
+/** The details a promise rejected with — the field and issue a form would show. */
+export async function failureDetails(
+  promise: Promise<unknown>,
+): Promise<Array<{ field: string; issue: string }>> {
+  try {
+    await promise
+    return []
+  } catch (error) {
+    return (error as { details?: Array<{ field: string; issue: string }> }).details ?? []
   }
 }

@@ -2,8 +2,10 @@
 
 Four portals — admin, staff, doctor, patient — behind one login.
 
-**Current state: Phase 1 (Identity, RBAC, portal shell).** Real sign-in, the permission
-engine, the four portal shells with permission-driven menus, and audit capture.
+**Current state: Phase 2 (Clinic setup and directories).** On top of Phase 1's sign-in,
+permission engine and portal shells: clinic settings (profile, locations, opening hours,
+closures), user management, a roles and permissions editor that changes access with no deploy,
+the patient directory with duplicate warnings, and doctor onboarding with specialties.
 [`ARCHITECTURE.md`](./ARCHITECTURE.md) is the blueprint; the phased plan is section 17.
 
 ## Running it locally
@@ -15,7 +17,7 @@ pnpm install
 cp .env.example .env          # defaults match the Docker stack
 pnpm infra:up                 # mongo (replica set) + redis + minio + mailpit
 pnpm db:migrate               # collections, indexes, $jsonSchema validators
-pnpm db:seed                  # demo clinic, 4 roles, 4 active users + 1 awaiting activation
+pnpm db:seed                  # demo clinic, roles, users, specialties, a doctor, 4 patients
 pnpm dev                      # http://localhost:3000
 ```
 
@@ -42,8 +44,13 @@ refuses the default when `NODE_ENV=production`).
 | `admin@clinic.local`   | `/admin`   | Can also switch to the staff portal                   |
 | `staff@clinic.local`   | `/staff`   |                                                       |
 | `doctor@clinic.local`  | `/doctor`  |                                                       |
-| `patient@clinic.local` | `/patient` |                                                       |
+| `patient@clinic.local` | `/patient` | Linked to the patient record for Sara Karam           |
+| `nurse@clinic.local`   | —          | Signs in with no role: give it one in Admin → Users   |
 | `invited@clinic.local` | —          | Not activated yet: the activation email is in Mailpit |
+
+To see a role change reach someone with no deploy: sign in as `nurse@` in one browser, then as
+`admin@` in another create a role in Roles & permissions, give it `Open the staff portal` and
+`View patient records`, and assign it to Hana Aoun. Her next page load opens the staff portal.
 
 ## Commands
 
@@ -67,9 +74,13 @@ port 3100, so it cannot collide with `pnpm dev`.
 ```
 apps/web           Next.js — pages, REST API, cookies and redirects
 packages/core      ALL business logic. Zero framework imports.
-  modules/identity   credentials, lockout, sessions, resets, invitations
-  modules/access     permission catalogue, policy engine, portals, navigation
+  modules/identity   credentials, lockout, sessions, resets, invitations, accounts
+  modules/access     permission catalogue, policy engine, roles editor, portals, navigation
   modules/session    turns a verified user into a signed-in session
+  modules/clinic     profile, locations, opening hours, closures
+  modules/users      user management: invites, roles, suspension, forced resets
+  modules/patients   the patient directory, registration, duplicate warnings
+  modules/doctors    doctor onboarding and the specialty vocabulary
   modules/audit      audit recorder and capture
 packages/db        Mongoose models, plugins, migrations
 packages/contracts Zod schemas shared by server, web and the future mobile app
@@ -100,6 +111,13 @@ app reaching past a use case to the database.
 - **Only `@clinic/config` reads `process.env`.** Lint enforces it.
 - **Bulk writes bypass audit middleware.** `updateMany` / `bulkWrite` / `insertMany`
   are confined to repositories and must record an explicit audit entry.
+- **Write together through `runInTransaction`.** Captured audit entries wait for the commit, so a
+  rollback leaves none. Record explicit audit entries after the transaction returns, not inside it.
+- **Never write `search.*` fields.** The `searchKeys` plugin derives them from names, phones and
+  emails on every write; search and duplicate matching query them.
+- **Calendar dates are strings.** A date of birth or a holiday is `"YYYY-MM-DD"`, and "today" is
+  computed in the clinic's timezone (`localDateIn`). A `Date` at midnight UTC is the wrong day in
+  half the world.
 - **`TRUST_PROXY` stays `false` unless a proxy you control sets the client address.** With it
   off, forwarded-for headers are ignored and per-IP rate limits are skipped rather than trusting
   a value any client can forge.

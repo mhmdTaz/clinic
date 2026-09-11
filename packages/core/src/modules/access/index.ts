@@ -16,6 +16,7 @@ export {
   toGrantList,
   isScope,
   widerScope,
+  scopeAtLeast,
   type Scope,
   type ScopeCode,
   type PermissionMap,
@@ -52,9 +53,38 @@ export {
   type NavItemDefinition,
   type NavSectionDefinition,
 } from './domain/navigation'
+export {
+  validateGrants,
+  grantsBeyondActor,
+  diffGrants,
+  widenedGrants,
+  administratorRemains,
+  grantsAdministration,
+  roleKeyFrom,
+  uniqueKey,
+  ADMINISTRATION_KEYS,
+  type Grant,
+  type GrantInput,
+  type GrantChanges,
+} from './domain/grant-rules'
 export { SYSTEM_ROLES, type SystemRoleDefinition, type SystemRoleKey } from './domain/system-roles'
 export { systemActor, SYSTEM_ACTOR_ID } from './domain/system-actor'
 export { resolveAccess, type ResolvedAccess } from './application/resolve-access'
 export { assertCan } from './application/assert-can'
 export { listRoleSummaries, type RoleSummary } from './application/list-role-summaries'
-// NOT exported: roleRepository.
+export {
+  getPermissionCatalogue,
+  getRole,
+  createRole,
+  updateRole,
+  setRolePermissions,
+  deleteRole,
+} from './application/manage-roles'
+export {
+  authorizeRoleAssignment,
+  assertAdministratorRemainsWithout,
+  bumpPermissionVersion,
+  findSystemRole,
+  roleDirectory,
+} from './application/role-assignment'
+// NOT exported: the repositories.

@@ -36,3 +36,31 @@ export function hasBookableBranch(clinic: Clinic): boolean {
 export function activeBranches(clinic: Clinic): Branch[] {
   return clinic.branches.filter((b) => b.isActive)
 }
+
+/**
+ * ADR-0021: a clinic always keeps an open branch. True when the branches would still include
+ * an active one after `change`.
+ */
+export function leavesAnActiveBranch(
+  branches: ReadonlyArray<{ id: string; isActive: boolean }>,
+  change: { branchId: string; isActive: boolean },
+): boolean {
+  return branches.some((branch) =>
+    branch.id === change.branchId ? change.isActive : branch.isActive,
+  )
+}
+
+/**
+ * Closures from `today` on, soonest first. Holidays are "YYYY-MM-DD" strings, which sort as
+ * text; `today` must be the date in the clinic's timezone, not in UTC (ADR-0010).
+ */
+export function upcomingHolidays<T extends { date: string }>(
+  holidays: readonly T[],
+  today: string,
+  limit = 5,
+): T[] {
+  return holidays
+    .filter((holiday) => holiday.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, limit)
+}

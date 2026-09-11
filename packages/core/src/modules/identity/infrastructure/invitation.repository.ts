@@ -59,6 +59,27 @@ export const invitationRepository = {
     return doc ? toInvitation(doc as unknown as InvitationRecord) : null
   },
 
+  /** Every link still waiting for this user stops working: suspension, or a changed address. */
+  async revokeForUser(clinicId: string, userId: string, now: Date): Promise<void> {
+    await InvitationModel().updateMany(
+      { clinicId, userId, acceptedAt: null, revokedAt: null },
+      { $set: { revokedAt: now } },
+    )
+  },
+
+  /** The newest link that still works, for "invitation sent … expires …". */
+  async findLatestUsable(
+    clinicId: string,
+    userId: string,
+    now: Date,
+  ): Promise<{ sentAt: Date; expiresAt: Date } | null> {
+    const doc = (await InvitationModel()
+      .findOne({ clinicId, userId, ...usable(now) })
+      .sort({ createdAt: -1 })
+      .lean()) as unknown as (InvitationRecord & { createdAt?: Date | null }) | null
+    return doc ? { sentAt: doc.createdAt ?? now, expiresAt: doc.expiresAt } : null
+  },
+
   /** Atomic: a link submitted from two tabs at once activates the account exactly once. */
   async claim(clinicId: string, id: string, now: Date): Promise<boolean> {
     const result = await InvitationModel().updateOne(

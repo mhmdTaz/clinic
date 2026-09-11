@@ -70,6 +70,38 @@ ${button(input.link, 'Choose a new password')}
   }
 }
 
+/** An administrator reset the password: the old one already no longer works. */
+export function forcedPasswordResetEmail(input: {
+  to: string
+  firstName: string
+  clinicName: string
+  link: string
+  expiresInMinutes: number
+}): OutgoingMail {
+  const subject = `Choose a new password for ${input.clinicName}`
+  return {
+    to: input.to,
+    subject,
+    text: [
+      `Hello ${input.firstName},`,
+      '',
+      `An administrator at ${input.clinicName} has reset your password, and you have been signed out.`,
+      `Your old password no longer works. Choose a new one within ${input.expiresInMinutes} minutes:`,
+      input.link,
+      '',
+      'If the link has expired, use "Forgot password?" on the sign-in page to get a new one.',
+    ].join('\n'),
+    html: layout(
+      input.clinicName,
+      `<h1 style="margin:0 0 12px;font-size:20px">Choose a new password</h1>
+<p style="margin:0 0 8px;line-height:1.6">Hello ${escapeHtml(input.firstName)},</p>
+<p style="margin:0;line-height:1.6">An administrator at ${escapeHtml(input.clinicName)} has reset your password, and you have been signed out. Your old password no longer works. This link works once and expires in ${input.expiresInMinutes} minutes.</p>
+${button(input.link, 'Choose a new password')}
+<p style="margin:24px 0 0;font-size:13px;color:#6b7385">If the link has expired, use "Forgot password?" on the sign-in page to get a new one.</p>`,
+    ),
+  }
+}
+
 export function invitationEmail(input: {
   to: string
   firstName: string

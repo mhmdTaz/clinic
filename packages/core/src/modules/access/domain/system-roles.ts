@@ -64,6 +64,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
         'doctor:create',
         'doctor:update',
         'doctor:delete',
+        'specialty:manage',
         'availability:read',
         'availability:manage',
         'appointment:read',

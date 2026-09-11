@@ -904,7 +904,7 @@ const ClinicSchema = new Schema({
   locale:    { type: String, default: 'en' },
 
   branches:  [BranchSchema],                                     // bounded: tens
-  holidays:  [{ _id: false, date: Date, name: String, branchId: String }],
+  holidays:  [{ _id: false, date: String, name: String, branchId: String }], // "2026-12-25": a calendar date (ADR-0010)
 
   settings:     { type: Schema.Types.Mixed, default: {} },
   featureFlags: { type: Map, of: Boolean, default: {} },
@@ -1052,7 +1052,7 @@ const PatientSchema = new Schema({
 
   firstName: { type: String, required: true },
   lastName:  { type: String, required: true },
-  dateOfBirth: Date,
+  dateOfBirth: String,                                     // "1990-04-17": never an instant (ADR-0010)
   gender:      { type: String, enum: GENDERS },
   nationalId:  String,
   bloodType:   { type: String, enum: BLOOD_TYPES, default: 'UNKNOWN' },
@@ -1096,6 +1096,16 @@ patient, then allergies, then chronic conditions — three round trips before th
 must never fail to render, removing two failure points is worth more than the schema tidiness we
 gave up.
 
+**As built in Phase 2.** Three refinements to the sketch above. Search and duplicate matching read
+**normalised keys** stored beside the originals — `search.firstName`, `search.lastName`,
+`search.phone` (the last seven digits), `search.email`, `search.nationalId` — because an index can
+serve a regex only when it is anchored and case-sensitive. A `searchKeys` plugin derives them on
+every write path, so no use case computes one; the indexes lead with `clinicId` and target the keys
+rather than `contact.phone`. An account belongs to at most one patient, enforced by a partial unique
+index on `{ userId, clinicId }` (keys reversed, since `{ clinicId, userId }` already serves lookups).
+And every find on `patients` is recorded as a view, so reads that only decide whether someone may
+look pass `skipAudit` — a refused request is never logged as having seen a record.
+
 ```ts
 // packages/db/src/models/doctor.model.ts
 const DoctorSchema = new Schema({
@@ -1108,8 +1118,7 @@ const DoctorSchema = new Schema({
   consultationFee:   Schema.Types.Decimal128,
   defaultSlotMinutes: { type: Number, default: 30 },
 
-  specialtyIds: [String],                                  // referenced: shared vocabulary
-  specialtyNames: [String],                                // display snapshot (section 8.3)
+  specialties: [{ _id: false, id: String, name: String }], // reference + display snapshot, one entry each
 
   // Recurring weekly template — bounded at 7 days x a few blocks
   availability: [{ _id: { type: String, default: () => createId() },
@@ -1130,16 +1139,19 @@ const DoctorSchema = new Schema({
 
 DoctorSchema.index({ clinicId: 1, isActive: 1 })
 DoctorSchema.index({ userId: 1 }, { unique: true })
-DoctorSchema.index({ clinicId: 1, specialtyIds: 1 })       // multikey: "find cardiologists"
+DoctorSchema.index({ clinicId: 1, 'specialties.id': 1 })   // multikey: "find cardiologists"
 ```
 
 Availability and time-off embed for the same reason the allergy list does: slot computation
 (section 8.7) needs the template, the exceptions and the doctor's slot length **together**, on
 every calendar render. One document read replaces three queries on the hottest path in the app.
 
-`specialtyIds` plus `specialtyNames` is the snapshot pattern in miniature — the ids are the
-truth and drive the filter index; the names render the card without a lookup. A rename emits
-`specialty.renamed`, and a handler refreshes the snapshot across affected doctors.
+`specialties` is the snapshot pattern in miniature — each entry's id is the truth and drives the
+filter index; its name renders the card without a lookup. The first sketch used two parallel
+arrays, `specialtyIds` and `specialtyNames`; one array of pairs was chosen instead because parallel
+arrays drift the moment one is edited without the other, and a rename becomes a single array-filter
+update (`specialties.$[entry].name`). That refresh is a bulk write, so the rename records an
+explicit `specialty.renamed` audit entry (section 8.15).
 
 ### 8.7 Scheduling and appointments
 
@@ -1880,13 +1892,17 @@ GET    /api/v1/me/permissions                    GET    /api/v1/me/navigation
 GET    /api/v1/me/notifications                  POST   /api/v1/me/notifications/{id}/read
 
 GET    /api/v1/patients                          POST   /api/v1/patients
-GET    /api/v1/patients/{id}                     PATCH  /api/v1/patients/{id}
+GET    /api/v1/patients/{id}                     PUT    /api/v1/patients/{id}
+POST   /api/v1/patients/{id}/archive             POST   /api/v1/patients/{id}/restore
+POST   /api/v1/patients/{id}/portal-invitation
 GET    /api/v1/patients/{id}/timeline            GET    /api/v1/patients/{id}/files
 GET    /api/v1/patients/{id}/appointments        GET    /api/v1/patients/{id}/invoices
 POST   /api/v1/patients/check-duplicates
 
 GET    /api/v1/doctors                           POST   /api/v1/doctors
-GET    /api/v1/doctors/{id}                      PATCH  /api/v1/doctors/{id}
+GET    /api/v1/doctors/{id}                      PUT    /api/v1/doctors/{id}
+GET    /api/v1/specialties                       POST   /api/v1/specialties
+PUT    /api/v1/specialties/{id}
 GET    /api/v1/doctors/{id}/availability         PUT    /api/v1/doctors/{id}/availability
 GET    /api/v1/doctors/{id}/slots                POST   /api/v1/doctors/{id}/time-off
 
@@ -1918,12 +1934,18 @@ GET    /api/v1/support/tickets                   POST   /api/v1/support/tickets
 GET    /api/v1/support/tickets/{id}              POST   /api/v1/support/tickets/{id}/messages
 POST   /api/v1/support/tickets/{id}/assign       POST   /api/v1/support/tickets/{id}/status
 
-GET    /api/v1/admin/clinic                      PATCH  /api/v1/admin/clinic
+GET    /api/v1/admin/clinic                      GET    /api/v1/admin/clinic/settings
+PUT    /api/v1/admin/clinic/profile              PUT    /api/v1/admin/clinic/holidays
 GET    /api/v1/admin/branches                    POST   /api/v1/admin/branches
+PUT    /api/v1/admin/branches/{id}               PUT    /api/v1/admin/branches/{id}/working-hours
 GET    /api/v1/admin/users                       POST   /api/v1/admin/users/invite
-POST   /api/v1/admin/users/{id}/status           POST   /api/v1/admin/users/{id}/roles
+GET    /api/v1/admin/users/{id}                  PUT    /api/v1/admin/users/{id}
+POST   /api/v1/admin/users/{id}/status           PUT    /api/v1/admin/users/{id}/roles
+POST   /api/v1/admin/users/{id}/invitation       POST   /api/v1/admin/users/{id}/password-reset
 GET    /api/v1/admin/roles                       POST   /api/v1/admin/roles
-PUT    /api/v1/admin/roles/{id}/permissions      GET    /api/v1/admin/permissions
+GET    /api/v1/admin/roles/{id}                  PUT    /api/v1/admin/roles/{id}
+DELETE /api/v1/admin/roles/{id}                  PUT    /api/v1/admin/roles/{id}/permissions
+GET    /api/v1/admin/permissions
 GET    /api/v1/admin/audit-logs                  GET    /api/v1/admin/audit-logs/export
 GET    /api/v1/admin/analytics/overview
 ```
@@ -2207,6 +2229,12 @@ Six details that matter, three of them specific to Mongoose and genuinely danger
   into a second, less-protected collection.
 - **`enqueueAuditEntry` is non-blocking**, buffered and flushed by the worker over the restricted
   audit connection (section 11.5). The audit write never sits on the request's critical path.
+- **Inside a transaction, captured entries wait for the commit.** `withTransaction` keeps what the
+  hooks capture on its session and hands it to the audit sink only once the transaction commits: a
+  write that rolls back leaves no entry, and an attempt the driver retries starts with an empty
+  buffer. Reads of protected records are not deferred — a record shown inside a transaction that
+  later rolled back was still seen. Explicit `audit.record()` calls belong after the transaction
+  returns, for the same reason.
 
 > **A note on change streams.** They were considered as the capture mechanism, since they observe
 > every write including bulk operations and cannot be bypassed. They were rejected as the
@@ -2555,9 +2583,20 @@ conventions in section 9.2, URL-synced state (so a filtered view is shareable an
 refresh), column visibility, CSV export, row actions gated by permission, and — importantly —
 loading, empty, and error states supplied once rather than per screen.
 
-**`<AutoForm schema={ZodSchema}>`** — renders fields from the Zod schema, validates client-side
-with the same schema the server validates with, maps `details[]` from the error envelope back
-onto the offending fields, and handles dirty-state guards and optimistic submission.
+**`<AutoForm schema={ZodSchema} sections={…}>`** — validates client-side with the same schema the
+server validates with, maps `details[]` from the error envelope back onto the offending fields,
+moves focus to the first of them, and warns before a page with unsaved changes is closed.
+
+As built in Phase 2, two deliberate departures. The **field list lays the form out**, not the
+schema: deriving layout from Zod breaks on the first refinement, preprocessing step or nested array,
+and a form's order and wording are decisions a schema does not hold — what the schema guarantees is
+that browser and server accept exactly the same input. Validation issues travel as **stable codes**
+(`issueCode()` in `packages/contracts`), so both sides produce "TOO_LONG" rather than an English
+sentence, and translation happens at the edge (13.6). The unsaved-changes warning covers closing or
+reloading the page; in-app navigation is not intercepted, because the App Router offers no reliable
+hook for it, so an "Unsaved changes" marker sits beside the save button instead. `<DataTable>` ships
+search, filters, cursor pages, responsive columns and all three states; CSV export and column
+visibility arrive with the audit log explorer, the first screen that needs them.
 
 Bespoke UI is reserved for the screens that genuinely deserve it: the calendar, the encounter
 workspace, the analytics dashboard.
@@ -2932,13 +2971,17 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0008 | SMS provider and whether SMS is in v1 at all | **OPEN** | Cost per message drives reminder strategy |
 | 0009 | Hosting target: **Atlas or self-hosted MongoDB**, and serverless or containers | **OPEN** | Now materially bigger than a hosting preference: Atlas brings Atlas Search (patient search quality, section 8.14), managed point-in-time restore and Online Archive. Serverless also forces connection-pool caching (section 15.2). Worth deciding early |
 | 0019 | Text search: Atlas Search, or `$text` plus anchored regex | **OPEN** | Follows directly from 0009; the repository interface hides which, so it is reversible |
-| 0010 | Timezone model: single clinic timezone, or per-branch | **Proposed** | Schema already allows per-branch override |
+| 0010 | One timezone for the whole clinic | **Accepted** | `docs/adr/0010` — branches share the clinic's IANA zone; the unused branch field keeps a per-branch override an addition. Calendar dates are `YYYY-MM-DD` strings, never instants |
+| 0020 | Possible duplicate patients warn, and saving anyway takes a reason | **Accepted** | `docs/adr/0020` — national ID, phone (last seven digits), email, or name plus date of birth; re-checked at save; overrides audited |
+| 0021 | One branch until a second exists | **Accepted** | `docs/adr/0021` — branch fields appear only in a multi-branch clinic; the last open branch cannot close |
 
 ### The ones to settle next
 
 0005 and 0006 were settled at the start of Phase 1 — one clinic per installation, and patients
 activated by staff invitation — which kept the login screen free of a clinic selector and a public
-sign-up page.
+sign-up page. 0010, 0020 and 0021 were settled at the start of Phase 2: one clinic timezone,
+duplicate warnings that need a typed reason to override, and branch fields only once a second
+branch exists.
 
 **0009 (Atlas vs self-hosted)** is now the decision with the widest blast radius, and the only thing
 standing between the project and a staging environment. It has been promoted by the move to MongoDB. On Postgres it was

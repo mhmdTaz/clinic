@@ -3,10 +3,13 @@ import { connect, disconnect, newId, withTransaction } from '../index'
 import {
   AuditLogModel,
   ClinicModel,
+  DoctorModel,
   InvitationModel,
   PasswordResetTokenModel,
+  PatientModel,
   RefreshTokenModel,
   RoleModel,
+  SpecialtyModel,
   UserModel,
 } from '../models/index'
 import {
@@ -131,6 +134,38 @@ describe('audit capture (live)', () => {
     expect(events[0]).toMatchObject({ operation: 'deleted', entityId: data._id, after: null })
   })
 
+  it('holds a transaction’s events until it commits', async () => {
+    const data = newUser()
+    let capturedBeforeCommit = -1
+
+    await withTransaction(async (session) => {
+      await UserModel().create([data], { session })
+      await UserModel().updateOne(
+        { clinicId, _id: data._id },
+        { $set: { firstName: 'Rana' } },
+        { session },
+      )
+      capturedBeforeCommit = events.length
+    })
+
+    expect(capturedBeforeCommit).toBe(0)
+    expect(events.map((event) => event.operation)).toEqual(['created', 'updated'])
+  })
+
+  it('records nothing for a transaction that rolls back', async () => {
+    const data = newUser()
+
+    await expect(
+      withTransaction(async (session) => {
+        await UserModel().create([data], { session })
+        throw new Error('roll back')
+      }),
+    ).rejects.toThrow('roll back')
+
+    expect(events).toHaveLength(0)
+    expect(await UserModel().countDocuments({ clinicId, _id: data._id })).toBe(0)
+  })
+
   it('refuses to write at all when no sink is installed — no silent unaudited write', async () => {
     setAuditSink(null)
     const data = newUser()
@@ -153,6 +188,9 @@ describe('schema and migrations agree', () => {
       InvitationModel(),
       PasswordResetTokenModel(),
       AuditLogModel(),
+      PatientModel(),
+      DoctorModel(),
+      SpecialtyModel(),
     ]
 
     for (const model of models) {

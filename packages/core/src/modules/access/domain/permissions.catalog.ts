@@ -57,6 +57,7 @@ export const PERMISSIONS = {
   'user:invite': define('users'),
   'user:update': define('users', { scopable: true }),
   'user:suspend': define('users', { dangerous: true }),
+  'user:reset_password': define('users', { dangerous: true }),
   'user:impersonate': define('users', { dangerous: true }),
 
   'role:read': define('roles'),
@@ -77,6 +78,7 @@ export const PERMISSIONS = {
   'doctor:create': define('doctors'),
   'doctor:update': define('doctors', { scopable: true }),
   'doctor:delete': define('doctors', { dangerous: true }),
+  'specialty:manage': define('doctors'),
 
   'availability:read': define('scheduling', { scopable: true }),
   'availability:manage': define('scheduling', { scopable: true }),

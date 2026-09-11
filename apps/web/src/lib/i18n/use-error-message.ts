@@ -18,6 +18,15 @@ export function useErrorMessage() {
   }
 }
 
+/**
+ * A validation issue code — from the contract's client-side check or the server's error envelope —
+ * as a sentence. An unknown code still says something useful rather than nothing.
+ */
+export function useValidationMessage() {
+  const t = useTranslations('validation')
+  return (code: string): string => (t.has(code) ? t(code) : t('INVALID'))
+}
+
 const PASSWORD_ISSUES = new Set([
   'TOO_SHORT',
   'TOO_LONG',

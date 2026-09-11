@@ -1,9 +1,10 @@
 import { Schema, type Model, type InferSchemaType } from 'mongoose'
-import { PORTAL_KEYS, USER_STATUSES } from '@clinic/config'
+import { PORTAL_KEYS, USER_STATUSES, emailKey, nameKey } from '@clinic/config'
 import { idField } from '../id'
 import { getConnection } from '../connection'
 import { tenantGuard } from '../plugins/tenant-guard'
 import { softDelete } from '../plugins/soft-delete'
+import { searchKeys } from '../plugins/search-keys'
 import { auditCapture } from '../plugins/audit-capture'
 
 export const UserSchema = new Schema(
@@ -47,12 +48,22 @@ export const UserSchema = new Schema(
       mustChangePassword: { type: Boolean, default: false },
     },
     preferredPortal: { type: String, enum: PORTAL_KEYS },
+
+    // Folded copies for the user directory's search, kept current by searchKeys.
+    search: { firstName: String, lastName: String, email: String },
   },
   { timestamps: true, collection: 'users' },
 )
 
 UserSchema.plugin(tenantGuard)
 UserSchema.plugin(softDelete)
+UserSchema.plugin(searchKeys, {
+  keys: {
+    'search.firstName': { from: 'firstName', key: nameKey },
+    'search.lastName': { from: 'lastName', key: nameKey },
+    'search.email': { from: 'email', key: emailKey },
+  },
+})
 UserSchema.plugin(auditCapture, {
   model: 'User',
   // The change is recorded; the value never is.
@@ -63,6 +74,7 @@ UserSchema.plugin(auditCapture, {
     'security.failedLoginCount',
     'security.lastFailedLoginAt',
     'security.lockedUntil',
+    'search',
   ],
 })
 
@@ -83,6 +95,9 @@ UserSchema.index(
 )
 UserSchema.index({ clinicId: 1, status: 1 })
 UserSchema.index({ 'roles.roleId': 1 }) // multikey: "who holds this role"
+UserSchema.index({ clinicId: 1, 'search.lastName': 1, 'search.firstName': 1 })
+UserSchema.index({ clinicId: 1, 'search.firstName': 1 })
+UserSchema.index({ clinicId: 1, 'search.email': 1 })
 
 export type UserDoc = InferSchemaType<typeof UserSchema> & { _id: string }
 

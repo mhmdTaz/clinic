@@ -1,4 +1,23 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { expect, type Browser, type Locator, type Page } from '@playwright/test'
+import { E2E } from '../e2e.env'
+
+/** A documentation-range address (RFC 5737), different per call so per-IP limits never collide. */
+export function randomAddress(): string {
+  const octet = () => Math.floor(Math.random() * 254) + 1
+  return `198.51.${octet()}.${octet()}`
+}
+
+/**
+ * A second, independent browser — another person at another desk. Contexts made by hand do not
+ * inherit the project's settings, so the base URL and the client address are set here.
+ */
+export async function newPersonPage(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({
+    baseURL: E2E.appUrl,
+    extraHTTPHeaders: { 'x-real-ip': randomAddress() },
+  })
+  return context.newPage()
+}
 
 export const SEEDED_USERS = [
   { email: 'admin@clinic.local', portal: 'admin', firstName: 'Amal', name: 'Amal Haddad' },
@@ -21,9 +40,18 @@ export async function fillSignIn(page: Page, email: string, password: string): P
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
+/**
+ * Returns once the sign-in request has been answered, successful or not. Returning on the click
+ * alone let a following page.goto cancel the request in flight, leaving the page signed out.
+ */
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   await page.goto('/login')
+  const answered = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/v1/auth/login') && response.request().method() === 'POST',
+  )
   await fillSignIn(page, email, password)
+  await answered
 }
 
 export async function signOut(page: Page): Promise<void> {
