@@ -17,6 +17,7 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../../errors'
+import type { Transaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
 import { assertCan, careRelationship, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
@@ -416,6 +417,89 @@ export async function invoiceFilterFor(
     return filter
   }
   throw new ForbiddenError('invoice:read')
+}
+
+/**
+ * Charging a visit for something it consumed (S7, and Phase 6's exit criterion).
+ *
+ * **No permission check, deliberately.** It is not an authority anybody exercises: a doctor
+ * decides what was used, the clinic's own catalogue decides that the thing is billable, and this
+ * is the bookkeeping consequence of the two. The caller has already been authorised for the act
+ * that caused it — recording consumption — and gating this on `invoice:create` as well would mean
+ * a doctor could use a vial but not have the clinic charge for it, which is not a rule anybody
+ * asked for. Same reasoning as `getClinicLetterhead`: it answers a use case, never a person.
+ *
+ * It appends to the visit's open draft where there is one and starts a draft where there is not,
+ * and it never touches an issued invoice — a charge arriving after the bill went out is its own
+ * bill, exactly as a late lab result is.
+ *
+ * Runs inside the caller's transaction, so stock, the ledger and the bill move together.
+ */
+export async function billToEncounter(
+  actor: Actor,
+  encounter: { id: string; patientId: string },
+  lines: InvoiceLineInput[],
+  tx: Transaction,
+  now: Date = new Date(),
+): Promise<{ invoiceId: string; invoiceNumber: string; currency: string; billed: string } | null> {
+  if (lines.length === 0) return null
+
+  const [clinic, patient] = await Promise.all([
+    getClinicFacts(actor.clinicId),
+    findPatientForScheduling(actor.clinicId, encounter.patientId),
+  ])
+  if (!patient) throw new NotFoundError('Patient')
+
+  const totals = validateLines(lines, clinic.currency)
+
+  const [draft] = await invoiceRepository.list(actor.clinicId, {
+    encounterId: encounter.id,
+    status: 'DRAFT',
+  })
+
+  if (draft) {
+    const updated = await invoiceRepository.appendLines(
+      actor.clinicId,
+      draft.id,
+      totals.lines,
+      clinic.currency,
+      tx,
+    )
+    // It was issued between the read and the write; start a fresh draft rather than lose the
+    // charge, which is the outcome that matters.
+    if (updated) {
+      return {
+        invoiceId: updated.id,
+        invoiceNumber: updated.number,
+        currency: clinic.currency,
+        billed: totals.total,
+      }
+    }
+  }
+
+  const year = Number(localDateIn(clinic.timezone, now).slice(0, 4))
+  const created = await invoiceRepository.create(
+    {
+      clinicId: actor.clinicId,
+      number: await invoiceRepository.nextNumber(actor.clinicId, year),
+      branchId: null,
+      patientId: patient.id,
+      patient: { name: patient.name, medicalRecordNo: patient.medicalRecordNo },
+      encounterId: encounter.id,
+      currency: clinic.currency,
+      totals,
+      notes: null,
+      createdBy: { id: actor.userId, name: actor.displayName },
+    },
+    tx,
+  )
+
+  return {
+    invoiceId: created.id,
+    invoiceNumber: created.number,
+    currency: clinic.currency,
+    billed: totals.total,
+  }
 }
 
 /** Calendar arithmetic on a date string; no zone involved, and no clock. */

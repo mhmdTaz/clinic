@@ -23,7 +23,8 @@
     "./clinical": "./src/modules/clinical/index.ts",
     "./prescriptions": "./src/modules/prescriptions/index.ts",
     "./files": "./src/modules/files/index.ts",
-    "./billing": "./src/modules/billing/index.ts"
+    "./billing": "./src/modules/billing/index.ts",
+    "./inventory": "./src/modules/inventory/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

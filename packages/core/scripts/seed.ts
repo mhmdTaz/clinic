@@ -19,10 +19,13 @@ import { env, nameKey, type BloodType, type Gender } from '@clinic/config'
 import {
   ClinicModel,
   DoctorModel,
+  InventoryCategoryModel,
+  InventoryItemModel,
   PatientModel,
   RoleModel,
   ServiceModel,
   SpecialtyModel,
+  SupplierModel,
   UserModel,
   connect,
   disconnect,
@@ -35,6 +38,8 @@ import { flushAudit, installAuditCapture } from '../src/modules/audit'
 import { issueInvitation } from '../src/modules/identity'
 // Scripts may reach infrastructure directly; application code goes through the module API.
 import { passwordHasher } from '../src/modules/identity/infrastructure/password-hasher'
+import { itemRepository } from '../src/modules/inventory/infrastructure/item.repository'
+import { movementRepository } from '../src/modules/inventory/infrastructure/movement.repository'
 
 const DEFAULT_DEMO_PASSWORD = 'Clinic-Demo-2026!'
 const EMAIL_COLLATION = { locale: 'en', strength: 2 } as const
@@ -347,6 +352,161 @@ async function seedServices(clinicId: string): Promise<number> {
   return created
 }
 
+/**
+ * A starting shelf (A7). Enough shape for a visit to draw from on day one: something dated and
+ * billable, something dated and not, and something the clinic uses without counting.
+ *
+ * Every item arrives through a RECEIPT movement rather than a hand-written `quantityOnHand`,
+ * because the ledger is the truth and the projection is derived from it (section 8.11). Seeding
+ * the number directly would create a shelf whose ledger could not explain it — exactly the state
+ * the item page warns about.
+ */
+const INVENTORY = [
+  {
+    sku: 'CONS-GLOVE-M',
+    name: 'Examination gloves (medium)',
+    description: 'Box of 100, latex-free.',
+    category: 'Consumables',
+    unit: 'box',
+    costPrice: '6.00',
+    salePrice: null,
+    reorderLevel: '5',
+    isBillable: false,
+    received: { quantity: '24', batchNumber: null, expiresAt: null },
+  },
+  {
+    sku: 'CONS-SYRINGE-5',
+    name: 'Syringe 5 ml',
+    description: 'Single use, sterile.',
+    category: 'Consumables',
+    unit: 'unit',
+    costPrice: '0.20',
+    salePrice: '1.00',
+    reorderLevel: '50',
+    isBillable: true,
+    received: { quantity: '300', batchNumber: 'SYR-2609', expiresAt: null },
+  },
+  {
+    sku: 'VACC-FLU',
+    name: 'Influenza vaccine',
+    description: 'Single-dose vial, refrigerated.',
+    category: 'Vaccines',
+    unit: 'vial',
+    costPrice: '8.50',
+    salePrice: '22.00',
+    reorderLevel: '10',
+    isBillable: true,
+    // Two batches, so the shelf has something for FEFO to choose between on day one.
+    received: { quantity: '40', batchNumber: 'FLU-A21', expiresAt: '2027-03-31' },
+    second: { quantity: '15', batchNumber: 'FLU-A18', expiresAt: '2026-11-30' },
+  },
+  {
+    sku: 'DRUG-LIDO-2',
+    name: 'Lidocaine 2%',
+    description: '20 ml vial, local anaesthetic.',
+    category: 'Medicines',
+    unit: 'vial',
+    costPrice: '3.40',
+    salePrice: '9.00',
+    reorderLevel: '8',
+    isBillable: true,
+    received: { quantity: '6', batchNumber: 'LID-5512', expiresAt: '2027-01-31' },
+  },
+] as const
+
+const INVENTORY_CATEGORIES = ['Consumables', 'Vaccines', 'Medicines'] as const
+const SUPPLIER = { name: 'Beirut Medical Supplies', contactName: 'Hala Zein' }
+
+async function seedInventory(clinicId: string): Promise<number> {
+  for (const name of INVENTORY_CATEGORIES) {
+    const exists = await InventoryCategoryModel()
+      .exists({ clinicId, 'search.name': nameKey(name) })
+      .setOptions({ skipAudit: true })
+    if (!exists) {
+      await InventoryCategoryModel().create({ _id: newId(), clinicId, name, isActive: true })
+    }
+  }
+  const categories = new Map(
+    (await InventoryCategoryModel().find({ clinicId }).lean()).map((row) => [row.name, row._id]),
+  )
+
+  const supplierExists = await SupplierModel()
+    .exists({ clinicId, 'search.name': nameKey(SUPPLIER.name) })
+    .setOptions({ skipAudit: true })
+  if (!supplierExists) {
+    await SupplierModel().create({ _id: newId(), clinicId, ...SUPPLIER, isActive: true })
+  }
+  const supplier = await SupplierModel()
+    .findOne({ clinicId, 'search.name': nameKey(SUPPLIER.name) })
+    .lean()
+
+  let created = 0
+  for (const spec of INVENTORY) {
+    const exists = await InventoryItemModel()
+      .exists({ clinicId, 'search.sku': nameKey(spec.sku) })
+      .setOptions({ skipAudit: true })
+    if (exists) continue
+
+    const itemId = newId()
+    await InventoryItemModel().create({
+      _id: itemId,
+      clinicId,
+      sku: spec.sku,
+      name: spec.name,
+      description: spec.description,
+      categoryId: categories.get(spec.category) ?? null,
+      supplierId: supplier?._id ?? null,
+      unit: spec.unit,
+      costPrice: spec.costPrice,
+      salePrice: spec.salePrice,
+      quantityOnHand: '0',
+      reorderLevel: spec.reorderLevel,
+      batches: [],
+      isTracked: true,
+      isBillable: spec.isBillable,
+      isActive: true,
+      deletedAt: null,
+    })
+
+    const deliveries = [spec.received, 'second' in spec ? spec.second : null].filter(
+      (delivery): delivery is NonNullable<typeof delivery> => Boolean(delivery),
+    )
+    for (const delivery of deliveries) {
+      // The same two calls a real delivery makes, so the seeded shelf and its ledger agree by
+      // construction rather than by a hand-written number that could disagree.
+      const received = await itemRepository.receive(clinicId, itemId, {
+        quantity: delivery.quantity,
+        batchNumber: delivery.batchNumber,
+        expiresAt: delivery.expiresAt,
+        costPrice: spec.costPrice,
+        receivedAt: new Date(),
+      })
+      if (!received) throw new Error(`could not seed stock for ${spec.sku}`)
+
+      await movementRepository.record([
+        {
+          clinicId,
+          itemId,
+          item: { name: spec.name, sku: spec.sku, unit: spec.unit },
+          batchId: received.batchId,
+          batchNumber: received.batchNumber,
+          type: 'RECEIPT',
+          quantity: delivery.quantity,
+          balanceAfter: received.balanceAfter,
+          reason: 'Opening stock',
+          encounterId: null,
+          invoiceId: null,
+          reference: null,
+          occurredAt: new Date(),
+          performedBy: SEEDED_BY,
+        },
+      ])
+    }
+    created += 1
+  }
+  return created
+}
+
 async function seedSpecialties(clinicId: string): Promise<Map<string, string>> {
   const ids = new Map<string, string>()
   for (const name of SPECIALTIES) {
@@ -458,6 +618,7 @@ async function main(): Promise<void> {
   const activationLinks: string[] = []
   let patientsCreated = 0
   let servicesCreated = 0
+  let inventoryCreated = 0
 
   await runWithContext(context, async () => {
     const clinic = await seedClinic(clinicId)
@@ -504,6 +665,7 @@ async function main(): Promise<void> {
 
     patientsCreated = await seedPatients(clinicId, accounts)
     servicesCreated = await seedServices(clinicId)
+    inventoryCreated = await seedInventory(clinicId)
   })
 
   await flushAudit()
@@ -513,7 +675,7 @@ async function main(): Promise<void> {
     [
       `seeded clinic "${clinicId}": ${SYSTEM_ROLES.length} roles, ${ACTIVE_USERS.length} active users, ` +
         `${SPECIALTIES.length} specialties, ${patientsCreated} new patient records, ` +
-        `${servicesCreated} new priced services`,
+        `${servicesCreated} new priced services, ${inventoryCreated} new stock items`,
       `  sign in as ${ACTIVE_USERS.map((user) => user.email).join(', ')}`,
       `  ${UNASSIGNED_USER.email} can sign in but has no role yet — give it one in Admin → Users`,
       process.env.SEED_PASSWORD

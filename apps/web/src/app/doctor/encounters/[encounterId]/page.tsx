@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { getEncounter } from '@clinic/core/clinical'
+import { listConsumption, listItems } from '@clinic/core/inventory'
 import { listFiles } from '@clinic/core/files'
 import { getPatient } from '@clinic/core/patients'
 import { listPrescriptions } from '@clinic/core/prescriptions'
@@ -16,6 +17,8 @@ import { DocumentsCard } from '@/components/clinical/documents-card'
 import { NoteEditor } from '@/components/clinical/note-editor'
 import { PrescriptionBuilder } from '@/components/clinical/prescription-builder'
 import { PrescriptionsCard } from '@/components/clinical/prescriptions-card'
+import { ConsumptionCard } from '@/components/inventory/consumption-card'
+import { RecordConsumptionDialog } from '@/components/inventory/record-consumption-dialog'
 import { SignNoteDialog } from '@/components/clinical/sign-note-dialog'
 import { VitalsForm } from '@/components/clinical/vitals-form'
 import { requirePortal } from '@/lib/auth/server-session'
@@ -45,19 +48,24 @@ export default async function EncounterWorkspacePage({
   const { encounterId } = await params
 
   const encounter = await orNotFound(getEncounter(actor, encounterId))
-  const [clinic, patient, prescriptions, files, locale, t, tCommon] = await Promise.all([
-    getClinicSessionInfo(actor.clinicId),
-    getPatient(actor, encounter.patient.id).catch(() => null),
-    holds(actor, 'prescription:read')
-      ? listPrescriptions(actor, { encounterId: encounter.id })
-      : [],
-    holds(actor, 'file:read')
-      ? listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounter.id })
-      : [],
-    getLocale(),
-    getTranslations('doctor.encounter'),
-    getTranslations('common'),
-  ])
+  const [clinic, patient, prescriptions, files, consumed, stock, locale, t, tCommon, tStock] =
+    await Promise.all([
+      getClinicSessionInfo(actor.clinicId),
+      getPatient(actor, encounter.patient.id).catch(() => null),
+      holds(actor, 'prescription:read')
+        ? listPrescriptions(actor, { encounterId: encounter.id })
+        : [],
+      holds(actor, 'file:read')
+        ? listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounter.id })
+        : [],
+      holds(actor, 'inventory:read') ? listConsumption(actor, encounter.id) : [],
+      // The pick-list for the dialog: what is actually on the shelf right now.
+      holds(actor, 'inventory:consume') ? listItems(actor, { status: 'active', view: 'all' }) : [],
+      getLocale(),
+      getTranslations('doctor.encounter'),
+      getTranslations('common'),
+      getTranslations('inventory.consume'),
+    ])
 
   const signed = encounter.note.status === 'SIGNED'
   const mine = actor.doctorId === encounter.doctor.id
@@ -206,6 +214,22 @@ export default async function EncounterWorkspacePage({
             ) : null
           }
         />
+
+        {holds(actor, 'inventory:read') ? (
+          <ConsumptionCard
+            movements={consumed}
+            timeZone={clinic.timezone}
+            action={
+              holds(actor, 'inventory:consume') && mine && stock.length > 0 ? (
+                <RecordConsumptionDialog
+                  encounterId={encounter.id}
+                  items={stock}
+                  label={tStock('action')}
+                />
+              ) : null
+            }
+          />
+        ) : null}
 
         <DocumentsCard
           files={files}

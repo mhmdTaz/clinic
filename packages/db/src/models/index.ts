@@ -25,3 +25,19 @@ export { ServiceModel, ServiceSchema, type ServiceDoc } from './service.model'
 export { InvoiceModel, InvoiceSchema, type InvoiceDoc } from './invoice.model'
 export { PaymentModel, PaymentSchema, type PaymentDoc } from './payment.model'
 export { RefundModel, RefundSchema, type RefundDoc } from './refund.model'
+export {
+  InventoryCategoryModel,
+  InventoryCategorySchema,
+  type InventoryCategoryDoc,
+} from './inventory-category.model'
+export { SupplierModel, SupplierSchema, type SupplierDoc } from './supplier.model'
+export {
+  InventoryItemModel,
+  InventoryItemSchema,
+  type InventoryItemDoc,
+} from './inventory-item.model'
+export {
+  StockMovementModel,
+  StockMovementSchema,
+  type StockMovementDoc,
+} from './stock-movement.model'

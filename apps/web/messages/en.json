@@ -59,7 +59,8 @@
       "documents": "Documents",
       "services": "Services & prices",
       "billing": "Billing",
-      "bills": "Bills & payments"
+      "bills": "Bills & payments",
+      "inventory": "Inventory"
     }
   },
   "shell": {
@@ -785,6 +786,30 @@
           "total": "Total"
         }
       }
+    },
+    "inventory": {
+      "title": "Inventory",
+      "subtitle": "What is on the shelf, and what moved it.",
+      "searchHint": "Search by name or SKU",
+      "none": "Nothing here yet",
+      "noneBody": "Add what the clinic keeps on the shelf so visits can draw from it.",
+      "columns": {
+        "item": "Item",
+        "state": "State",
+        "expiry": "Next expiry",
+        "price": "Charged at",
+        "onHand": "On hand"
+      },
+      "views": {
+        "all": "Everything",
+        "low": "Running low",
+        "expiring": "Expiring"
+      },
+      "alerts": {
+        "low": "{count, plural, one {# item is running low} other {# items are running low}}",
+        "expiring": "{count, plural, one {# item expires soon} other {# items expire soon}}",
+        "expired": "{count, plural, one {# item has expired} other {# items have expired}}"
+      }
     }
   },
   "doctor": {
@@ -1094,6 +1119,7 @@
     "inventory": {
       "read": "View inventory",
       "manage": "Manage inventory items",
+      "consume": "Record what a visit used",
       "adjust": "Adjust stock levels"
     },
     "ticket": {
@@ -1482,6 +1508,128 @@
       "reason": "Reason",
       "cancel": "Cancel",
       "confirm": "Refund it"
+    }
+  },
+  "inventory": {
+    "item": {
+      "back": "Inventory",
+      "low": "Low",
+      "expiring": "Expiring",
+      "expired": "Expired",
+      "retired": "Not stocked",
+      "untracked": "Not counted",
+      "untrackedBody": "This item is used but never counted, so it holds no batches.",
+      "batches": "Batches",
+      "batchesHint": "Soonest to expire first — the order stock is reached for.",
+      "noBatches": "Nothing in stock",
+      "noBatchesBody": "Record a delivery to put something on the shelf.",
+      "unnumbered": "No batch number",
+      "noExpiry": "No expiry",
+      "expiresOn": "expires {date}",
+      "expiredOn": "expired {date}",
+      "receivedOn": "received {date}",
+      "summary": "This item",
+      "onHand": "On hand",
+      "ledgerTotal": "Ledger total",
+      "reorderLevel": "Reorder at",
+      "costPrice": "Cost",
+      "salePrice": "Charged at",
+      "notBillable": "Not charged",
+      "supplier": "Supplier",
+      "doesNotReconcile": "The shelf says {onHand} and the ledger says {ledger}. Something moved without a movement — this needs looking at.",
+      "actions": {
+        "add": "Add an item",
+        "edit": "Edit",
+        "receive": "Receive stock",
+        "adjust": "Adjust"
+      },
+      "form": {
+        "addTitle": "Add an item",
+        "editTitle": "Edit this item",
+        "body": "What the item is. Prices are in {currency}. Stock arrives by a delivery and is corrected by an adjustment, never typed in here.",
+        "sku": "SKU",
+        "name": "Name",
+        "description": "Description",
+        "unit": "Unit",
+        "unitHint": "box, vial, tablet",
+        "category": "Category",
+        "supplier": "Supplier",
+        "none": "None",
+        "costPrice": "Cost price",
+        "salePrice": "Charged at",
+        "reorderLevel": "Reorder at",
+        "tracked": "Count this item",
+        "billable": "Charge for this item",
+        "stocked": "Still stocked",
+        "cancel": "Cancel",
+        "save": "Save"
+      }
+    },
+    "movements": {
+      "title": "Ledger",
+      "hint": "Every movement, newest first, with the balance it produced.",
+      "none": "Nothing has moved yet",
+      "batch": "batch {number}",
+      "balanceAfter": "left",
+      "types": {
+        "RECEIPT": "Received",
+        "CONSUMPTION": "Used",
+        "WASTAGE": "Written off",
+        "RETURN": "Returned",
+        "ADJUSTMENT": "Adjusted"
+      }
+    },
+    "receive": {
+      "title": "Record a delivery",
+      "body": "What arrived of {name}. Its batch number and expiry travel with it.",
+      "quantity": "How many ({unit})",
+      "costPrice": "Cost price",
+      "batchNumber": "Batch number",
+      "expiresAt": "Expires",
+      "reference": "Delivery note",
+      "cancel": "Cancel",
+      "confirm": "Record it"
+    },
+    "adjust": {
+      "title": "Adjust the count",
+      "body": "The shelf holds {quantity} {unit} of {name}. A reason is required.",
+      "type": "What happened",
+      "direction": "Which way",
+      "quantity": "How many ({unit})",
+      "reason": "Reason",
+      "cancel": "Cancel",
+      "confirm": "Record it",
+      "types": {
+        "ADJUSTMENT": "Recount",
+        "WASTAGE": "Written off",
+        "RETURN": "Returned to stock"
+      },
+      "directions": {
+        "OUT": "Fewer than recorded",
+        "IN": "More than recorded"
+      }
+    },
+    "consume": {
+      "action": "Record what was used",
+      "cardTitle": "Used during this visit",
+      "cardHint": "Each line takes stock off the shelf and onto the bill.",
+      "none": "Nothing recorded yet",
+      "noneBody": "Anything used during this visit is taken off the shelf and billed for.",
+      "batch": "batch {number}",
+      "leftAfter": "left",
+      "title": "What did this visit use?",
+      "body": "Each line comes off the shelf, oldest stock first, and is added to the visit’s bill where the item is charged for.",
+      "item": "Item",
+      "choose": "Choose an item",
+      "expired": "expired",
+      "quantity": "How many",
+      "quantityIn": "How many ({unit})",
+      "note": "Note",
+      "notBilled": "This item is not charged for.",
+      "remove": "Remove",
+      "addAnother": "Add another item",
+      "cancel": "Cancel",
+      "confirm": "Record it"
     }
   }
 }

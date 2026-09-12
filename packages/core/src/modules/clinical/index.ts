@@ -20,7 +20,7 @@ export {
   findEncounterOwner,
   listMyPatients,
 } from './application/care'
-export { installEncounterScopeResolvers } from './application/scope'
+export { installEncounterScopeResolvers, encounterResource } from './application/scope'
 export { canTransition, isOpen, withOnePrimary, isIcd10Code } from './domain/encounter'
 export { noteContentHash, hasContent, isEditable, isSigned, NOTE_SECTIONS } from './domain/note'
 // NOT exported: the repository.

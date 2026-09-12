@@ -86,6 +86,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
         'payment:refund',
         'inventory:read',
         'inventory:manage',
+        'inventory:consume',
         'inventory:adjust',
         'ticket:read',
         'ticket:create',
@@ -104,7 +105,16 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
     priority: 20,
     isDefault: false,
     grants: [
-      ...clinic('portal.doctor:access', 'clinic:read', 'service:read', 'doctor:read'),
+      // The stock cupboard is the clinic's, not a doctor's: reading it and recording what a
+      // visit used are clinic-wide. Correcting a count is not theirs to do.
+      ...clinic(
+        'portal.doctor:access',
+        'clinic:read',
+        'service:read',
+        'doctor:read',
+        'inventory:read',
+        'inventory:consume',
+      ),
       ...assigned(
         'patient:read',
         'appointment:read',
