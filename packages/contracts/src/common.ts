@@ -50,6 +50,22 @@ export const nullableLocalDate = z.preprocess(blankToNull, LocalDate.nullable())
 /** A wall-clock time, "09:30", local to the clinic. */
 export const LocalTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'INVALID_TIME')
 
+/** Indexes of ranges that overlap another range on the same weekday. "HH:MM" sorts as text. */
+export function overlappingDayRanges(
+  entries: ReadonlyArray<{ dayOfWeek: number; from: string; to: string }>,
+): number[] {
+  const overlapping = new Set<number>()
+  entries.forEach((a, i) => {
+    entries.forEach((b, j) => {
+      if (i < j && a.dayOfWeek === b.dayOfWeek && a.from < b.to && b.from < a.to) {
+        overlapping.add(i)
+        overlapping.add(j)
+      }
+    })
+  })
+  return [...overlapping].sort((x, y) => x - y)
+}
+
 /** Today's calendar date in a timezone — "today" in Beirut is not "today" in UTC after 21:00. */
 export function localDateIn(timeZone: string, now: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-US', {

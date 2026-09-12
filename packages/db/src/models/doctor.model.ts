@@ -46,6 +46,35 @@ export const DoctorSchema = new Schema(
     ],
     branchIds: { type: [String], default: [] },
 
+    /**
+     * The week and the days away (section 8.7), embedded: slot computation reads them with the
+     * profile on every calendar render, and both are small and bounded. Times are local to the
+     * clinic (ADR-0010); time off is a calendar-date range, both ends inclusive.
+     */
+    availability: {
+      type: [
+        {
+          _id: false,
+          dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
+          startsAt: { type: String, required: true },
+          endsAt: { type: String, required: true },
+        },
+      ],
+      default: [],
+    },
+    timeOff: {
+      type: [
+        {
+          _id: false,
+          id: { type: String, required: true },
+          startDate: { type: String, required: true },
+          endDate: { type: String, required: true },
+          reason: { type: String, default: null },
+        },
+      ],
+      default: [],
+    },
+
     isAcceptingNew: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
     createdBy: { type: PersonRefSchema, default: null },

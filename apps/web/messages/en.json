@@ -50,7 +50,9 @@
       "overview": "Overview",
       "patients": "Patients",
       "doctors": "Doctors",
-      "account": "Profile & security"
+      "account": "Profile & security",
+      "appointments": "Appointments",
+      "schedule": "My schedule"
     }
   },
   "shell": {
@@ -111,7 +113,11 @@
     "POSSIBLE_DUPLICATE": "This may be a patient who is already registered.",
     "NOT_FOUND": "This could not be found.",
     "INVALID_CURSOR": "This page link is out of date. Go back to the first page.",
-    "NOTHING_TO_UPDATE": "Nothing has changed."
+    "NOTHING_TO_UPDATE": "Nothing has changed.",
+    "ENDS_BEFORE_STARTS": "The end must come after the start.",
+    "OVERLAPPING_BLOCKS": "These hours overlap another block on the same day.",
+    "NOT_ON_THE_BOOKING_GRID": "Appointments start on the five-minute mark.",
+    "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once."
   },
   "auth": {
     "login": {
@@ -205,7 +211,14 @@
     "SPECIALTY_EXISTS": "A specialty with this name already exists.",
     "NETWORK_ERROR": "Could not reach the server. Check your connection and try again.",
     "INTERNAL_ERROR": "Something went wrong on our side. Please try again.",
-    "generic": "Something went wrong. Please try again."
+    "generic": "Something went wrong. Please try again.",
+    "SLOT_TAKEN": "That time was just taken by someone else. Please choose another.",
+    "DOCTOR_NOT_ACTIVE": "That doctor is no longer seeing patients.",
+    "OUTSIDE_AVAILABILITY": "The doctor does not work at that time.",
+    "TOO_SOON": "That is too soon to book online. Please call the clinic.",
+    "BEYOND_HORIZON": "That is further ahead than booking is open.",
+    "TOO_LATE_TO_CHANGE": "That is too close to the appointment to change online. Please call the clinic.",
+    "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -346,6 +359,20 @@
         "remove": "Remove {name}",
         "save": "Save closures",
         "saved": "Closures saved."
+      },
+      "booking": {
+        "title": "Online booking",
+        "subtitle": "These limits apply to patients booking for themselves. The front desk is never held to them.",
+        "fields": {
+          "horizonDays": "Book up to (days ahead)",
+          "minimumNoticeHours": "Least notice (hours)",
+          "cancellationCutoffHours": "Changes stop (hours before)"
+        },
+        "hints": {
+          "horizonDays": "How far ahead a patient may pick a time.",
+          "minimumNoticeHours": "Times sooner than this are not offered.",
+          "cancellationCutoffHours": "After this, a patient must call to cancel or move an appointment."
+        }
       }
     },
     "users": {
@@ -647,16 +674,76 @@
         "retired": "Retired",
         "retireHint": "A retired specialty stays on the doctors who have it, and is not offered for new ones."
       }
+    },
+    "appointments": {
+      "title": "Appointments",
+      "count": "{count, plural, =0 {Nothing booked} one {# appointment} other {# appointments}}",
+      "noneThisDay": "Nothing booked.",
+      "weekOf": "Week of {date}",
+      "doctorFilter": "Doctor",
+      "allDoctors": "All doctors",
+      "statusFilter": "Status",
+      "allStatuses": "Any status",
+      "emptyTitle": "Nothing booked for this day",
+      "emptyBody": "Book the first appointment, or move to another day.",
+      "detail": {
+        "title": "Appointment",
+        "subtitle": "Reference {number}",
+        "when": "When",
+        "duration": "Length",
+        "doctor": "Doctor",
+        "patient": "Patient",
+        "source": "Booked",
+        "reason": "Reason",
+        "internalNote": "Note for the clinic",
+        "history": "What has happened"
+      }
     }
   },
   "doctor": {
     "overview": {
       "subtitle": "Your practice at {clinicName}."
+    },
+    "appointments": {
+      "title": "Appointments",
+      "count": "{count, plural, =0 {Nothing booked} one {# appointment} other {# appointments}}",
+      "noneThisDay": "Nothing booked.",
+      "weekOf": "Week of {date}",
+      "statusFilter": "Status",
+      "allStatuses": "Any status"
+    },
+    "schedule": {
+      "title": "My schedule",
+      "subtitle": "The hours you work and the days you are away. Patients are only offered times inside them."
     }
   },
   "patient": {
     "overview": {
       "subtitle": "Your care at {clinicName}."
+    },
+    "appointments": {
+      "title": "My appointments",
+      "subtitle": "What is coming up, and what has already happened.",
+      "book": "Book an appointment",
+      "upcoming": "Coming up",
+      "past": "Past appointments",
+      "pastSince": "Since {date}.",
+      "noneUpcoming": "Nothing booked",
+      "noneUpcomingBody": "Book a time with one of the clinic's doctors.",
+      "new": {
+        "title": "Book an appointment",
+        "subtitle": "Choose a doctor and one of the times they are open.",
+        "doctor": "Doctor",
+        "chooseDoctor": "Choose a doctor",
+        "fromDate": "Looking from",
+        "horizonHint": "Booking is open up to {date}.",
+        "time": "Open times",
+        "reason": "What is it about?",
+        "reasonHint": "A short note helps the clinic prepare. You can leave it blank.",
+        "submit": "Confirm the booking",
+        "noDoctors": "No doctors are taking appointments",
+        "noDoctorsBody": "Please call the clinic to arrange a time."
+      }
     }
   },
   "account": {
@@ -719,16 +806,26 @@
   },
   "permissions": {
     "portal": {
-      "admin": { "access": "Open the admin portal" },
-      "staff": { "access": "Open the staff portal" },
-      "doctor": { "access": "Open the doctor portal" },
-      "patient": { "access": "Open the patient portal" }
+      "admin": {
+        "access": "Open the admin portal"
+      },
+      "staff": {
+        "access": "Open the staff portal"
+      },
+      "doctor": {
+        "access": "Open the doctor portal"
+      },
+      "patient": {
+        "access": "Open the patient portal"
+      }
     },
     "clinic": {
       "read": "View clinic details",
       "update": "Edit clinic details, opening hours and closures"
     },
-    "branch": { "manage": "Add, edit and close locations" },
+    "branch": {
+      "manage": "Add, edit and close locations"
+    },
     "service": {
       "read": "View services and prices",
       "manage": "Edit services and prices"
@@ -764,7 +861,9 @@
       "update": "Edit doctor profiles",
       "delete": "Deactivate doctors"
     },
-    "specialty": { "manage": "Manage the specialty list" },
+    "specialty": {
+      "manage": "Manage the specialty list"
+    },
     "availability": {
       "read": "View doctor schedules",
       "manage": "Edit doctor schedules"
@@ -813,7 +912,9 @@
       "assign": "Assign support tickets",
       "manage": "Manage support tickets"
     },
-    "analytics": { "read": "View reports and analytics" }
+    "analytics": {
+      "read": "View reports and analytics"
+    }
   },
   "noAccess": {
     "title": "No portal assigned yet",
@@ -827,5 +928,106 @@
     "notFoundTitle": "Page not found",
     "notFoundBody": "The page you are looking for does not exist or has moved.",
     "home": "Go to my home page"
+  },
+  "scheduling": {
+    "minutes": "{count, plural, one {# minute} other {# minutes}}",
+    "withDoctor": "with {doctor}",
+    "backToAppointments": "Appointments",
+    "noDoctorProfile": "No doctor profile yet",
+    "noPatientProfile": "No patient record yet",
+    "askAnAdmin": "Your account is not linked to a record at this clinic. An administrator can connect them.",
+    "statuses": {
+      "SCHEDULED": "Scheduled",
+      "CHECKED_IN": "Checked in",
+      "IN_PROGRESS": "In progress",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "NO_SHOW": "Did not attend"
+    },
+    "sources": {
+      "STAFF": "Booked by the clinic",
+      "PATIENT": "Booked by the patient"
+    },
+    "actions": {
+      "book": "Book an appointment",
+      "checkIn": "Check in",
+      "start": "Start visit",
+      "complete": "Complete",
+      "reschedule": "Reschedule",
+      "noShow": "Did not attend",
+      "cancel": "Cancel"
+    },
+    "confirm": {
+      "cancelTitle": "Cancel this appointment?",
+      "cancelBody": "The time is freed for someone else. {patient} keeps the appointment in their history, marked cancelled.",
+      "cancelConfirm": "Cancel the appointment",
+      "noShowTitle": "Mark as did not attend?",
+      "noShowBody": "{patient} did not arrive. The time is freed and the record keeps why.",
+      "noShowConfirm": "Mark as did not attend"
+    },
+    "slots": {
+      "chooseDoctor": "Choose a doctor to see when they are free.",
+      "loading": "Finding open times…",
+      "none": "No open times. Try another day.",
+      "groupLabel": "Open times"
+    },
+    "book": {
+      "title": "Book an appointment",
+      "description": "Only times the doctor is actually open are offered.",
+      "patient": "Patient",
+      "patientPlaceholder": "Name, record number or phone",
+      "searching": "Searching…",
+      "noPatients": "No patient matches that. Register them first.",
+      "changePatient": "Change",
+      "doctor": "Doctor",
+      "chooseDoctor": "Choose a doctor",
+      "date": "Day",
+      "time": "Time",
+      "reason": "Reason for the visit",
+      "internalNote": "Note for the clinic",
+      "internalNoteHint": "Staff and the doctor see this. The patient never does.",
+      "submit": "Book"
+    },
+    "reschedule": {
+      "title": "Move this appointment",
+      "description": "The appointment keeps its number and its history; only the time changes.",
+      "date": "Day",
+      "time": "New time",
+      "submit": "Move the appointment"
+    },
+    "calendar": {
+      "previous": "Earlier",
+      "next": "Later",
+      "today": "Today",
+      "date": "Day",
+      "view": "View",
+      "views": {
+        "day": "Day",
+        "week": "Week"
+      }
+    },
+    "availability": {
+      "title": "Working week",
+      "subtitle": "Times are local to the clinic ({timezone}).",
+      "slotLength": "Appointment length",
+      "slotLengthHint": "Each block is divided into appointments of this length.",
+      "away": "Not working",
+      "startsAt": "From",
+      "endsAt": "To",
+      "addHours": "Add hours",
+      "addMoreHours": "Add another block",
+      "removeHours": "Remove these hours",
+      "saved": "Working week saved."
+    },
+    "timeOff": {
+      "title": "Time off",
+      "subtitle": "Days away. Nothing new can be booked into them; appointments already made stay where they are.",
+      "none": "No time off booked.",
+      "past": "Past",
+      "removeLabel": "Remove the time off on {dates}",
+      "startDate": "First day",
+      "endDate": "Last day",
+      "add": "Add time off"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { env, processSingleton } from '@clinic/config'
 import { installDefaultScopeResolvers } from './modules/access'
 import { flushAudit, installAuditCapture } from './modules/audit'
+import { installAppointmentScopeResolvers } from './modules/appointments'
 import { installDoctorScopeResolvers } from './modules/doctors'
 import { installPatientScopeResolvers } from './modules/patients'
 
@@ -21,6 +22,7 @@ export function bootstrapServer(): void {
   installDefaultScopeResolvers()
   installPatientScopeResolvers()
   installDoctorScopeResolvers()
+  installAppointmentScopeResolvers()
   installAuditCapture()
   bootstrap.started = true
 }

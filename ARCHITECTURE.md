@@ -680,6 +680,15 @@ export async function assertCan(actor, permission, resource?) {
 }
 ```
 
+The resolver is looked up by the permission's **subject** — the part before the colon — so
+`availability:manage` and `availability:read` share one resolver, registered by whichever module
+owns those documents. A subject with no registered resolver **denies**: forgetting one must never
+open a door. The cost of that choice is that forgetting one instead closes a door quietly, and a
+doctor refused their own working week looks exactly like a doctor who was never granted it. So the
+set is checked rather than remembered: a unit test walks every permission the seeded roles grant at
+`OWN` or `ASSIGNED` and asserts each subject resolves, with an explicit list of the subjects whose
+modules have not been built yet. Deleting a line from that list is part of building the module.
+
 For **list** endpoints, the same scope is compiled into a MongoDB filter rather than filtering in
 memory — permission checks must never load documents the actor cannot see:
 
@@ -2834,6 +2843,17 @@ user, and that user's menu and API access change on their next request — with 
 **Exit criteria:** staff books, reschedules and cancels; a patient books from their portal; two
 simultaneous bookings for the same slot produce exactly one appointment and one clean 409.
 
+Two items on the list above are deliberately not in the first pass, and neither is on the exit
+criteria:
+
+- **Drag to reschedule.** Moving an appointment works, through a dialog that offers the doctor's
+  open times; dragging is a second way to reach the same use case, and an expensive one to make
+  keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
+- **The walk-in queue.** A walk-in arrives at 10:07 for a diary that offers 10:00 and 10:20. Taking
+  one means booking off the grid, and the grid is what makes double-booking impossible (ADR-0013).
+  How a clinic wants overbooking to behave — refuse, squeeze in, or queue for the next gap — is a
+  policy question, not a UI one, and it deserves its own decision rather than an improvised answer.
+
 ### Phase 4 — Clinical records and files · ~2.5 weeks
 
 - Encounter lifecycle; the doctor's encounter workspace
@@ -2975,7 +2995,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0003 | Transactional outbox for domain events, relayed by a change stream | **Accepted** | Section 13.4 |
 | 0011 | **MongoDB + Mongoose**, not Prisma's MongoDB connector | **Accepted** | Section 8.1 — driven by the absence of migrations and of the aggregation pipeline in that connector. Revisit if Prisma ships real MongoDB migrations |
 | 0012 | Embed-or-reference rule and the per-entity verdicts | **Accepted** | Section 8.2 — the highest-leverage decision in a document model, so it is a stated rule rather than per-entity taste |
-| 0013 | Slot reservation documents for booking concurrency | **Accepted** | Section 8.7 — MongoDB transactions do not prevent phantom-read double-booking; a unique `_id` does |
+| 0013 | Slot reservation documents for booking concurrency | **Accepted** | `docs/adr/0013` and section 8.7 — MongoDB transactions do not prevent phantom-read double-booking; a unique `_id` does |
 | 0014 | Restricted-import zones instead of `eslint-plugin-boundaries` | **Accepted** | Section 5.3 — the plugin silently enforced nothing across workspace packages |
 | 0015 | Replica set in development and CI, on port 27018 | **Accepted** | `docs/adr/0015` — a standalone fails only transactions and change streams, and fails them late |
 | 0016 | Audit connection separated before auth exists | **Accepted** | `docs/adr/0016` — structural from day one; the privilege separation itself lands with auth in staging |
@@ -2983,7 +3003,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0006 | Staff register patients; patients activate by emailed link | **Accepted** | `docs/adr/0006` — no public sign-up. Activation sets the first password on an account that already exists, so a leaked link cannot mint accounts |
 | 0017 | Own token service instead of Auth.js | **Accepted** | `docs/adr/0017` — rotating refresh tokens, one path for cookie and Bearer, authentication outside the framework layer |
 | 0018 | Portal permissions gated in layouts, not middleware | **Accepted** | `docs/adr/0018` — current grants rather than a token's, and every denial audited |
-| 0004 | `ASSIGNED` scope: strict, chart-wide, or break-the-glass | **OPEN** | Section 7.5 — needed before Phase 4 |
+| 0004 | `ASSIGNED` reaches the rows you are named on | **Accepted** | `docs/adr/0004` — strict: the resolver compares the row against the actor's own doctor profile, and a clinic that wants wider reach grants `CLINIC`, which the matrix shows. Break-the-glass stays additive for Phase 4 |
 | 0007 | Payment provider for online payments | **OPEN** | Deferred with P16; `PaymentGateway` interface reserves the seam |
 | 0008 | SMS provider and whether SMS is in v1 at all | **OPEN** | Cost per message drives reminder strategy |
 | 0009 | Hosting target: **Atlas or self-hosted MongoDB**, and serverless or containers | **OPEN** | Now materially bigger than a hosting preference: Atlas brings Atlas Search (patient search quality, section 8.14), managed point-in-time restore and Online Archive. Serverless also forces connection-pool caching (section 15.2). Worth deciding early |
@@ -2991,6 +3011,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0010 | One timezone for the whole clinic | **Accepted** | `docs/adr/0010` — branches share the clinic's IANA zone; the unused branch field keeps a per-branch override an addition. Calendar dates are `YYYY-MM-DD` strings, never instants |
 | 0020 | Possible duplicate patients warn, and saving anyway takes a reason | **Accepted** | `docs/adr/0020` — national ID, phone (last seven digits), email, or name plus date of birth; re-checked at save; overrides audited |
 | 0021 | One branch until a second exists | **Accepted** | `docs/adr/0021` — branch fields appear only in a multi-branch clinic; the last open branch cannot close |
+| 0022 | Patients book inside a window; staff are not limited | **Accepted** | `docs/adr/0022` — booking horizon, minimum notice and cancellation cutoff live in clinic settings and bind self-service only |
 
 ### The ones to settle next
 
@@ -3007,9 +3028,10 @@ prefix-only, whether point-in-time restore is managed or something we build and 
 ourselves, and whether archival has a product behind it. Worth answering in Phase 0 rather than
 discovering in Phase 8.
 
-**0004 (the `ASSIGNED` scope for clinical records)** must be answered before Phase 4 ships. Until
-then the policy engine fails closed: an `ASSIGNED` grant on a subject with no registered resolver
-denies.
+**0004** was settled at the start of Phase 3, because a doctor's own appointment list needs it:
+`ASSIGNED` is strict, and a clinic that wants a doctor to read every chart grants `CLINIC` instead.
+Phase 4 revisits only whether to add an audited break-the-glass override. The policy engine still
+fails closed — an `ASSIGNED` grant on a subject with no registered resolver denies.
 
 ---
 

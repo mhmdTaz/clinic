@@ -17,7 +17,9 @@
     "./session": "./src/modules/session/index.ts",
     "./users": "./src/modules/users/index.ts",
     "./patients": "./src/modules/patients/index.ts",
-    "./doctors": "./src/modules/doctors/index.ts"
+    "./doctors": "./src/modules/doctors/index.ts",
+    "./scheduling": "./src/modules/scheduling/index.ts",
+    "./appointments": "./src/modules/appointments/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

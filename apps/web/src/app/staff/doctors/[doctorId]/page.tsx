@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
-import { getTranslations } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
+import { localDateIn } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSettings } from '@clinic/core/clinic'
-import { getDoctor, listSpecialties } from '@clinic/core/doctors'
+import { getDoctor, getDoctorSchedule, listSpecialties } from '@clinic/core/doctors'
 import { Alert, Badge, Card, CardContent } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
 import { UserStatusBadge } from '@/components/portal/status-badges'
+import { AvailabilityCard } from '@/components/scheduling/availability-card'
+import { TimeOffCard } from '@/components/scheduling/time-off-card'
 import { requirePortal } from '@/lib/auth/server-session'
+import { WEEK_ORDER, weekdayName } from '@/lib/format/weekdays'
 import { orNotFound, param, type RouteParams, type SearchParams } from '@/lib/server/page-helpers'
 import { DoctorForm } from '../doctor-form'
 
@@ -32,9 +36,13 @@ export default async function DoctorPage({
   const created = param(await searchParams, 'created')
 
   const doctor = await orNotFound(getDoctor(actor, doctorId))
-  const [settings, specialties, t, tStatus] = await Promise.all([
+  const [settings, specialties, schedule, locale, t, tStatus] = await Promise.all([
     getClinicSettings(actor),
     listSpecialties(actor),
+    // Availability is a separate grant: the front desk may keep the diary without being able
+    // to edit the profile, and a role may have the profile without the diary.
+    holds(actor, 'availability:read') ? getDoctorSchedule(actor, doctorId) : null,
+    getLocale(),
     getTranslations('staff.doctors'),
     getTranslations('status'),
   ])
@@ -81,6 +89,26 @@ export default async function DoctorPage({
           />
         </CardContent>
       </Card>
+
+      {schedule ? (
+        <div className="mt-4 flex max-w-4xl flex-col gap-4">
+          <AvailabilityCard
+            doctorId={doctor.id}
+            blocks={schedule.blocks}
+            slotMinutes={schedule.slotMinutes}
+            timezone={settings.timezone}
+            weekdays={WEEK_ORDER.map((day) => ({ day, name: weekdayName(day, locale) }))}
+            canEdit={holds(actor, 'availability:manage')}
+          />
+          <TimeOffCard
+            doctorId={doctor.id}
+            entries={schedule.timeOff}
+            today={localDateIn(settings.timezone)}
+            locale={locale}
+            canEdit={holds(actor, 'availability:manage')}
+          />
+        </div>
+      ) : null}
     </>
   )
 }

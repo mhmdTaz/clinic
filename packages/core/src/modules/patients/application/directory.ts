@@ -73,3 +73,34 @@ export async function getPatient(actor: Actor, patientId: string): Promise<Patie
   const account = patient.userId ? await findUser(actor.clinicId, patient.userId) : null
   return toPatientDetail(patient, account)
 }
+
+/** The patient profile attached to an account, for the `pid` claim on a token (ADR-0004). */
+export function findPatientIdForUser(clinicId: string, userId: string): Promise<string | null> {
+  return patientRepository.findIdByUserId(clinicId, userId)
+}
+
+/** The snapshot an appointment carries (section 8.7). A genuine read of the record, so audited. */
+export interface PatientSchedulingFacts {
+  id: string
+  userId: string | null
+  name: string
+  medicalRecordNo: string
+  phone: string | null
+  isActive: boolean
+}
+
+export async function findPatientForScheduling(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientSchedulingFacts | null> {
+  const patient = await patientRepository.findById(clinicId, patientId)
+  if (!patient) return null
+  return {
+    id: patient.id,
+    userId: patient.userId,
+    name: `${patient.firstName} ${patient.lastName}`,
+    medicalRecordNo: patient.medicalRecordNo,
+    phone: patient.contact.phone,
+    isActive: patient.isActive,
+  }
+}

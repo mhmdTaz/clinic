@@ -143,6 +143,16 @@ export const patientRepository = {
     return nextFormatted(`mrn:${clinicId}`, 'MRN', 6)
   },
 
+  /** The record linked to an account, for the `pid` claim. Not a view of the record. */
+  async findIdByUserId(clinicId: string, userId: string): Promise<string | null> {
+    const doc = (await PatientModel()
+      .findOne({ clinicId, userId })
+      .select({ _id: 1 })
+      .setOptions({ skipAudit: true })
+      .lean()) as unknown as { _id: string } | null
+    return doc?._id ?? null
+  },
+
   /** What an authorisation decision needs — the linked account — without viewing the record. */
   async findAccessFacts(
     clinicId: string,

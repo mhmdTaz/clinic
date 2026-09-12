@@ -4,6 +4,9 @@ export {
   getPatient,
   toPatientSummary,
   toPatientDetail,
+  findPatientIdForUser,
+  findPatientForScheduling,
+  type PatientSchedulingFacts,
 } from './application/directory'
 export { checkDuplicates, registerPatient, updatePatient } from './application/registration'
 export { archivePatient, restorePatient, invitePatientToPortal } from './application/lifecycle'

@@ -13,6 +13,7 @@ import {
   localeOptions,
   timezoneOptions,
 } from '@/lib/format/regions'
+import { BookingWindowCard } from './booking-window-card'
 import { ClinicProfileForm } from './clinic-profile-form'
 import { HolidaysCard } from './holidays-card'
 import { LocationsCard } from './locations-card'
@@ -61,6 +62,8 @@ export default async function ClinicSettingsPage() {
           weekdays={WEEK_ORDER.map((day) => ({ day, name: weekdayName(day, locale) }))}
           canEdit={canEdit}
         />
+
+        <BookingWindowCard booking={settings.booking} canEdit={canEdit} />
 
         <HolidaysCard
           holidays={settings.holidays}

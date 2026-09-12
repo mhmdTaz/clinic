@@ -8,6 +8,7 @@ const { flushAudit, installAuditCapture } = await import('../src/modules/audit')
 const { installDefaultScopeResolvers } = await import('../src/modules/access')
 const { installPatientScopeResolvers } = await import('../src/modules/patients')
 const { installDoctorScopeResolvers } = await import('../src/modules/doctors')
+const { installAppointmentScopeResolvers } = await import('../src/modules/appointments')
 const { rateLimiter } = await import('../src/modules/identity/infrastructure/rate-limiter')
 
 beforeAll(async () => {
@@ -16,6 +17,9 @@ beforeAll(async () => {
   installDefaultScopeResolvers()
   installPatientScopeResolvers()
   installDoctorScopeResolvers()
+  // Every resolver the server installs (src/server.ts). A missing one denies rather than
+  // throws, so leaving one out here would fail a test for a reason the code does not have.
+  installAppointmentScopeResolvers()
 })
 
 afterAll(async () => {

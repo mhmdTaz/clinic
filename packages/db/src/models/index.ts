@@ -12,3 +12,9 @@ export {
 export { PatientModel, PatientSchema, type PatientDoc } from './patient.model'
 export { DoctorModel, DoctorSchema, type DoctorDoc } from './doctor.model'
 export { SpecialtyModel, SpecialtySchema, type SpecialtyDoc } from './specialty.model'
+export { AppointmentModel, AppointmentSchema, type AppointmentDoc } from './appointment.model'
+export {
+  SlotReservationModel,
+  SlotReservationSchema,
+  type SlotReservationDoc,
+} from './slot-reservation.model'

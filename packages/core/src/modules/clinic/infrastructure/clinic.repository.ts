@@ -1,5 +1,6 @@
 import { ClinicModel, RoleModel, UserModel, newId } from '@clinic/db'
 import type {
+  BookingWindow,
   BranchDetail,
   ClinicProfile,
   ClinicProfileInput,
@@ -135,7 +136,8 @@ export const clinicRepository = {
     }
   },
 
-  async findSettings(clinicId: string): Promise<ClinicSettings | null> {
+  /** Everything but the booking window, which is stored apart and defaulted by the use case. */
+  async findSettings(clinicId: string): Promise<Omit<ClinicSettings, 'booking'> | null> {
     const doc = (await ClinicModel().findById(clinicId).lean()) as ClinicRecord | null
     if (!doc) return null
     return {
@@ -156,6 +158,22 @@ export const clinicRepository = {
       branches: (doc.branches ?? []).map(branchOf),
       holidays: holidaysOf(doc.holidays),
     }
+  },
+
+  /** Self-service limits (ADR-0022). Absent fields mean the clinic keeps the defaults. */
+  async findBookingWindow(clinicId: string): Promise<Partial<BookingWindow>> {
+    const doc = (await ClinicModel().findById(clinicId).select({ settings: 1 }).lean()) as {
+      settings?: { booking?: Partial<BookingWindow> | null } | null
+    } | null
+    return doc?.settings?.booking ?? {}
+  },
+
+  async setBookingWindow(clinicId: string, window: BookingWindow): Promise<boolean> {
+    const doc = await ClinicModel().findById(clinicId)
+    if (!doc) return false
+    doc.set('settings.booking', window)
+    await doc.save()
+    return true
   },
 
   async countMembers(clinicId: string): Promise<{ users: number; roles: number }> {

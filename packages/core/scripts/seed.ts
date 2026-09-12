@@ -305,13 +305,27 @@ async function seedSpecialties(clinicId: string): Promise<Map<string, string>> {
   return ids
 }
 
+/** Weekdays, mornings and afternoons: enough of a week for the calendar to have shape. */
+const DOCTOR_WEEK = [1, 2, 3, 4, 5].flatMap((dayOfWeek) => [
+  { dayOfWeek, startsAt: '09:00', endsAt: '13:00' },
+  { dayOfWeek, startsAt: '14:00', endsAt: '17:00' },
+])
+
 async function seedDoctorProfile(
   clinicId: string,
   userId: string,
   specialty: { id: string; name: string },
   branchId: string | null,
 ): Promise<void> {
-  if (await DoctorModel().exists({ clinicId, userId })) return
+  const existing = await DoctorModel().findOne({ clinicId, userId })
+  if (existing) {
+    // A profile seeded before Phase 3 has no week; give it one without touching anything else.
+    if ((existing.get('availability') ?? []).length === 0) {
+      existing.set('availability', DOCTOR_WEEK)
+      await existing.save()
+    }
+    return
+  }
   await DoctorModel().create({
     _id: newId(),
     clinicId,
@@ -324,6 +338,8 @@ async function seedDoctorProfile(
     defaultSlotMinutes: 20,
     specialties: [specialty],
     branchIds: branchId ? [branchId] : [],
+    availability: DOCTOR_WEEK,
+    timeOff: [],
     isAcceptingNew: true,
     isActive: true,
     createdBy: SEEDED_BY,

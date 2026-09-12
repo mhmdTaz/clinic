@@ -1,5 +1,7 @@
 import {
   Building2,
+  CalendarClock,
+  CalendarDays,
   CircleDot,
   ClipboardList,
   Contact,
@@ -17,6 +19,8 @@ import {
 /** Navigation stores icon NAMES (it is shared with mobile); this maps them for the web. */
 const ICONS: Record<string, LucideIcon> = {
   building: Building2,
+  'calendar-clock': CalendarClock,
+  'calendar-days': CalendarDays,
   'clipboard-list': ClipboardList,
   contact: Contact,
   'heart-pulse': HeartPulse,
