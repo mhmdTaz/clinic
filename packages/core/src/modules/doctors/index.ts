@@ -9,8 +9,10 @@ export {
   addDoctorTimeOff,
   removeDoctorTimeOff,
   findDoctorForScheduling,
+  findDoctorForBilling,
   findDoctorIdForUser,
   type DoctorSchedulingFacts,
+  type DoctorBillingFacts,
 } from './application/schedule'
 export { currencyDigits, normalizeAmount } from './domain/money'
 // NOT exported: the repositories.

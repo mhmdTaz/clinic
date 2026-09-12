@@ -21,3 +21,7 @@ export {
 export { EncounterModel, EncounterSchema, type EncounterDoc } from './encounter.model'
 export { PrescriptionModel, PrescriptionSchema, type PrescriptionDoc } from './prescription.model'
 export { FileModel, FileSchema, type FileDoc } from './file.model'
+export { ServiceModel, ServiceSchema, type ServiceDoc } from './service.model'
+export { InvoiceModel, InvoiceSchema, type InvoiceDoc } from './invoice.model'
+export { PaymentModel, PaymentSchema, type PaymentDoc } from './payment.model'
+export { RefundModel, RefundSchema, type RefundDoc } from './refund.model'

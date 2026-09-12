@@ -136,3 +136,27 @@ export async function findDoctorIdForUser(
   const doctor = await doctorRepository.findByUserId(clinicId, userId)
   return doctor?.id ?? null
 }
+
+/**
+ * What billing needs about a doctor: the fee an invoice drawn from their consultation starts
+ * from (S7). No permission check — the caller has already authorised the invoice itself.
+ */
+export interface DoctorBillingFacts {
+  id: string
+  name: string
+  consultationFee: string | null
+}
+
+export async function findDoctorForBilling(
+  clinicId: string,
+  doctorId: string,
+): Promise<DoctorBillingFacts | null> {
+  const doctor = await doctorRepository.findById(clinicId, doctorId)
+  if (!doctor) return null
+  const account = await findUser(clinicId, doctor.userId)
+  return {
+    id: doctor.id,
+    name: account ? displayNameOf(account) : '',
+    consultationFee: doctor.consultationFee,
+  }
+}

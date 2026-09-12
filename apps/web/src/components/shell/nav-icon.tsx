@@ -10,10 +10,12 @@ import {
   KeyRound,
   LayoutDashboard,
   Pill,
+  Receipt,
   Settings,
   Shield,
   ShieldCheck,
   Stethoscope,
+  Tags,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -30,10 +32,12 @@ const ICONS: Record<string, LucideIcon> = {
   'key-round': KeyRound,
   'layout-dashboard': LayoutDashboard,
   pill: Pill,
+  receipt: Receipt,
   settings: Settings,
   shield: Shield,
   'shield-check': ShieldCheck,
   stethoscope: Stethoscope,
+  tags: Tags,
   users: Users,
 }
 

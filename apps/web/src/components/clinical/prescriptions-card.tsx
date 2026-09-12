@@ -33,7 +33,9 @@ export async function PrescriptionsCard({
           <CardTitle>{title ?? t('title')}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>
-        {action}
+        {/* The empty state carries the action when there is nothing to list; showing it in both
+            places puts two identical buttons on the same screen. */}
+        {prescriptions.length > 0 ? action : null}
       </CardHeader>
       <CardContent>
         {prescriptions.length === 0 ? (

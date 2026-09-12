@@ -2,6 +2,7 @@ import { env, processSingleton } from '@clinic/config'
 import { installDefaultScopeResolvers, provideCareRelationship } from './modules/access'
 import { flushAudit, installAuditCapture } from './modules/audit'
 import { installAppointmentScopeResolvers } from './modules/appointments'
+import { installBillingScopeResolvers } from './modules/billing'
 import { careRelationshipFromEncounters, installEncounterScopeResolvers } from './modules/clinical'
 import { installDoctorScopeResolvers } from './modules/doctors'
 import { installFileScopeResolvers } from './modules/files'
@@ -29,6 +30,7 @@ export function bootstrapServer(): void {
   installEncounterScopeResolvers()
   installPrescriptionScopeResolvers()
   installFileScopeResolvers()
+  installBillingScopeResolvers()
   // "Is this patient one of mine?" is asked by authorisation and answered by visits; the two
   // modules never import each other, so the composition root is where they meet (ADR-0004).
   provideCareRelationship(careRelationshipFromEncounters)

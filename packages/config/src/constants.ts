@@ -134,6 +134,24 @@ export const MAX_FILE_BYTES = 25 * 1024 * 1024
 export const UPLOAD_URL_SECONDS = 300
 export const DOWNLOAD_URL_SECONDS = 60
 
+/**
+ * An invoice's life (section 8.10). OVERDUE is deliberately absent: whether an invoice is late is
+ * a question about today and its due date, so it is derived on read rather than stored and swept
+ * by a nightly job that can silently stop running.
+ */
+export const INVOICE_STATUSES = ['DRAFT', 'ISSUED', 'PARTIALLY_PAID', 'PAID', 'VOID'] as const
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number]
+
+/** How the money arrived. Reference data a clinic may extend later (section 2.3). */
+export const PAYMENT_METHODS = ['CASH', 'CARD', 'TRANSFER', 'INSURANCE'] as const
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
+
+export const PAYMENT_STATUSES = ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'] as const
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
+/** How long an issued invoice has before it counts as late, unless the clinic says otherwise. */
+export const INVOICE_DUE_DAYS_DEFAULT = 14
+
 /** Patient demographics (section 8.6): closed sets, so an enum in both layers. */
 export const GENDERS = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'] as const
 export type Gender = (typeof GENDERS)[number]
