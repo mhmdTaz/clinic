@@ -3,6 +3,7 @@ import type { DownloadLink, FileListQuery, StoredFile, UpdateFileRequest } from 
 import { BusinessRuleError, ForbiddenError, NotFoundError, ValidationError } from '../../../errors'
 import { recordAudit } from '../../audit'
 import { assertCan, careRelationship, type Actor } from '../../access'
+import { findEncounterOwner } from '../../clinical'
 import { fileRepository } from '../infrastructure/file.repository'
 import { objectStorage } from '../infrastructure/object-storage'
 import { fileListScope, fileResource } from './scope'
@@ -19,15 +20,31 @@ export async function listFiles(actor: Actor, query: FileListQuery): Promise<Sto
   const scope = fileListScope(actor)
   if (!scope) throw new ForbiddenError('file:read')
 
-  // ASSIGNED has no filter of its own: it is a question about a patient, so one must be named.
+  /**
+   * ASSIGNED has no filter of its own, so the question has to name what it is about — and there
+   * are two ways to ask it. A chart names the patient, and the doctor must have treated them. A
+   * visit names itself, and the attachments on it belong to the doctor who conducted it, which
+   * is the strict rule ADR-0004 asks for and needs no care-relationship lookup at all.
+   */
   if (actor.permissions.get('file:read') === 'ASSIGNED') {
-    if (!actor.doctorId || !query.patientId) throw new ForbiddenError('file:read')
-    const treats = await careRelationship().hasTreated(
-      actor.clinicId,
-      actor.doctorId,
-      query.patientId,
-    )
-    if (!treats) throw new ForbiddenError('file:read')
+    if (!actor.doctorId) throw new ForbiddenError('file:read')
+
+    if (query.ownerType === 'ENCOUNTER' && query.ownerId) {
+      const encounter = await findEncounterOwner(actor.clinicId, query.ownerId)
+      if (!encounter || encounter.doctorId !== actor.doctorId) {
+        throw new ForbiddenError('file:read')
+      }
+    } else if (query.patientId) {
+      const treats = await careRelationship().hasTreated(
+        actor.clinicId,
+        actor.doctorId,
+        query.patientId,
+      )
+      if (!treats) throw new ForbiddenError('file:read')
+    } else {
+      // Neither a patient nor a visit: an unbounded question a narrow grant cannot answer.
+      throw new ForbiddenError('file:read')
+    }
   }
 
   const files = await fileRepository.list(actor.clinicId, {

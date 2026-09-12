@@ -3,12 +3,17 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { localDateIn } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { listEncounters } from '@clinic/core/clinical'
 import { listDoctors } from '@clinic/core/doctors'
+import { listFiles } from '@clinic/core/files'
 import { getPatient } from '@clinic/core/patients'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@clinic/ui'
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
 import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-dialog'
+import { ChartBanner } from '@/components/clinical/chart-banner'
+import { DocumentsCard } from '@/components/clinical/documents-card'
+import { EncounterList } from '@/components/clinical/encounter-list'
 import { requirePortal } from '@/lib/auth/server-session'
 import { formatInstant } from '@/lib/format/dates'
 import { countryOptions } from '@/lib/format/regions'
@@ -41,13 +46,20 @@ export default async function PatientPage({
   const patient = await orNotFound(getPatient(actor, patientId))
   const canBook =
     patient.isActive && holds(actor, 'appointment:create') && holds(actor, 'doctor:read')
-  const [clinic, doctors, t, tScheduling, locale] = await Promise.all([
-    getClinicSessionInfo(actor.clinicId),
-    canBook ? listDoctors(actor, { status: 'active' }) : [],
-    getTranslations('staff.patients.detail'),
-    getTranslations('scheduling'),
-    getLocale(),
-  ])
+  const [clinic, doctors, encounters, files, t, tScheduling, tClinical, locale] = await Promise.all(
+    [
+      getClinicSessionInfo(actor.clinicId),
+      canBook ? listDoctors(actor, { status: 'active' }) : [],
+      // The front desk sees that visits happened and what they were coded as; the note's text is
+      // never read for this page, whoever is looking (ADR-0025).
+      holds(actor, 'encounter:read') ? listEncounters(actor, { patientId }) : [],
+      holds(actor, 'file:read') ? listFiles(actor, { patientId }) : [],
+      getTranslations('staff.patients.detail'),
+      getTranslations('scheduling'),
+      getTranslations('clinical.encounters'),
+      getLocale(),
+    ],
+  )
   const name = `${patient.firstName} ${patient.lastName}`
   const canUpdate = holds(actor, 'patient:update')
   const account = patient.portalAccount
@@ -99,6 +111,12 @@ export default async function PatientPage({
           {t('archivedNote')}
         </Alert>
       )}
+
+      <ChartBanner
+        patientId={patient.id}
+        banner={{ allergies: patient.allergies, chronicConditions: patient.chronicConditions }}
+        canEdit={canUpdate && patient.isActive}
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -180,6 +198,38 @@ export default async function PatientPage({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-4">
+        {holds(actor, 'encounter:read') ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('visits')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EncounterList
+                encounters={encounters}
+                timeZone={clinic.timezone}
+                show={{ doctor: true }}
+                emptyTitle={tClinical('noneForPatient')}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {holds(actor, 'file:read') ? (
+          <DocumentsCard
+            files={files}
+            timeZone={clinic.timezone}
+            upload={
+              holds(actor, 'file:upload') && patient.isActive
+                ? { ownerType: 'PATIENT', ownerId: patient.id }
+                : undefined
+            }
+            canShare={holds(actor, 'file:upload')}
+            canDelete={holds(actor, 'file:delete')}
+          />
+        ) : null}
       </div>
     </>
   )

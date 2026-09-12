@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
-import { AuditLogModel, PatientModel, newId } from '@clinic/db'
+import { AuditLogModel, DoctorModel, PatientModel, newId } from '@clinic/db'
 import { TEST_PASSWORD, createUser, meta, signedInActor } from '../../../../test/fixtures'
 import type { Actor } from '../../access'
+import { openEncounter } from '../../clinical'
 import { registerPatient } from '../../patients'
 import { authenticateAccessToken, login } from '../../session'
 import {
@@ -43,6 +44,23 @@ async function portalPatient(staff: Actor) {
   const session = await login({ email: account.email, password: TEST_PASSWORD, meta: meta() })
   const { actor } = await authenticateAccessToken(session.accessToken)
   return { actor, patient: registered.patient }
+}
+
+async function portalDoctor(): Promise<Actor> {
+  const account = await createUser({ role: 'doctor', firstName: 'Samir', lastName: 'Fares' })
+  await DoctorModel().create({
+    _id: newId(),
+    clinicId: clinicId(),
+    userId: account.id,
+    title: 'Dr',
+    defaultSlotMinutes: 30,
+    specialties: [],
+    branchIds: [],
+    isAcceptingNew: true,
+    isActive: true,
+  })
+  const session = await login({ email: account.email, password: TEST_PASSWORD, meta: meta() })
+  return (await authenticateAccessToken(session.accessToken)).actor
 }
 
 /** The client's half of section 12.1: a PUT straight to storage, with the signed headers. */
@@ -233,5 +251,49 @@ describe('who can see a document', () => {
 
     await deleteFile(admin, file.id)
     expect(await listFiles(admin, { patientId: patient.id })).toEqual([])
+  })
+})
+
+describe('a doctor reaching documents', () => {
+  /**
+   * A chart names the patient; a visit names itself. Both are ways of asking an ASSIGNED
+   * question, and the encounter's own attachments must not need a patient id the screen
+   * showing them does not have.
+   */
+  it('reaches the attachments on their own visit, and not on a colleague’s', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const mine = await portalDoctor()
+    const theirs = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+
+    const encounter = await openEncounter(mine, {
+      patientId: patient.id,
+      appointmentId: null,
+      encounterType: 'CONSULTATION',
+      chiefComplaint: null,
+    })
+
+    const presigned = await presignUpload(mine, {
+      ownerType: 'ENCOUNTER',
+      ownerId: encounter.id,
+      category: 'LAB_RESULT',
+      fileName: 'swab.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: PDF.byteLength,
+      isPatientVisible: false,
+      description: null,
+    })
+    expect(await uploadTo(presigned.uploadUrl, presigned.headers)).toBe(200)
+    await confirmUpload(mine, presigned.fileId, { checksumSha256: null })
+
+    const attached = await listFiles(mine, { ownerType: 'ENCOUNTER', ownerId: encounter.id })
+    expect(attached.map((file) => file.id)).toEqual([presigned.fileId])
+
+    await expect(
+      listFiles(theirs, { ownerType: 'ENCOUNTER', ownerId: encounter.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 })
+
+    // And an unbounded question is still refused: a narrow grant cannot answer "everything".
+    await expect(listFiles(mine, {})).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })

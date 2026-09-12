@@ -207,7 +207,9 @@ export async function getPrescriptionPdf(
     body,
     // A patient's own prescription is theirs to read (P7).
     isPatientVisible: true,
-    generatedBy: { id: actor.userId, name: actor.displayName },
+    // The document's author is the doctor who wrote the prescription, not whoever happened to
+    // press Print — a patient printing their own must not appear as its source.
+    generatedBy: { id: prescription.doctorId, name: prescription.doctor.name },
   })
 
   // Another request may have rendered it first; whichever id wins is the one that is served.

@@ -3,12 +3,13 @@ import { env } from '@clinic/config'
 import { AuditLogModel, DoctorModel, PatientModel, newId } from '@clinic/db'
 import { TEST_PASSWORD, createUser, meta, signedInActor } from '../../../../test/fixtures'
 import type { Actor } from '../../access'
-import { registerPatient } from '../../patients'
+import { getPatient, registerPatient } from '../../patients'
 import { authenticateAccessToken, login } from '../../session'
 import {
   addAddendum,
   getEncounter,
   listEncounters,
+  listMyPatients,
   openEncounter,
   signNote,
   updateEncounter,
@@ -274,5 +275,38 @@ describe('every read of a chart is on the record (section 11.3)', () => {
     expect(reads[0]?.category).toBe('CLINICAL')
 
     await expect(getEncounter(stranger, signed.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+})
+
+describe('whose chart a doctor may open (ADR-0004, Phase 4 addendum)', () => {
+  it('opens the record of a patient they have seen, and not one they have not', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient: seen } = await portalPatient(staff)
+    const { patient: stranger } = await portalPatient(staff)
+
+    // Before any visit, the doctor is named on nothing about this person.
+    await expect(getPatient(doctor, seen.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+
+    await visitWithSignedNote(doctor, seen.id)
+
+    const chart = await getPatient(doctor, seen.id)
+    expect(chart.medicalRecordNo).toBe(seen.medicalRecordNo)
+    await expect(getPatient(doctor, stranger.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      status: 403,
+    })
+  })
+
+  it('lists a doctor’s own patients, and refuses them the clinic directory', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    await portalPatient(staff)
+
+    await visitWithSignedNote(doctor, patient.id)
+
+    const mine = await listMyPatients(doctor)
+    expect(mine.map((entry) => entry.id)).toEqual([patient.id])
   })
 })

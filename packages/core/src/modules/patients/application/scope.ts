@@ -1,17 +1,27 @@
 import { ForbiddenError } from '../../../errors'
-import { assertCan, registerScopeResolver, type Actor } from '../../access'
+import { assertCan, careRelationship, registerScopeResolver, type Actor } from '../../access'
 
 /**
- * OWN on a patient reaches the record linked to the actor's own portal account. ASSIGNED — the
- * patients a doctor treats — waits for ADR-0004 in Phase 4; until then it resolves to nothing,
- * so the engine denies, which is the safe direction (section 7.5).
+ * OWN on a patient reaches the record linked to the actor's own portal account.
+ *
+ * ASSIGNED is the case ADR-0004 had to be amended for in Phase 4: a patient row names no doctor,
+ * so read literally a doctor could open nobody. A patient is reachable when the doctor is named
+ * on one of that patient's visits — a question authorisation asks and the clinical module
+ * answers, through a port the composition root wires. The chart's *contents* stay strict per
+ * row, which is what chart-wide scope was rejected to protect.
  */
 export function installPatientScopeResolvers(): void {
-  registerScopeResolver(
-    'patient',
-    (actor, resource, scope) =>
-      scope === 'OWN' && typeof resource.userId === 'string' && resource.userId === actor.userId,
-  )
+  registerScopeResolver('patient', async (actor, resource, scope) => {
+    if (scope === 'OWN') {
+      return typeof resource.userId === 'string' && resource.userId === actor.userId
+    }
+    if (scope === 'ASSIGNED') {
+      const patientId = typeof resource.id === 'string' ? resource.id : null
+      if (!actor.doctorId || !patientId) return false
+      return careRelationship().hasTreated(actor.clinicId, actor.doctorId, patientId)
+    }
+    return false
+  })
 }
 
 export const patientResource = (actor: Actor, patientId: string | null, userId: string | null) => ({

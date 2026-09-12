@@ -1,15 +1,20 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { APPOINTMENT_STATUSES } from '@clinic/config'
 import { localDateIn, type AppointmentStatus } from '@clinic/contracts'
+import { holds } from '@clinic/core/access'
 import { listAppointments } from '@clinic/core/appointments'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { listEncounters } from '@clinic/core/clinical'
+import { buttonVariants } from '@clinic/ui'
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { AppointmentActions } from '@/components/scheduling/appointment-actions'
 import { AppointmentCard } from '@/components/scheduling/appointment-card'
 import { Board, type BoardColumn } from '@/components/scheduling/board'
 import { CalendarToolbar } from '@/components/scheduling/calendar-toolbar'
+import { StartEncounterButton } from '@/components/clinical/start-encounter-button'
 import { requirePortal } from '@/lib/auth/server-session'
 import {
   datesBetween,
@@ -64,6 +69,18 @@ export default async function DoctorAgendaPage({ searchParams }: { searchParams:
       : undefined,
   })
 
+  /**
+   * The visits already recorded for this range, so each appointment offers the right next step:
+   * open the note that exists, or start the one that does not. One query for the range rather
+   * than one per card.
+   */
+  const encounters = holds(actor, 'encounter:read') ? await listEncounters(actor, { from, to }) : []
+  const noteFor = new Map(
+    encounters
+      .filter((encounter) => encounter.appointmentId)
+      .map((encounter) => [encounter.appointmentId ?? '', encounter.id]),
+  )
+
   const dates = view === 'week' ? datesBetween(from, to) : [date]
   const columns: BoardColumn[] = groupByDate(appointments, dates, clinic.timezone).map(
     (column) => ({
@@ -81,12 +98,30 @@ export default async function DoctorAgendaPage({ searchParams }: { searchParams:
           show={{ patient: true, recordNumber: true }}
           actions={
             view === 'day' ? (
-              <AppointmentActions
-                actor={actor}
-                appointment={appointment}
-                locale={locale}
-                timeZone={clinic.timezone}
-              />
+              <div className="flex flex-wrap items-start gap-2">
+                <AppointmentActions
+                  actor={actor}
+                  appointment={appointment}
+                  locale={locale}
+                  timeZone={clinic.timezone}
+                />
+                {noteFor.has(appointment.id) ? (
+                  <Link
+                    href={`/doctor/encounters/${noteFor.get(appointment.id) ?? ''}`}
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    {t('openNote')}
+                  </Link>
+                ) : holds(actor, 'encounter:write') ? (
+                  <StartEncounterButton
+                    patientId={appointment.patient.id}
+                    appointmentId={appointment.id}
+                    chiefComplaint={appointment.reason}
+                    label={t('recordVisit')}
+                    variant="secondary"
+                  />
+                ) : null}
+              </div>
             ) : null
           }
         />

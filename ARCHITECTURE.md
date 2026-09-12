@@ -2879,6 +2879,16 @@ kind of thing to keep in step with the first.
 patient sees exactly what was flagged visible and nothing else; every PHI read appears in the
 audit log.
 
+Three items on the list above are deliberately not in the first pass, and none is on the exit
+criteria:
+
+- **Lab orders (D14).** Marked 🔸 in section 1.1 from the start; the file store and the encounter
+  already carry a result that arrives as an attachment, which is how a small clinic works today.
+- **The patient's e-signature on consent forms (P13)**, also 🔸. Consent documents upload and share
+  like any other; signing them in the browser is its own piece of work.
+- **Note templates and quick phrases (D13)**, 🔸 as well, and worth designing once real notes exist
+  to template from.
+
 ### Phase 5 — Billing and payments · ~2 weeks
 
 - Service catalogue and price list; tax configuration; invoice numbering
