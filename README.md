@@ -65,23 +65,29 @@ To see a role change reach someone with no deploy: sign in as `nurse@` in one br
 
 ## Commands
 
-| Command                                      | What it does                                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `pnpm verify`                                | Lint, typecheck, boundaries and unit tests — what CI's first job runs                             |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Individually                                                                                      |
-| `pnpm graph`                                 | Architecture boundary check (dependency-cruiser)                                                  |
-| `pnpm db:verify`                             | Proves transactions **and** change streams work                                                   |
-| `pnpm test:integration`                      | Live tests against MongoDB, Redis and Mailpit (needs `infra:up`)                                  |
-| `pnpm test:e2e`                              | Browser journeys (needs `infra:up`, `pnpm build`, and once: `pnpm --filter @clinic/e2e browsers`) |
-| `pnpm infra:reset`                           | Destroy and recreate the stack, data included                                                     |
-| `pnpm audit`                                 | The **production** dependency tree, which is what ships, against high and critical advisories     |
-| `pnpm db:backup`                             | One gzipped `mongodump --oplog` archive plus a manifest of counts, schema version and checksum    |
-| `pnpm db:restore --from <dir> --verify`      | Restores into a scratch database and checks it — including by recomputing the audit hash chain    |
-| `pnpm format`                                | Prettier                                                                                          |
+| Command                                      | What it does                                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`                                | Lint, typecheck, boundaries and unit tests — what CI's first job runs                                                                 |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Individually                                                                                                                          |
+| `pnpm graph`                                 | Architecture boundary check (dependency-cruiser)                                                                                      |
+| `pnpm db:verify`                             | Proves transactions **and** change streams work                                                                                       |
+| `pnpm test:integration`                      | Live tests against MongoDB, Redis and Mailpit (needs `infra:up`)                                                                      |
+| `pnpm test:e2e`                              | Browser journeys **and** the mobile API parity suite (needs `infra:up`, `pnpm build`, and once: `pnpm --filter @clinic/e2e browsers`) |
+| `pnpm --filter @clinic/mobile start`         | The Expo app. Needs `CLINIC_API_URL` set, and a device or simulator                                                                   |
+| `pnpm infra:reset`                           | Destroy and recreate the stack, data included                                                                                         |
+| `pnpm audit`                                 | The **production** dependency tree, which is what ships, against high and critical advisories                                         |
+| `pnpm db:backup`                             | One gzipped `mongodump --oplog` archive plus a manifest of counts, schema version and checksum                                        |
+| `pnpm db:restore --from <dir> --verify`      | Restores into a scratch database and checks it — including by recomputing the audit hash chain                                        |
+| `pnpm format`                                | Prettier                                                                                                                              |
 
 Live and end-to-end tests use databases of their own (`clinic_test_*`, `clinic_e2e`), dropped
 and re-migrated on every run. They never touch the development database. The e2e server runs on
 port 3100, so it cannot collide with `pnpm dev`.
+
+`tests/e2e/specs/mobile-api-parity.spec.ts` drives the whole patient portal through
+`@clinic/api-client` over HTTP with a Bearer token and no cookie — no browser involved. It is the
+check that the mobile app needs no backend of its own (ARCHITECTURE §9.1), and it will fail the
+moment a capability exists only as a Server Action.
 
 `db:backup` and `db:restore` find `mongodump`/`mongorestore` on `PATH`, or fall back to running
 them inside the `clinic-mongo` container — so neither needs the MongoDB Database Tools installed
