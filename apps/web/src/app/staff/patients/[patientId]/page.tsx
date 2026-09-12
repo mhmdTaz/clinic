@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { localDateIn } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { listInvoices } from '@clinic/core/billing'
 import { listEncounters } from '@clinic/core/clinical'
 import { listDoctors } from '@clinic/core/doctors'
 import { listFiles } from '@clinic/core/files'
@@ -11,6 +12,8 @@ import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@clinic/
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
 import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-dialog'
+import { CreateInvoiceButton } from '@/components/billing/create-invoice-button'
+import { PatientInvoicesCard } from '@/components/billing/patient-invoices-card'
 import { ChartBanner } from '@/components/clinical/chart-banner'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { EncounterList } from '@/components/clinical/encounter-list'
@@ -46,20 +49,31 @@ export default async function PatientPage({
   const patient = await orNotFound(getPatient(actor, patientId))
   const canBook =
     patient.isActive && holds(actor, 'appointment:create') && holds(actor, 'doctor:read')
-  const [clinic, doctors, encounters, files, t, tScheduling, tClinical, locale] = await Promise.all(
-    [
-      getClinicSessionInfo(actor.clinicId),
-      canBook ? listDoctors(actor, { status: 'active' }) : [],
-      // The front desk sees that visits happened and what they were coded as; the note's text is
-      // never read for this page, whoever is looking (ADR-0025).
-      holds(actor, 'encounter:read') ? listEncounters(actor, { patientId }) : [],
-      holds(actor, 'file:read') ? listFiles(actor, { patientId }) : [],
-      getTranslations('staff.patients.detail'),
-      getTranslations('scheduling'),
-      getTranslations('clinical.encounters'),
-      getLocale(),
-    ],
-  )
+  const [
+    clinic,
+    doctors,
+    encounters,
+    files,
+    invoices,
+    t,
+    tScheduling,
+    tClinical,
+    tBilling,
+    locale,
+  ] = await Promise.all([
+    getClinicSessionInfo(actor.clinicId),
+    canBook ? listDoctors(actor, { status: 'active' }) : [],
+    // The front desk sees that visits happened and what they were coded as; the note's text is
+    // never read for this page, whoever is looking (ADR-0025).
+    holds(actor, 'encounter:read') ? listEncounters(actor, { patientId }) : [],
+    holds(actor, 'file:read') ? listFiles(actor, { patientId }) : [],
+    holds(actor, 'invoice:read') ? listInvoices(actor, { patientId }) : [],
+    getTranslations('staff.patients.detail'),
+    getTranslations('scheduling'),
+    getTranslations('clinical.encounters'),
+    getTranslations('billing.invoice'),
+    getLocale(),
+  ])
   const name = `${patient.firstName} ${patient.lastName}`
   const canUpdate = holds(actor, 'patient:update')
   const account = patient.portalAccount
@@ -215,6 +229,28 @@ export default async function PatientPage({
               />
             </CardContent>
           </Card>
+        ) : null}
+
+        {holds(actor, 'invoice:read') ? (
+          <PatientInvoicesCard
+            invoices={invoices}
+            action={
+              holds(actor, 'invoice:create') && patient.isActive ? (
+                <CreateInvoiceButton
+                  patientId={patient.id}
+                  visits={encounters.map((encounter) => ({
+                    id: encounter.id,
+                    label: `${encounter.number} · ${formatInstant(
+                      encounter.startedAt,
+                      locale,
+                      clinic.timezone,
+                    )}`,
+                  }))}
+                  label={tBilling('create.action')}
+                />
+              ) : null
+            }
+          />
         ) : null}
 
         {holds(actor, 'file:read') ? (

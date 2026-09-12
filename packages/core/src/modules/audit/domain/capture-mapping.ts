@@ -19,6 +19,11 @@ const MODEL_CATEGORY: Readonly<Record<string, AuditCategory>> = {
   Prescription: 'CLINICAL',
   // A document has its own category, because "who downloaded what" is its own question.
   File: 'FILE',
+  // Money. The catalogue is an admin setting; what was billed, taken and given back is not.
+  Service: 'ADMIN',
+  Invoice: 'FINANCIAL',
+  Payment: 'FINANCIAL',
+  Refund: 'FINANCIAL',
 }
 
 /**

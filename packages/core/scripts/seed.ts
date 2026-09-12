@@ -21,6 +21,7 @@ import {
   DoctorModel,
   PatientModel,
   RoleModel,
+  ServiceModel,
   SpecialtyModel,
   UserModel,
   connect,
@@ -291,6 +292,61 @@ async function seedUser(
   return { id: doc._id, status: doc.status ?? 'INVITED' }
 }
 
+/**
+ * A starting price list (A6). Enough shape for the front desk to bill from on day one: a flat
+ * consultation, something taxed, and something charged by the half hour.
+ */
+const SERVICES = [
+  {
+    name: 'Consultation',
+    description: 'A standard appointment with a doctor.',
+    price: '40.00',
+    taxRatePercent: '0',
+    durationMinutes: 20,
+  },
+  {
+    name: 'Follow-up visit',
+    description: 'A shorter review of an ongoing problem.',
+    price: '25.00',
+    taxRatePercent: '0',
+    durationMinutes: 15,
+  },
+  {
+    name: 'Blood panel',
+    description: 'Full blood count, sent to the laboratory.',
+    price: '65.00',
+    taxRatePercent: '11',
+    durationMinutes: 15,
+  },
+  {
+    name: 'ECG',
+    description: 'Twelve-lead electrocardiogram.',
+    price: '80.00',
+    taxRatePercent: '11',
+    durationMinutes: 30,
+  },
+  {
+    name: 'Physiotherapy (per hour)',
+    description: 'Charged by the hour; half hours are billed as 0.5.',
+    price: '55.00',
+    taxRatePercent: '0',
+    durationMinutes: 60,
+  },
+] as const
+
+async function seedServices(clinicId: string): Promise<number> {
+  let created = 0
+  for (const service of SERVICES) {
+    const exists = await ServiceModel()
+      .exists({ clinicId, 'search.name': nameKey(service.name) })
+      .setOptions({ skipAudit: true })
+    if (exists) continue
+    await ServiceModel().create({ _id: newId(), clinicId, ...service, isActive: true })
+    created += 1
+  }
+  return created
+}
+
 async function seedSpecialties(clinicId: string): Promise<Map<string, string>> {
   const ids = new Map<string, string>()
   for (const name of SPECIALTIES) {
@@ -401,6 +457,7 @@ async function main(): Promise<void> {
   }
   const activationLinks: string[] = []
   let patientsCreated = 0
+  let servicesCreated = 0
 
   await runWithContext(context, async () => {
     const clinic = await seedClinic(clinicId)
@@ -446,6 +503,7 @@ async function main(): Promise<void> {
     }
 
     patientsCreated = await seedPatients(clinicId, accounts)
+    servicesCreated = await seedServices(clinicId)
   })
 
   await flushAudit()
@@ -454,7 +512,8 @@ async function main(): Promise<void> {
   console.warn(
     [
       `seeded clinic "${clinicId}": ${SYSTEM_ROLES.length} roles, ${ACTIVE_USERS.length} active users, ` +
-        `${SPECIALTIES.length} specialties, ${patientsCreated} new patient records`,
+        `${SPECIALTIES.length} specialties, ${patientsCreated} new patient records, ` +
+        `${servicesCreated} new priced services`,
       `  sign in as ${ACTIVE_USERS.map((user) => user.email).join(', ')}`,
       `  ${UNASSIGNED_USER.email} can sign in but has no role yet — give it one in Admin → Users`,
       process.env.SEED_PASSWORD

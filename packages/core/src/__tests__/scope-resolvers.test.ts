@@ -8,8 +8,12 @@ import {
   type Actor,
 } from '../modules/access'
 import { installAppointmentScopeResolvers } from '../modules/appointments'
+import { installBillingScopeResolvers } from '../modules/billing'
+import { installEncounterScopeResolvers } from '../modules/clinical'
 import { installDoctorScopeResolvers } from '../modules/doctors'
+import { installFileScopeResolvers } from '../modules/files'
 import { installPatientScopeResolvers } from '../modules/patients'
+import { installPrescriptionScopeResolvers } from '../modules/prescriptions'
 
 /**
  * Section 7.5: a narrow grant on a subject with no registered resolver DENIES. That is the right
@@ -20,7 +24,7 @@ import { installPatientScopeResolvers } from '../modules/patients'
  * Subjects below arrive with their modules in later phases. Each is a deliberate line: deleting
  * one when the module lands is how the check keeps working.
  */
-const NOT_BUILT_YET = new Set(['encounter', 'prescription', 'file', 'ticket', 'invoice', 'payment'])
+const NOT_BUILT_YET = new Set(['ticket'])
 
 const actor: Actor = {
   kind: 'USER',
@@ -40,6 +44,10 @@ beforeAll(() => {
   installPatientScopeResolvers()
   installDoctorScopeResolvers()
   installAppointmentScopeResolvers()
+  installEncounterScopeResolvers()
+  installPrescriptionScopeResolvers()
+  installFileScopeResolvers()
+  installBillingScopeResolvers()
 })
 
 describe('scope resolvers', () => {

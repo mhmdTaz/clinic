@@ -21,18 +21,32 @@ export async function getClinicFacts(clinicId: string): Promise<Clinic> {
  */
 export interface ClinicLetterhead {
   name: string
+  /** What the clinic is called on a tax document, when that differs from its trading name. */
+  legalName: string | null
+  taxId: string | null
   timezone: string
+  currency: string
   phone: string | null
   email: string | null
+  /** The postal address, already reduced to the lines a document prints. */
+  addressLines: string[]
 }
 
 export async function getClinicLetterhead(clinicId: string): Promise<ClinicLetterhead> {
-  const profile = await clinicRepository.findProfile(clinicId)
-  if (!profile) throw new NotFoundError(`Clinic ${clinicId}`)
+  const settings = await clinicRepository.findSettings(clinicId)
+  if (!settings) throw new NotFoundError(`Clinic ${clinicId}`)
   return {
-    name: profile.name,
-    timezone: profile.timezone,
-    phone: profile.contact.phone,
-    email: profile.contact.email,
+    name: settings.name,
+    legalName: settings.legalName,
+    taxId: settings.taxId,
+    timezone: settings.timezone,
+    currency: settings.currency,
+    phone: settings.contact.phone,
+    email: settings.contact.email,
+    addressLines: [
+      settings.address.line1,
+      settings.address.line2,
+      [settings.address.city, settings.address.country].filter(Boolean).join(', ') || null,
+    ].filter((line): line is string => Boolean(line)),
   }
 }

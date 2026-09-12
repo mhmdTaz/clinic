@@ -47,15 +47,17 @@ export async function PortalShell({
   }))
   const items = sections.flatMap((section) => section.items)
   /**
-   * The phone's tab bar carries the portal's own destinations, not the first four items of the
-   * menu. Account is deliberately not among them: it lives in the account menu, which is on
-   * every screen at every width, and letting it take a tab would push a portal page off the bar
-   * as soon as a phase adds one (section 14.4).
+   * The phone's tab bar carries *every* one of the portal's own destinations (section 14.4).
+   *
+   * Account is deliberately not among them: it lives in the account menu, which is on every
+   * screen at every width. Nor is the list capped — the tab bar is the only navigation below
+   * 768px, since the top bar shows a breadcrumb rather than a menu, so a cap would make the
+   * dropped page unreachable on a phone. The bar scrolls sideways instead once the portal has
+   * more destinations than fit, which billing was the first phase to do.
    */
   const tabs = sections
     .filter((section) => section.id !== 'account')
     .flatMap((section) => section.items)
-    .slice(0, 5)
   const portals = actor.portals.map((key) => ({
     key,
     href: PORTALS[key].homePath,

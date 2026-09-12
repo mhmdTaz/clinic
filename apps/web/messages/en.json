@@ -56,7 +56,10 @@
       "myPatients": "My patients",
       "myRecords": "My records",
       "prescriptions": "Prescriptions",
-      "documents": "Documents"
+      "documents": "Documents",
+      "services": "Services & prices",
+      "billing": "Billing",
+      "bills": "Bills & payments"
     }
   },
   "shell": {
@@ -519,6 +522,33 @@
         "deleteConfirm": "Delete",
         "deleteInUse": "Remove this role from its members before deleting it."
       }
+    },
+    "services": {
+      "title": "Services & prices",
+      "subtitle": "What the clinic charges for, and what it charges.",
+      "list": "Price list",
+      "none": "No services yet",
+      "noneBody": "Add the things the clinic bills for so the front desk can pick them off a list.",
+      "retired": "Retired",
+      "minutes": "{minutes} min",
+      "taxAt": "tax {rate}%",
+      "actions": {
+        "add": "Add a service",
+        "edit": "Edit"
+      },
+      "form": {
+        "addTitle": "Add a service",
+        "editTitle": "Edit this service",
+        "body": "Prices are in {currency}. Changing one affects the next bill, never one already written.",
+        "name": "Name",
+        "description": "Description",
+        "price": "Price",
+        "taxRate": "Tax %",
+        "duration": "Minutes",
+        "active": "Offered",
+        "cancel": "Cancel",
+        "save": "Save"
+      }
     }
   },
   "staff": {
@@ -720,6 +750,41 @@
       },
       "waiting": "Waiting room",
       "waitingCount": "{count, plural, one {# person is here} other {# people are here}}"
+    },
+    "billing": {
+      "title": "Billing",
+      "subtitle": "Bills, payments and what is still owed.",
+      "endOfDay": "End of day",
+      "none": "Nothing outstanding",
+      "noneBody": "Every bill in this view has been settled.",
+      "columns": {
+        "invoice": "Bill",
+        "status": "Status",
+        "due": "Due",
+        "total": "Total",
+        "balance": "Balance"
+      },
+      "filters": {
+        "outstanding": "Outstanding"
+      },
+      "day": {
+        "title": "End of day",
+        "back": "Billing",
+        "date": "Day",
+        "takings": "Money taken",
+        "takingsHint": "Every method the clinic accepts, including the ones that took nothing.",
+        "invoiced": "Billed today",
+        "invoicedHint": "Bills issued on this day, excluding any that were voided.",
+        "total": "Total",
+        "columns": {
+          "method": "Method",
+          "count": "Count",
+          "taken": "Taken",
+          "refunded": "Refunded",
+          "net": "Net",
+          "total": "Total"
+        }
+      }
     }
   },
   "doctor": {
@@ -851,6 +916,25 @@
       "current": "Current",
       "past": "Past prescriptions",
       "noneBody": "Prescriptions your doctor writes appear here."
+    },
+    "billing": {
+      "title": "Bills & payments",
+      "subtitle": "What you have been billed, and what you have paid.",
+      "summary": "Your account",
+      "summaryHint": "Voided bills are listed below but count for nothing.",
+      "billed": "Billed",
+      "paid": "Paid",
+      "outstanding": "Outstanding",
+      "invoices": "Bills",
+      "payments": "Payments",
+      "noInvoices": "No bills yet",
+      "noInvoicesBody": "Anything the clinic bills you for will appear here.",
+      "noPayments": "No payments yet",
+      "notIssued": "Not yet issued",
+      "due": "due {date}",
+      "balance": "Balance",
+      "print": "Print",
+      "receipt": "Receipt"
     }
   },
   "account": {
@@ -1298,6 +1382,106 @@
         "INFECTED": "Quarantined",
         "FAILED": "Rejected"
       }
+    }
+  },
+  "billing": {
+    "statuses": {
+      "DRAFT": "Draft",
+      "ISSUED": "Issued",
+      "PARTIALLY_PAID": "Part paid",
+      "PAID": "Paid",
+      "VOID": "Void",
+      "OVERDUE": "Overdue",
+      "COMPLETED": "Received",
+      "PARTIALLY_REFUNDED": "Part refunded",
+      "REFUNDED": "Refunded"
+    },
+    "methods": {
+      "CASH": "Cash",
+      "CARD": "Card",
+      "TRANSFER": "Bank transfer",
+      "INSURANCE": "Insurance"
+    },
+    "invoice": {
+      "cardTitle": "Bills",
+      "back": "Billing",
+      "lines": "What was charged",
+      "lineTotal": "Line total",
+      "lineDetail": "{quantity} × {unitPrice} · tax {tax}%",
+      "dueOn": "Due {date}",
+      "fromVisit": "Billed from a visit",
+      "none": "No bills yet",
+      "saved": "Saved.",
+      "issueHint": "Issuing freezes the lines. Correct a mistake by voiding this bill and issuing another.",
+      "voided": "Voided {date} — {reason}",
+      "fields": {
+        "service": "Service",
+        "custom": "Something else",
+        "description": "Description",
+        "quantity": "Quantity",
+        "unitPrice": "Unit price",
+        "discount": "Discount",
+        "taxRate": "Tax %",
+        "notes": "Notes"
+      },
+      "totals": {
+        "subtotal": "Subtotal",
+        "discount": "Discount",
+        "tax": "Tax",
+        "total": "Total",
+        "paid": "Paid",
+        "balance": "Balance due"
+      },
+      "actions": {
+        "addLine": "Add a line",
+        "removeLine": "Remove",
+        "save": "Save draft",
+        "issue": "Issue",
+        "print": "Print",
+        "void": "Void"
+      },
+      "create": {
+        "action": "New bill",
+        "title": "Draw up a bill",
+        "body": "Billing a visit starts the draft from the doctor’s consultation fee. Add or change lines before issuing it.",
+        "visit": "Visit",
+        "noVisit": "Not from a visit",
+        "cancel": "Cancel",
+        "confirm": "Create draft"
+      },
+      "void": {
+        "title": "Void this bill",
+        "body": "A voided bill stays on the record with its reason. Money already taken must be refunded first.",
+        "reason": "Reason",
+        "cancel": "Cancel",
+        "confirm": "Void it"
+      }
+    },
+    "payment": {
+      "title": "Payments",
+      "none": "Nothing taken yet",
+      "owing": "Owing",
+      "fields": {
+        "amount": "Amount",
+        "method": "Method",
+        "reference": "Reference",
+        "note": "Note"
+      },
+      "actions": {
+        "record": "Take payment",
+        "take": "Take it",
+        "cancel": "Cancel",
+        "receipt": "Receipt",
+        "refund": "Refund"
+      }
+    },
+    "refund": {
+      "title": "Refund this payment",
+      "refundable": "Still refundable",
+      "amount": "Amount",
+      "reason": "Reason",
+      "cancel": "Cancel",
+      "confirm": "Refund it"
     }
   }
 }

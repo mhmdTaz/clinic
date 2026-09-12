@@ -1,19 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { winAnsi, wrapText } from '../../../pdf-text'
 
-/**
- * The printable prescription (D8, P7).
- *
- * Rendered with pdf-lib and the standard fonts, which are WinAnsi-encoded: any character outside
- * that set would throw rather than draw. Text is therefore folded to what the font can render,
- * and the Arabic pass (section 13.6) is where a Unicode font gets embedded — the alternative
- * today would be a PDF that crashes on a patient whose name is written in Arabic.
- */
-function winAnsi(text: string): string {
-  return [...text]
-    .map((character) => (character.charCodeAt(0) <= 0xff ? character : '?'))
-    .join('')
-    .replace(/\?{2,}/g, '?')
-}
+/** The printable prescription (D8, P7). Text is folded to what the fonts draw; see pdf-text. */
 
 export interface PrescriptionPdfData {
   clinicName: string
@@ -112,7 +100,7 @@ export async function renderPrescriptionPdf(data: PrescriptionPdfData): Promise<
   if (data.notes) {
     rule()
     line('Notes', { size: 11, font: bold, gap: 4 })
-    for (const chunk of wrap(data.notes, 92)) line(chunk, { size: 10, gap: 3 })
+    for (const chunk of wrapText(data.notes, 92, 12)) line(chunk, { size: 10, gap: 3 })
   }
 
   // The signature block sits at the foot of the page, where a prescription is read from.
@@ -124,20 +112,4 @@ export async function renderPrescriptionPdf(data: PrescriptionPdfData): Promise<
   }
 
   return pdf.save()
-}
-
-/** Crude but predictable: the standard font is monospaced enough at this size for a note. */
-function wrap(text: string, width: number): string[] {
-  const lines: string[] = []
-  let current = ''
-  for (const word of text.split(/\s+/)) {
-    if ((current + ' ' + word).trim().length > width) {
-      if (current) lines.push(current.trim())
-      current = word
-    } else {
-      current = `${current} ${word}`
-    }
-  }
-  if (current.trim()) lines.push(current.trim())
-  return lines.slice(0, 12)
 }

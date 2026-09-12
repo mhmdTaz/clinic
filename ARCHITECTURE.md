@@ -1541,6 +1541,29 @@ collection referencing `paymentId`, indexed on `{ clinicId: 1, refundedAt: -1 }`
 > same. It is called out in Phase 0 (section 17) because a single-node standalone silently fails
 > every transactional path and the failure surfaces late.
 
+**What Phase 5 shipped differs from the sketch above in five places**, each for a reason worth
+keeping:
+
+- **`dueAt` is a calendar date string, not a `Date`.** An invoice falls due *on the 30th* in the
+  clinic's own zone, not at an instant — the same reasoning as ADR-0010, and the same reasoning
+  that makes `isOverdue` a string comparison rather than a clock one.
+- **Each line stores `gross`, `net` and `tax` beside `lineTotal`.** They are what the printed
+  invoice shows and what ADR-0027's guarantee is expressed over; deriving them again at render
+  time would be the same arithmetic implemented twice.
+- **`OVERDUE` is not a stored status.** Whether an invoice is late is a question about today and
+  its due date, so it is derived on read. The alternative is a nightly sweep whose silent failure
+  leaves every invoice looking current.
+- **`refunds` is a ledger and `payments.refundedAmount` is its projection** — the same
+  relationship section 8.11 gives `stockMovements` and `quantityOnHand`. Two partial refunds on
+  one payment are two events with two reasons and two cashiers, which a single field cannot hold.
+  Each refund records which invoices it came back off.
+- **Neither invoices nor payments carry a soft delete.** A financial document is voided with a
+  stated reason, never hidden: an unexplained gap in a numbered sequence is the first thing an
+  auditor looks for.
+
+The invoice's allocation filter also carries `balanceDue: { $gte: amount }`, which the sketch
+omits. It is what makes overpayment structurally impossible rather than merely checked.
+
 ### 8.11 Inventory
 
 The ledger principle is unchanged: `stockMovements` is the truth, `quantityOnHand` is a
@@ -2901,6 +2924,22 @@ criteria:
 `PARTIALLY_PAID` with a correct balance; a double-clicked payment creates one row; the daily
 report reconciles to the cent.
 
+One item on the list above is deliberately not in this pass, and it is not on the exit criteria:
+
+- **Consumed inventory on an invoice line.** Inventory arrives in Phase 6; there is nothing to
+  consume from yet. The invoice line carries an `inventoryItemId` from the start so Phase 6 wires
+  a source into a shape that already exists, rather than migrating every invoice ever written.
+  Inventing half an inventory module to fill the field would have been worse than leaving it null.
+
+Two decisions were recorded on the way through:
+
+- **ADR-0027** — invoice totals round once per line, and the invoice is the sum of rounded lines,
+  so the figures beside the lines add up to the figure at the bottom. Rounding is half away from
+  zero, because half-even is defensible statistically and surprising on a receipt.
+- **ADR-0028** — a payment is made idempotent by a unique index on `(clinicId, idempotencyKey)`,
+  not by a read before the insert. The disabled button and the lookup-first fast path are
+  courtesies; the index is the guarantee.
+
 ### Phase 6 — Inventory · ~1.5 weeks
 
 - Items, categories, suppliers; batches with expiry
@@ -3037,6 +3076,8 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0024 | A signed note is closed to everyone, including its author | **Accepted** | `docs/adr/0024` — the precondition lives in the update's filter and corrections are `$push`ed addenda, so append-only is a property of the write rather than a rule to remember |
 | 0025 | A patient sees what was shared, and only once it is final | **Accepted** | `docs/adr/0025` — sharing is deliberate and reversible, a draft is never shared however it is flagged, and hidden content is projected out rather than loaded and filtered |
 | 0026 | Prescription PDFs are rendered on first request, then stored | **Accepted** | `docs/adr/0026` — the end state is what the queued job would have produced, so moving it to a worker later changes when it runs, not what exists |
+| 0027 | Invoice totals round once per line | **Accepted** | `docs/adr/0027` — each line rounds once and the invoice is the sum of rounded lines, so a printed column adds up. Half away from zero rather than half-even: a missing cent on a receipt is read by the person paying it |
+| 0028 | A payment is idempotent at the index | **Accepted** | `docs/adr/0028` — unique `(clinicId, idempotencyKey)`, the insert and every balance it moves in one transaction, and each balance moved by a conditional pipeline update. A read before the insert has a window exactly wide enough for the second request |
 
 ### The ones to settle next
 
