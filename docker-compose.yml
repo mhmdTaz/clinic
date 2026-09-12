@@ -74,7 +74,10 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    # quay.io, not Docker Hub: MinIO prunes old RELEASE tags from Hub, and this pin stopped
+    # being pullable there — locally it kept working only because the image was already cached,
+    # which is exactly the kind of drift a pinned tag is supposed to prevent.
+    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
     container_name: clinic-minio
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -92,7 +95,7 @@ services:
       retries: 20
 
   minio-init:
-    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    image: quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z
     container_name: clinic-minio-init
     depends_on:
       minio:
