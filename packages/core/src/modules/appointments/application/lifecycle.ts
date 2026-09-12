@@ -6,6 +6,7 @@ import type {
 } from '@clinic/contracts'
 import { BusinessRuleError, ConflictError, ForbiddenError, NotFoundError } from '../../../errors'
 import { runInTransaction } from '../../../transaction'
+import { emitEvent } from '../../outbox'
 import { assertCan, type Actor, type PermissionKey } from '../../access'
 import { getSchedulingFacts } from '../../clinic'
 import { bookingWindowOf, gridCellIds, withinCancellationWindow } from '../../scheduling'
@@ -211,6 +212,18 @@ export async function cancelAppointment(
     },
     input.reason,
   )
+
+  // Outside a transaction, because the cancellation above was not in one either: `transition`
+  // is a single conditional update, so there is nothing here for an outbox write to be atomic
+  // *with*. The backstop sweep is what makes it certain rather than merely likely (13.4).
+  await emitEvent(
+    actor.clinicId,
+    'appointment.cancelled',
+    { appointmentId, reason: input.reason ?? undefined },
+    undefined,
+    now,
+  )
+
   return detailFor(actor, cancelled)
 }
 

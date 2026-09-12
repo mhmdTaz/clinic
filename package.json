@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "pnpm --filter @clinic/e2e test:e2e",
+    "worker": "pnpm --filter @clinic/worker start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "graph": "depcruise packages apps --config .dependency-cruiser.cjs",

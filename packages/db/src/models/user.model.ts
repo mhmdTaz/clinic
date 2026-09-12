@@ -1,5 +1,12 @@
 import { Schema, type Model, type InferSchemaType } from 'mongoose'
-import { PORTAL_KEYS, USER_STATUSES, emailKey, nameKey } from '@clinic/config'
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_TYPES,
+  PORTAL_KEYS,
+  USER_STATUSES,
+  emailKey,
+  nameKey,
+} from '@clinic/config'
 import { idField } from '../id'
 import { getConnection } from '../connection'
 import { tenantGuard } from '../plugins/tenant-guard'
@@ -27,6 +34,20 @@ export const UserSchema = new Schema(
         branchId: String,
         assignedAt: { type: Date, default: Date.now },
         assignedBy: String,
+      },
+    ],
+
+    /**
+     * What this person wants to hear about, as a list of exceptions rather than a full matrix
+     * (section 8.12). Absent means the type's own default applies, so adding a notification type
+     * later needs no migration over every user.
+     */
+    notificationPreferences: [
+      {
+        _id: false,
+        type: { type: String, enum: NOTIFICATION_TYPES, required: true },
+        channel: { type: String, enum: NOTIFICATION_CHANNELS, required: true },
+        enabled: { type: Boolean, required: true },
       },
     ],
 

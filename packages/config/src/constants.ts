@@ -153,6 +153,68 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 export const INVOICE_DUE_DAYS_DEFAULT = 14
 
 /**
+ * Support tickets (section 8.12). OPEN and PENDING are both "not finished", but they differ in
+ * who is holding the ball: PENDING means the clinic has replied and is waiting on the person who
+ * asked. A queue that cannot tell those apart tells a front desk to chase itself.
+ */
+export const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'PENDING', 'RESOLVED', 'CLOSED'] as const
+export type TicketStatus = (typeof TICKET_STATUSES)[number]
+
+export const TICKET_PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number]
+
+/** Where a ticket came from, so the inbox can be read by subject rather than by person. */
+export const TICKET_CATEGORIES = [
+  'APPOINTMENT',
+  'BILLING',
+  'MEDICAL_RECORDS',
+  'TECHNICAL',
+  'OTHER',
+] as const
+export type TicketCategory = (typeof TICKET_CATEGORIES)[number]
+
+/**
+ * How a notification reaches somebody (section 8.12). IN_APP always works because it is a row in
+ * our own database; EMAIL depends on somebody else's server, which is why delivery is tracked
+ * per channel rather than per notification.
+ */
+export const NOTIFICATION_CHANNELS = ['IN_APP', 'EMAIL'] as const
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number]
+
+/**
+ * What a notification is about. This is the key a person's preferences switch on, so it is
+ * deliberately coarser than the event catalogue: nobody wants to configure fourteen toggles.
+ */
+export const NOTIFICATION_TYPES = [
+  'APPOINTMENT_CONFIRMED',
+  'APPOINTMENT_REMINDER',
+  'APPOINTMENT_CANCELLED',
+  'INVOICE_ISSUED',
+  'PAYMENT_RECEIVED',
+  'TICKET_REPLY',
+  'TICKET_ASSIGNED',
+  'STOCK_LOW',
+] as const
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
+export const NOTIFICATION_STATUSES = ['PENDING', 'SENT', 'FAILED'] as const
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number]
+
+/**
+ * How long before an appointment a reminder goes out, in hours (section 13.5).
+ *
+ * Measured in elapsed time rather than wall clock: "24 hours before" means 24 hours, even across
+ * a daylight-saving change, because that is what somebody being reminded understands by it.
+ */
+export const REMINDER_OFFSETS_HOURS = [24, 2] as const
+
+/** A read in-app notification is swept by TTL after this long (section 8.16). */
+export const NOTIFICATION_RETENTION_DAYS = 90
+
+/** How long a processed outbox event sticks around before its TTL index reclaims it. */
+export const OUTBOX_RETENTION_HOURS = 24
+
+/**
  * Why stock moved (section 8.11). Every movement is signed — positive in, negative out — so the
  * ledger sums to the balance and nothing has to remember which types add and which subtract.
  *

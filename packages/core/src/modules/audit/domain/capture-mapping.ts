@@ -29,6 +29,8 @@ const MODEL_CATEGORY: Readonly<Record<string, AuditCategory>> = {
   StockMovement: 'INVENTORY',
   InventoryCategory: 'ADMIN',
   Supplier: 'ADMIN',
+  // A ticket can name a condition or a bill, so it files with the clinical record.
+  SupportTicket: 'CLINICAL',
 }
 
 /**

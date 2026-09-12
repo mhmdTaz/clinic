@@ -1,0 +1,30 @@
+{
+  "name": "@clinic/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@clinic/config": "workspace:*",
+    "@clinic/contracts": "workspace:*",
+    "@clinic/core": "workspace:*",
+    "@clinic/events": "workspace:*",
+    "bullmq": "^5.34.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.0",
+    "@clinic/db": "workspace:*",
+    "migrate-mongo": "^11.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

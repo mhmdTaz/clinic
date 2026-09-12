@@ -1733,6 +1733,27 @@ anything a stream gap missed.
 another nightly job that MongoDB now runs for us. `NotificationPreference` collapses into an
 embedded array on the user document.
 
+**What Phase 7 shipped differs from the sketch above in four places**, each for a reason worth
+keeping:
+
+- **A notification carries a `dedupeKey` with a unique index**, which is the whole of what makes
+  at-least-once delivery survivable (ADR-0030). Nothing else in this section matters as much.
+- **Delivery is tracked per channel rather than per notification.** IN_APP is a row in our own
+  database and EMAIL depends on somebody else's server; one status would have to mean two
+  different things, and an email failure would otherwise look like a lost reminder.
+- **Preferences are a list of exceptions, not a full matrix.** Absent means the type's default
+  applies, so adding a notification type needs no migration and a changed default reaches
+  everybody who never opened the screen. Some types are locked and shown as such.
+- **`ticket.firstReplyAt` is set with `$set`, not `$min`.** BSON orders null before every date,
+  so `$min` against an unanswered ticket keeps the null and the response clock never stops — a
+  bug that looks like nothing until somebody asks why no ticket has ever been answered.
+
+`streamCursors` is a collection the sketch does not mention: one document per relay holding the
+last resume token it committed, so a restarted worker resumes rather than replaying from the
+beginning or skipping whatever arrived while it was down. The token is saved only **after** the
+event has been accepted onto a queue — saving it on receipt would turn a crash mid-handler into a
+silently dropped event.
+
 ### 8.13 Audit log
 
 ```ts
@@ -3002,6 +3023,27 @@ One decision was recorded on the way through:
 **Exit criteria:** a patient opens a ticket and staff replies with both a public and an internal
 message; reminders fire correctly across timezones and are not duplicated when a job retries.
 
+This is the phase that built `apps/worker` — the background processor that ADR-0026 (prescription
+PDFs), ADR-0029 (the batch-archive job) and section 13.5 had each deferred something to. It runs
+three things: the change-stream relay, the backstop sweep, and the reminder sweep.
+
+Two items on the list above are deliberately not in this pass, and neither is on the exit
+criteria:
+
+- **Admin-editable notification templates.** Every notification goes out through one layout, with
+  the title and body written by whoever raised it. A template editor is a Phase 8 item alongside
+  the i18n pass, because templates a clinic can edit have to be translatable first — building
+  them now would mean building them twice.
+- **SMS.** ADR-0008 is still open on the provider and on whether SMS is in v1 at all, and the
+  answer drives the reminder strategy rather than following from it. The channel enum and the
+  per-channel delivery record take a third value without a migration when that is settled.
+
+One decision was recorded on the way through:
+
+- **ADR-0030** — at-least-once delivery is made safe by a dedupe key with a unique index rather
+  than by remembering what was sent, and reminders are found by sweeping the diary rather than by
+  scheduling a job per appointment: an appointment that moves is simply found in its new window.
+
 ### Phase 8 — Audit explorer, analytics, hardening, launch · ~2 weeks
 
 - Audit log explorer: filters, diff viewer, CSV export, `audit.viewed` self-logging
@@ -3121,6 +3163,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0027 | Invoice totals round once per line | **Accepted** | `docs/adr/0027` — each line rounds once and the invoice is the sum of rounded lines, so a printed column adds up. Half away from zero rather than half-even: a missing cent on a receipt is read by the person paying it |
 | 0028 | A payment is idempotent at the index | **Accepted** | `docs/adr/0028` — unique `(clinicId, idempotencyKey)`, the insert and every balance it moves in one transaction, and each balance moved by a conditional pipeline update. A read before the insert has a window exactly wide enough for the second request |
 | 0029 | Stock leaves by one conditional document write | **Accepted** | `docs/adr/0029` — embedded batches make the precondition and the decrement inseparable, so two clinicians cannot both take the last vial. FEFO, with expired stock refused under its own error code because "order more" and "write it off" are different jobs |
+| 0030 | At-least-once delivery is made safe by dedupe keys | **Accepted** | `docs/adr/0030` — a unique key built from facts rather than from the attempt, so a retried job loses on the index. Reminders sweep the diary instead of scheduling jobs, so a moved appointment needs nothing kept in step |
 
 ### The ones to settle next
 

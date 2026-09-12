@@ -24,7 +24,10 @@
     "./prescriptions": "./src/modules/prescriptions/index.ts",
     "./files": "./src/modules/files/index.ts",
     "./billing": "./src/modules/billing/index.ts",
-    "./inventory": "./src/modules/inventory/index.ts"
+    "./inventory": "./src/modules/inventory/index.ts",
+    "./outbox": "./src/modules/outbox/index.ts",
+    "./notifications": "./src/modules/notifications/index.ts",
+    "./support": "./src/modules/support/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

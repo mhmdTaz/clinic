@@ -20,6 +20,12 @@ export {
   toPayment,
 } from './application/payments'
 export { dailyReconciliation, accountStatement } from './application/reporting'
+export {
+  findInvoiceForNotification,
+  findPaymentForNotification,
+  type InvoiceNotificationFacts,
+  type PaymentNotificationFacts,
+} from './application/notifications'
 export { getInvoicePdf, getReceiptPdf } from './application/documents'
 export { installBillingScopeResolvers } from './application/scope'
 export { computeLine, computeTotals, type ComputedLine, type ComputedTotals } from './domain/totals'

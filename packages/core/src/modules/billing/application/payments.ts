@@ -20,6 +20,7 @@ import {
 } from '../../../errors'
 import { runInTransaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
+import { emitEvent } from '../../outbox'
 import { assertCan, careRelationship, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
 import { findPatientForScheduling } from '../../patients'
@@ -190,6 +191,10 @@ export async function recordPayment(
           )
         }
       }
+
+      // Inside the transaction that took the money, so a receipt can never be sent for a
+      // payment that rolled back (13.4).
+      await emitEvent(actor.clinicId, 'payment.recorded', { paymentId: created.id }, tx, now)
 
       return created
     })

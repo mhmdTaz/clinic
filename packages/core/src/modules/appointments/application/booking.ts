@@ -12,6 +12,7 @@ import {
   ValidationError,
 } from '../../../errors'
 import { runInTransaction } from '../../../transaction'
+import { emitEvent } from '../../outbox'
 import { assertCan, type Actor } from '../../access'
 import { getSchedulingFacts, type SchedulingFacts } from '../../clinic'
 import { findDoctorForScheduling, type DoctorSchedulingFacts } from '../../doctors'
@@ -175,6 +176,10 @@ export async function writeAppointment(
       }
       throw error
     }
+
+    // Inside the transaction: the booking and the intention to confirm it are one write, so
+    // "booked but never confirmed" and "confirmed but rolled back" are both impossible (13.4).
+    await emitEvent(actor.clinicId, 'appointment.booked', { appointmentId: appointment.id }, tx)
 
     return appointment
   })
