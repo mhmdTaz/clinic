@@ -65,6 +65,75 @@ export const BOOKING_WINDOW_DEFAULTS = {
   cancellationCutoffHours: 24,
 } as const
 
+/** A visit (section 8.8). OPEN until the doctor finishes it; the other two are terminal. */
+export const ENCOUNTER_STATUSES = ['OPEN', 'COMPLETED', 'CANCELLED'] as const
+export type EncounterStatus = (typeof ENCOUNTER_STATUSES)[number]
+
+export const ENCOUNTER_TYPES = [
+  'CONSULTATION',
+  'FOLLOW_UP',
+  'PROCEDURE',
+  'EMERGENCY',
+  'TELEHEALTH',
+] as const
+export type EncounterType = (typeof ENCOUNTER_TYPES)[number]
+
+/** A clinical note is editable until it is signed, and never again after (D9, ADR-0024). */
+export const NOTE_STATUSES = ['DRAFT', 'SIGNED'] as const
+export type NoteStatus = (typeof NOTE_STATUSES)[number]
+
+/** Diagnosis coding system. One entry today; the field is the FHIR mapping seam (16.3). */
+export const CODE_SYSTEMS = ['ICD10'] as const
+export type CodeSystem = (typeof CODE_SYSTEMS)[number]
+
+/** How badly a patient reacts. UNKNOWN is honest and still shows on the banner. */
+export const ALLERGY_SEVERITIES = ['MILD', 'MODERATE', 'SEVERE', 'UNKNOWN'] as const
+export type AllergySeverity = (typeof ALLERGY_SEVERITIES)[number]
+
+/**
+ * A stored file's lifecycle (section 12.1). PENDING is a presigned upload nobody confirmed;
+ * only CLEAN is downloadable.
+ */
+export const FILE_STATUSES = ['PENDING', 'SCANNING', 'CLEAN', 'INFECTED', 'FAILED'] as const
+export type FileStatus = (typeof FILE_STATUSES)[number]
+
+/** What a file hangs off. Polymorphic by design — natural in a document store (section 8.9). */
+export const FILE_OWNER_TYPES = ['PATIENT', 'ENCOUNTER', 'PRESCRIPTION'] as const
+export type FileOwnerType = (typeof FILE_OWNER_TYPES)[number]
+
+/** What a file is, for the document vault's filters (P6). */
+export const FILE_CATEGORIES = [
+  'LAB_RESULT',
+  'IMAGING',
+  'REFERRAL',
+  'CONSENT',
+  'PRESCRIPTION',
+  'INSURANCE',
+  'OTHER',
+] as const
+export type FileCategory = (typeof FILE_CATEGORIES)[number]
+
+/**
+ * What may be uploaded, checked server-side before a presigned URL is issued (section 12.3).
+ * The sniffed type is checked again on confirm: a client's content-type header is a claim.
+ */
+export const FILE_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'text/csv',
+] as const
+export type FileMimeType = (typeof FILE_MIME_TYPES)[number]
+
+/** 25 MB, the default cap in section 12.3. Enforced in the presign policy, not just here. */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024
+
+/** How long the presigned URLs live (section 12.1): long enough to upload, short enough to leak. */
+export const UPLOAD_URL_SECONDS = 300
+export const DOWNLOAD_URL_SECONDS = 60
+
 /** Patient demographics (section 8.6): closed sets, so an enum in both layers. */
 export const GENDERS = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'] as const
 export type Gender = (typeof GENDERS)[number]

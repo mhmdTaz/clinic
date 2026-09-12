@@ -1,5 +1,13 @@
 import { Schema, type Model, type InferSchemaType } from 'mongoose'
-import { BLOOD_TYPES, GENDERS, emailKey, nameKey, nationalIdKey, phoneKey } from '@clinic/config'
+import {
+  ALLERGY_SEVERITIES,
+  BLOOD_TYPES,
+  GENDERS,
+  emailKey,
+  nameKey,
+  nationalIdKey,
+  phoneKey,
+} from '@clinic/config'
 import { idField } from '../id'
 import { getConnection } from '../connection'
 import { tenantGuard } from '../plugins/tenant-guard'
@@ -51,6 +59,30 @@ export const PatientSchema = new Schema(
     ],
     /** Administrative notes — scheduling preferences, billing remarks — never clinical. */
     adminNotes: { type: String, default: null },
+
+    /**
+     * Clinical history, embedded because the chart banner must render with no second query and
+     * never fail to show (section 8.6). Bounded: a patient has allergies, not an allergy feed.
+     */
+    allergies: [
+      {
+        _id: idField,
+        substance: { type: String, required: true },
+        reaction: { type: String, default: null },
+        severity: { type: String, enum: ALLERGY_SEVERITIES, default: 'UNKNOWN' },
+        notedAt: { type: Date, default: Date.now },
+      },
+    ],
+    chronicConditions: [
+      {
+        _id: idField,
+        code: { type: String, default: null },
+        description: { type: String, required: true },
+        /** Calendar dates, not instants: "diagnosed in March 2019" has no clock (ADR-0010). */
+        diagnosedAt: { type: String, default: null },
+        resolvedAt: { type: String, default: null },
+      },
+    ],
 
     // Folded copies for search and duplicate matching, kept current by searchKeys.
     search: {

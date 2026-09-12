@@ -11,6 +11,7 @@ import {
   nullableText,
   requiredText,
 } from './common'
+import { Allergy, ChronicCondition } from './clinical'
 import { PaginationQuery } from './envelope'
 
 /** Patient registration and the directory (S2, section 9.3). */
@@ -133,6 +134,9 @@ export const PatientDetail = z.object({
   emergencyContacts: z.array(
     z.object({ name: z.string(), relationship: z.string().nullable(), phone: z.string() }),
   ),
+  /** The chart banner (D4), embedded on the record so it is never a second request. */
+  allergies: z.array(Allergy),
+  chronicConditions: z.array(ChronicCondition),
   adminNotes: z.string().nullable(),
   isActive: z.boolean(),
   portalAccount: z.object({ userId: z.string(), status: UserStatus }).nullable(),

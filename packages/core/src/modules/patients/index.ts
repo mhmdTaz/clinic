@@ -6,8 +6,15 @@ export {
   toPatientDetail,
   findPatientIdForUser,
   findPatientForScheduling,
+  listPatientsByIds,
   type PatientSchedulingFacts,
 } from './application/directory'
+export {
+  getChartBanner,
+  setAllergies,
+  setChronicConditions,
+  toChartBanner,
+} from './application/chart'
 export { checkDuplicates, registerPatient, updatePatient } from './application/registration'
 export { archivePatient, restorePatient, invitePatientToPortal } from './application/lifecycle'
 export {

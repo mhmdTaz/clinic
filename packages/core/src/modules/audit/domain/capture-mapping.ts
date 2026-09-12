@@ -14,6 +14,11 @@ const MODEL_CATEGORY: Readonly<Record<string, AuditCategory>> = {
   // An appointment names a patient and a reason: clinical, 7-year retention.
   Appointment: 'CLINICAL',
   Specialty: 'ADMIN',
+  // The record itself, and what was prescribed from it.
+  Encounter: 'CLINICAL',
+  Prescription: 'CLINICAL',
+  // A document has its own category, because "who downloaded what" is its own question.
+  File: 'FILE',
 }
 
 /**

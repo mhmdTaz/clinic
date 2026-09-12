@@ -9,6 +9,11 @@ const { installDefaultScopeResolvers } = await import('../src/modules/access')
 const { installPatientScopeResolvers } = await import('../src/modules/patients')
 const { installDoctorScopeResolvers } = await import('../src/modules/doctors')
 const { installAppointmentScopeResolvers } = await import('../src/modules/appointments')
+const { installEncounterScopeResolvers, careRelationshipFromEncounters } =
+  await import('../src/modules/clinical')
+const { installPrescriptionScopeResolvers } = await import('../src/modules/prescriptions')
+const { installFileScopeResolvers } = await import('../src/modules/files')
+const { provideCareRelationship } = await import('../src/modules/access')
 const { rateLimiter } = await import('../src/modules/identity/infrastructure/rate-limiter')
 
 beforeAll(async () => {
@@ -20,6 +25,10 @@ beforeAll(async () => {
   // Every resolver the server installs (src/server.ts). A missing one denies rather than
   // throws, so leaving one out here would fail a test for a reason the code does not have.
   installAppointmentScopeResolvers()
+  installEncounterScopeResolvers()
+  installPrescriptionScopeResolvers()
+  installFileScopeResolvers()
+  provideCareRelationship(careRelationshipFromEncounters)
 })
 
 afterAll(async () => {
