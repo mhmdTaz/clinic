@@ -5,6 +5,7 @@ import { bootstrapServer, connect, disconnect, flushAudit } from '@clinic/core/s
 import { outboxRepository, watchOutbox, type OutboxWatcher } from '@clinic/core/outbox'
 import { handlerFor } from './handlers'
 import { sweepReminders } from './jobs/reminders'
+import { verifyAuditChainNightly } from './jobs/verify-chain'
 import { closeQueues, queue, schedule, startWorker } from './queues'
 
 /**
@@ -19,6 +20,9 @@ import { closeQueues, queue, schedule, startWorker } from './queues'
  *     fast path; this is the guarantee. A resume token older than the oplog cannot resume, and a
  *     stream can gap; neither costs an event, because the sweep will find it.
  *  3. **the reminder sweep** — appointment reminders, read from the diary each tick.
+ *  4. **the chain verifier** — the nightly walk of the audit log's hash chain (11.5). A chain
+ *     nobody checks is a promise nobody keeps, so this is the job that turns tamper-evidence
+ *     into tamper-detection.
  *
  * Both paths racing to the same event is the **ordinary case, not an error**, which is why
  * `markProcessed` is a conditional update and why every handler is idempotent (ADR-0030).
@@ -27,6 +31,13 @@ import { closeQueues, queue, schedule, startWorker } from './queues'
 const RELAY_NAME = 'outbox-relay'
 const BACKSTOP_EVERY_MS = 60_000
 const REMINDER_EVERY_MS = 5 * 60_000
+/**
+ * Every six hours rather than once at 3am.
+ *
+ * A repeatable interval survives a worker that was down at 3am, which a cron-style "at 03:00"
+ * would silently skip — and the run is incremental, so four a day costs barely more than one.
+ */
+const CHAIN_VERIFY_EVERY_MS = 6 * 60 * 60_000
 /** Events younger than this are the stream's; sweeping them too would just make the two race. */
 const BACKSTOP_GRACE_MS = 30_000
 
@@ -88,6 +99,16 @@ async function main(): Promise<void> {
       }
     }
 
+    if (job.name === 'verify-audit-chain') {
+      const result = await verifyAuditChainNightly()
+      if (!result.ok) {
+        console.error(
+          `[worker] audit chain verification FAILED after ${result.checked} entries ` +
+            `(${result.reason}); ${result.alerted} person(s) alerted`,
+        )
+      }
+    }
+
     if (job.name === 'appointment-reminders') {
       const result = await sweepReminders()
       if (result.sent > 0) {
@@ -112,8 +133,9 @@ async function main(): Promise<void> {
 
   await schedule('maintenance', 'outbox-backstop', BACKSTOP_EVERY_MS)
   await schedule('maintenance', 'appointment-reminders', REMINDER_EVERY_MS)
+  await schedule('maintenance', 'verify-audit-chain', CHAIN_VERIFY_EVERY_MS)
 
-  console.warn('[worker] relay, backstop and reminder sweep are running')
+  console.warn('[worker] relay, backstop, reminder sweep and chain verifier are running')
 }
 
 async function shutdown(): Promise<void> {

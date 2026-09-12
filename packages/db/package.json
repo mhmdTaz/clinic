@@ -17,7 +17,9 @@
     "migrate:up": "migrate-mongo up -f migrate-mongo-config.cjs",
     "migrate:down": "migrate-mongo down -f migrate-mongo-config.cjs",
     "migrate:status": "migrate-mongo status -f migrate-mongo-config.cjs",
-    "verify:replica-set": "tsx scripts/verify-replica-set.ts"
+    "verify:replica-set": "tsx scripts/verify-replica-set.ts",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts"
   },
   "dependencies": {
     "@clinic/config": "workspace:*",

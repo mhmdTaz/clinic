@@ -8,6 +8,8 @@ import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from
 import { PageHeader } from '@/components/portal/page-header'
 import { summariseAccess } from '@/lib/access-summary'
 import { requireActor } from '@/lib/auth/server-session'
+import { getLocale } from 'next-intl/server'
+import { LanguageCard } from './language-card'
 import { PasswordForm } from './password-form'
 import { ProfileForm } from './profile-form'
 import { NotificationPreferences } from './notification-preferences'
@@ -20,12 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AccountPage() {
   const actor = await requireActor()
-  const [me, sessions, clinic, notificationRows, t] = await Promise.all([
+  const [me, sessions, clinic, notificationRows, t, locale] = await Promise.all([
     getMe(actor),
     listMySessions(actor),
     getClinicSessionInfo(actor.clinicId),
     getNotificationPreferences(actor),
     getTranslations(),
+    getLocale(),
   ])
   const access = summariseAccess(actor.permissions)
 
@@ -46,6 +49,8 @@ export default async function AccountPage() {
           canEdit={holds(actor, 'user:update')}
         />
         <PasswordForm />
+        {/* Renders only once a second catalogue is finished. */}
+        <LanguageCard current={locale} />
       </div>
 
       <Card id="notifications" className="mt-4 scroll-mt-20">

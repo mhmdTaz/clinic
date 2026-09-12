@@ -28,6 +28,9 @@ const DEFAULTS: Readonly<Record<NotificationType, readonly NotificationChannel[]
   // Clinic-side noise: it belongs in the bell, not in somebody's inbox.
   TICKET_ASSIGNED: ['IN_APP'],
   STOCK_LOW: ['IN_APP'],
+  // A tamper alert goes both ways: the bell is the record, the email is what reaches somebody
+  // who is not looking at the admin portal at 2am.
+  AUDIT_CHAIN_BROKEN: ['IN_APP', 'EMAIL'],
 }
 
 /**
@@ -37,7 +40,12 @@ const DEFAULTS: Readonly<Record<NotificationType, readonly NotificationChannel[]
  * to a closed door. The preferences screen shows these as locked rather than hiding them, so
  * nobody is left wondering why their toggle did nothing.
  */
-const LOCKED: ReadonlySet<NotificationType> = new Set(['APPOINTMENT_CANCELLED'])
+const LOCKED: ReadonlySet<NotificationType> = new Set([
+  'APPOINTMENT_CANCELLED',
+  // An alert somebody can mute is an alert that will be muted. If the audit chain has broken,
+  // every person who can read the log hears about it.
+  'AUDIT_CHAIN_BROKEN',
+])
 
 export interface StoredPreference {
   type: NotificationType

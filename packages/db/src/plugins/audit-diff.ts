@@ -6,9 +6,12 @@
  * (password hashes, secrets) are replaced before anything leaves this package, so the
  * audit log proves a field changed without ever holding the value.
  */
+import { REDACTED_MARKER } from '@clinic/config'
+
 export type PlainObject = Record<string, unknown>
 
-export const REDACTED = '[redacted]'
+/** Re-exported under the name this package has always used it by. */
+export const REDACTED = REDACTED_MARKER
 
 /** Noise on every write that says nothing about what a person did. */
 const ALWAYS_IGNORED = ['_id', '__v', 'createdAt', 'updatedAt'] as const
