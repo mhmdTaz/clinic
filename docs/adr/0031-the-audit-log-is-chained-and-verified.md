@@ -38,7 +38,7 @@ swap has written nothing yet, so it re-reads and recomputes.
 The head lives on the **audit connection**, governed by the same restricted role. A head the
 application could rewrite would make the chain worth nothing.
 
-### Claims are queued per clinic before they are retried
+### Claims are queued per clinic, and then batched
 
 The CAS alone is not enough under load. One request produces several capture entries, and a
 handful of concurrent requests has twenty writers racing for one document. Retrying alone is a
@@ -46,8 +46,25 @@ thundering herd, and a writer that exhausts its retries **drops an audit entry**
 this subsystem may never do.
 
 So claims are serialised per clinic within the process first. Nearly all of a clinic's audit
-writes come from one process, so the queue removes nearly all contention at no cost, and the CAS
-is left doing what it is actually for: settling races _between_ processes.
+writes come from one process, so the queue removes nearly all contention, and the CAS is left
+doing what it is actually for: settling races _between_ processes.
+
+**Serialising alone was a performance bug, and it shipped before it was caught.** A queue where
+each claim costs two round trips caps a whole clinic at a few hundred audit writes a second — and
+`recordAudit` is _awaited_ on paths that matter: replying to a ticket, recording a payment. Every
+one of those then waits behind the entire backlog of fire-and-forget capture writes, so a busy
+clinic makes its own requests slow, without bound. It passed locally and hung an end-to-end
+journey in CI, which is how this class of fault presents.
+
+Batching removes the ceiling: whatever is waiting when the drainer comes round is chained together
+in memory and the head advanced **once**, so N entries cost two round trips instead of 2N.
+Measured against the local cluster, an awaited write behind 300 queued ones went from **1,738 ms
+to 438 ms** — and the unbatched figure grows with queue depth while the batched one does not,
+which is the property that actually matters.
+
+`planBatch` is pure and separately tested, because the chaining _within_ a batch is the part that
+would be silently wrong: one shared `previousHash` across a batch, or colliding positions, would
+fork the chain and read as tampering.
 
 ### The chain's order is `chainSeq`, not `occurredAt`
 

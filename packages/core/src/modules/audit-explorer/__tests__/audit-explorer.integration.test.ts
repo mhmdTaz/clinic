@@ -236,16 +236,47 @@ describe('the hash chain', () => {
 
   it('never lets two concurrent writes claim the same predecessor', async () => {
     const staff = await staffActor()
-    // Twenty patients at once: twenty audit writes racing for the same chain head.
+    // Forty patients at once. Each registration produces several captured entries, so this is a
+    // burst of well over a hundred writes racing for one head — the shape that used to exhaust
+    // the retries and drop entries outright.
     await Promise.all(
-      Array.from({ length: 20 }, (_, index) =>
+      Array.from({ length: 40 }, (_, index) =>
         aPatient(staff, `Race${index}${newId().slice(0, 6)}`),
       ),
     )
     await flushAudit()
 
-    const status = await verifyChainFor(clinicId(), { limit: 10_000 })
+    const status = await verifyChainFor(clinicId(), { limit: 20_000 })
     expect(status).toMatchObject({ ok: true })
+  })
+
+  /**
+   * Batching is what keeps an awaited `recordAudit` from queueing behind every fire-and-forget
+   * capture write — but a batch that numbered its entries wrongly would fork the chain. Positions
+   * must be contiguous from 1 with nothing repeated, whatever order the writes arrived in.
+   */
+  it('numbers a burst contiguously, with no gap and no collision', async () => {
+    const staff = await staffActor()
+    await Promise.all(
+      Array.from({ length: 25 }, (_, index) =>
+        aPatient(staff, `Seq${index}${newId().slice(0, 6)}`),
+      ),
+    )
+    await flushAudit()
+
+    const rows = (await AuditLogModel()
+      .find({ clinicId: clinicId(), chainSeq: { $exists: true } }, { chainSeq: 1 })
+      .sort({ chainSeq: 1 })
+      .lean()) as unknown as Array<{ chainSeq: number }>
+
+    const positions = rows.map((row) => row.chainSeq)
+    expect(positions).toEqual(positions.map((_, index) => index + 1))
+
+    // And the head agrees with how many links there are.
+    const head = (await AuditChainHeadModel().findById(clinicId()).lean()) as unknown as {
+      seq: number
+    }
+    expect(head.seq).toBe(positions.length)
   })
 
   it('spots an entry edited in place, and says which one', async () => {

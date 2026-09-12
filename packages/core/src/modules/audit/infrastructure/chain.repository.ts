@@ -94,9 +94,9 @@ export const chainRepository = {
   async advanceHead(
     clinicId: string,
     expected: ChainHead,
-    next: { hash: string; entryId: string },
+    next: { hash: string; entryId: string; seq: number },
   ): Promise<boolean> {
-    const seq = expected.seq + 1
+    const seq = next.seq
 
     if (expected.hash === CHAIN_GENESIS && expected.seq === 0) {
       try {
@@ -224,43 +224,69 @@ export const chainRepository = {
 }
 
 /**
- * Claims the next link in a clinic's chain.
+ * Claiming links in a clinic's chain.
  *
- * Returns the hashes and the position to store on the entry, having already advanced the head.
- * The caller inserts immediately afterwards; a crash in that window leaves the head ahead of the
- * log, which the verifier reports as a broken link.
+ * A claim returns the hashes and the position to store on an entry, having already advanced the
+ * head. The caller inserts immediately afterwards; a crash in that window leaves the head ahead
+ * of the log, which the verifier reports as a broken link.
  *
  * **That is the right failure direction.** A crash during an audit write is itself something to
  * look at, and tamper evidence that errs towards "something is wrong here" is worth more than one
  * that errs towards silence.
  *
- * ## Why this queues before it retries
+ * ## Why claims are queued, and then batched
  *
- * The head is a single document and claiming a link is a compare-and-swap on it, so every audit
- * write in a clinic contends for the same row. Under load that is not a rare collision: one
- * request produces several capture entries, and a handful of concurrent requests has twenty
- * writers racing. Retrying alone turns that into a thundering herd — every loser immediately
- * re-reads the same head and races again — and a writer that runs out of attempts **drops an
- * audit entry**, which is the one thing this subsystem may never do.
+ * The head is a single document and advancing it is a compare-and-swap, so every audit write in a
+ * clinic contends for the same row. Under load that is not a rare collision: one request produces
+ * several capture entries, and a handful of concurrent requests has twenty writers racing.
+ * Retrying alone turns that into a thundering herd — every loser immediately re-reads the same
+ * head and races again — and a writer that runs out of attempts **drops an audit entry**, which is
+ * the one thing this subsystem may never do. So claims are serialised per clinic within the
+ * process, leaving the CAS to do what it is actually for: settling races between processes.
  *
- * So claims are serialised per clinic *within the process* first. Almost all of a clinic's audit
- * writes come from one process, so the queue removes nearly all contention at no cost, and the
- * CAS is left doing what it is actually for: settling races between processes. The retry loop
- * then only sees genuine cross-process collisions, which are rare — and it backs off with jitter
- * so even those disperse rather than colliding again in lockstep.
+ * **Serialising alone is not enough, and the first version of this was a performance bug.** A
+ * queue where each claim costs two round trips caps the whole clinic at a few hundred audit writes
+ * a second, and `recordAudit` is *awaited* on paths that matter — replying to a ticket, recording
+ * a payment. Every one of those then waits behind the entire backlog of fire-and-forget capture
+ * writes, so a busy clinic makes its own requests slow, without bound. It passed locally and hung
+ * a journey in CI, which is exactly how this class of fault presents.
+ *
+ * Batching removes the ceiling. Whatever is waiting when the drainer comes round is chained
+ * together in memory and the head is advanced **once**, so N entries cost two round trips rather
+ * than 2N. A single claim on an idle clinic is unchanged; a burst gets dramatically cheaper, which
+ * is the shape of the load.
  */
+
+interface PendingClaim {
+  entry: ChainableEntry
+  entryId: string
+  settle: (result: ClaimedLink) => void
+  fail: (error: unknown) => void
+}
 
 /**
- * One promise chain per clinic. Process-wide, so two bundle copies of this module share the queue
- * rather than each serialising against itself while colliding with the other.
+ * What is waiting, and who is draining it — per clinic, process-wide.
+ *
+ * Process-wide for the same reason as everything else here: two bundle copies of this module must
+ * share one queue rather than each serialising against itself while colliding with the other.
  */
-const claimQueues = processSingleton(
-  'audit:chain-claim-queues',
-  () => new Map<string, Promise<unknown>>(),
-)
+const claimState = processSingleton('audit:chain-claims', () => ({
+  waiting: new Map<string, PendingClaim[]>(),
+  draining: new Set<string>(),
+}))
 
-/** How many cross-process collisions a single write will sit through before giving up. */
+/** How many cross-process collisions one batch will sit through before giving up. */
 const MAX_ATTEMPTS = 25
+
+/**
+ * A ceiling on one swap.
+ *
+ * Not for the database — the head write is the same size either way — but for the failure
+ * window: everything in a batch has its hashes minted before any of it is inserted, so a crash
+ * loses the batch. Smaller batches lose less, and past a couple of hundred the round-trip saving
+ * has long since flattened out.
+ */
+const MAX_BATCH = 200
 
 export interface ClaimedLink {
   previousHash: string
@@ -268,48 +294,97 @@ export interface ClaimedLink {
   chainSeq: number
 }
 
-export async function claimLink(
-  entry: ChainableEntry,
-  entryId: string,
-  attempts = MAX_ATTEMPTS,
-): Promise<ClaimedLink> {
-  const previous = claimQueues.get(entry.clinicId) ?? Promise.resolve()
-  // The rejection is swallowed before chaining: one writer's failure must not cascade into every
-  // writer queued behind it.
-  const mine = previous.catch(() => undefined).then(() => claimOnce(entry, entryId, attempts))
+export function claimLink(entry: ChainableEntry, entryId: string): Promise<ClaimedLink> {
+  return new Promise<ClaimedLink>((settle, fail) => {
+    const queue = claimState.waiting.get(entry.clinicId) ?? []
+    queue.push({ entry, entryId, settle, fail })
+    claimState.waiting.set(entry.clinicId, queue)
+    void drain(entry.clinicId)
+  })
+}
 
-  claimQueues.set(
-    entry.clinicId,
-    mine.catch(() => undefined),
-  )
+/**
+ * The links a batch takes, and where the head ends up.
+ *
+ * Pure, and separated out for that reason: the chaining *within* a batch is the part that would
+ * be silently wrong — a shared `previousHash` across the batch, or positions that collide — and
+ * it should be provable without a database.
+ */
+export function planBatch(
+  head: ChainHead,
+  entries: ReadonlyArray<ChainableEntry>,
+): { links: ClaimedLink[]; nextHash: string; nextSeq: number } {
+  const links: ClaimedLink[] = []
+  let previousHash = head.hash
+
+  entries.forEach((entry, index) => {
+    const hash = chainHash(previousHash, entry)
+    links.push({ previousHash, hash, chainSeq: head.seq + index + 1 })
+    previousHash = hash
+  })
+
+  return { links, nextHash: previousHash, nextSeq: head.seq + entries.length }
+}
+
+async function drain(clinicId: string): Promise<void> {
+  if (claimState.draining.has(clinicId)) return
+  claimState.draining.add(clinicId)
 
   try {
-    return await mine
+    for (;;) {
+      const queue = claimState.waiting.get(clinicId)
+      if (!queue || queue.length === 0) break
+
+      // Everything that arrived while the last batch was in flight, up to the cap.
+      const batch = queue.splice(0, MAX_BATCH)
+      if (queue.length === 0) claimState.waiting.delete(clinicId)
+
+      await claimBatch(clinicId, batch)
+    }
   } finally {
-    // Let the map shrink once this clinic goes quiet, rather than holding a settled promise for
-    // every clinic the process has ever served.
-    if (claimQueues.get(entry.clinicId) === mine) claimQueues.delete(entry.clinicId)
+    claimState.draining.delete(clinicId)
+    // Something may have arrived between the last check and releasing the flag.
+    if ((claimState.waiting.get(clinicId)?.length ?? 0) > 0) void drain(clinicId)
   }
 }
 
-async function claimOnce(
-  entry: ChainableEntry,
-  entryId: string,
-  attempts: number,
-): Promise<ClaimedLink> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const head = await chainRepository.readHead(entry.clinicId)
-    const hash = chainHash(head.hash, entry)
-    const won = await chainRepository.advanceHead(entry.clinicId, head, { hash, entryId })
-    if (won) return { previousHash: head.hash, hash, chainSeq: head.seq + 1 }
+async function claimBatch(clinicId: string, batch: PendingClaim[]): Promise<void> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const head = await chainRepository.readHead(clinicId)
+      const plan = planBatch(
+        head,
+        batch.map((item) => item.entry),
+      )
+
+      const won = await chainRepository.advanceHead(clinicId, head, {
+        hash: plan.nextHash,
+        // The last entry in the batch is where the head now points.
+        entryId: batch[batch.length - 1]?.entryId ?? '',
+        seq: plan.nextSeq,
+      })
+
+      if (won) {
+        batch.forEach((item, index) => {
+          item.settle(plan.links[index]!)
+        })
+        return
+      }
+    } catch (error) {
+      // A database failure is not a lost race, and retrying it 25 times would only delay the
+      // report. Everybody in the batch hears the same reason.
+      for (const item of batch) item.fail(error)
+      return
+    }
 
     // Jittered, so two processes that collided do not collide again on the same schedule.
     await sleep(Math.min(2 ** attempt, 32) * (1 + Math.random()))
   }
 
   // Sustained contention from outside this process, which is a real operational problem and not
-  // one to paper over by writing an unchained entry.
-  throw new Error(`Could not claim an audit chain link for clinic ${entry.clinicId}`)
+  // one to paper over by writing unchained entries.
+  const exhausted = new Error(`Could not claim an audit chain link for clinic ${clinicId}`)
+  for (const item of batch) item.fail(exhausted)
 }
 
 const sleep = (ms: number): Promise<void> =>

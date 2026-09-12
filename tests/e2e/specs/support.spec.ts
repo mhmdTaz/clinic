@@ -22,7 +22,12 @@ test.describe('support', () => {
     // The patient asks.
     const patient = await signedInAs(browser, 'patient@clinic.local')
     await patient.goto('/support')
-    await expect(patient.getByText('You have not asked anything yet')).toBeVisible()
+    // Only when the list really is empty. A retry runs after the previous attempt already opened
+    // a ticket, so asserting the empty state unconditionally would turn `retries: 1` from a
+    // second chance into a guaranteed second failure — and hide whatever went wrong the first time.
+    if ((await patient.locator('a[href^="/support/"]').count()) === 0) {
+      await expect(patient.getByText('You have not asked anything yet')).toBeVisible()
+    }
 
     await patient.getByRole('button', { name: 'Ask a question' }).click()
     const ask = patient.getByRole('dialog')

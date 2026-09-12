@@ -7,6 +7,7 @@ import {
   type ChainLink,
   type ChainableEntry,
 } from '../domain/hash-chain'
+import { planBatch } from '../infrastructure/chain.repository'
 
 const entry = (over: Partial<ChainableEntry> = {}): ChainableEntry => ({
   clinicId: 'clinic-1',
@@ -180,5 +181,73 @@ describe('verifyChain', () => {
     const links = chainOf(1)
     links[0] = { ...links[0]!, previousHash: null }
     expect(verifyChain(links).ok).toBe(true)
+  })
+})
+
+describe('planBatch', () => {
+  const batch = (count: number): ChainableEntry[] =>
+    Array.from({ length: count }, (_, index) =>
+      entry({
+        occurredAt: new Date(Date.UTC(2026, 8, 12, 11, index)),
+        action: `batched.${index}`,
+      }),
+    )
+
+  it('chains the batch to itself, not all to the same predecessor', () => {
+    // The failure this exists to make impossible: every entry in a batch sharing one
+    // `previousHash` would produce a fork the verifier reports as tampering.
+    const plan = planBatch({ hash: CHAIN_GENESIS, entryId: null, seq: 0 }, batch(4))
+
+    expect(plan.links[0]!.previousHash).toBe(CHAIN_GENESIS)
+    for (let index = 1; index < plan.links.length; index += 1) {
+      expect(plan.links[index]!.previousHash).toBe(plan.links[index - 1]!.hash)
+    }
+    expect(new Set(plan.links.map((link) => link.hash)).size).toBe(4)
+  })
+
+  it('numbers the batch contiguously from the head', () => {
+    const plan = planBatch({ hash: 'a'.repeat(64), entryId: 'x', seq: 17 }, batch(3))
+    expect(plan.links.map((link) => link.chainSeq)).toEqual([18, 19, 20])
+    expect(plan.nextSeq).toBe(20)
+  })
+
+  it('leaves the head where the last entry left it', () => {
+    const plan = planBatch({ hash: CHAIN_GENESIS, entryId: null, seq: 0 }, batch(5))
+    expect(plan.nextHash).toBe(plan.links.at(-1)!.hash)
+  })
+
+  it('produces exactly the chain a one-at-a-time claim would have', () => {
+    // Batching is an optimisation, so it must not change a single byte of the result.
+    const entries = batch(6)
+    const batched = planBatch({ hash: CHAIN_GENESIS, entryId: null, seq: 0 }, entries)
+
+    let previousHash = CHAIN_GENESIS
+    const oneByOne = entries.map((one, index) => {
+      const plan = planBatch({ hash: previousHash, entryId: null, seq: index }, [one])
+      previousHash = plan.nextHash
+      return plan.links[0]!
+    })
+
+    expect(batched.links).toEqual(oneByOne)
+  })
+
+  it('verifies as a chain', () => {
+    const entries = batch(4)
+    const plan = planBatch({ hash: CHAIN_GENESIS, entryId: null, seq: 0 }, entries)
+    const links: ChainLink[] = entries.map((one, index) => ({
+      ...one,
+      id: `batched-${index}`,
+      previousHash: plan.links[index]!.previousHash,
+      hash: plan.links[index]!.hash,
+      chainSeq: plan.links[index]!.chainSeq,
+    }))
+
+    expect(verifyChain(links)).toMatchObject({ ok: true, checked: 4 })
+  })
+
+  it('moves nothing for an empty batch', () => {
+    const head = { hash: 'b'.repeat(64), entryId: 'y', seq: 9 }
+    const plan = planBatch(head, [])
+    expect(plan).toEqual({ links: [], nextHash: head.hash, nextSeq: 9 })
   })
 })
