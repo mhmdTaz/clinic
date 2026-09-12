@@ -8,8 +8,9 @@ import { NavIcon } from './nav-icon'
 import { activeHref, type ShellNavItem } from './nav-utils'
 
 /**
- * Below 768px the sidebar becomes a bottom tab bar of the first four destinations
- * (section 14.4), padded clear of the home indicator on phones that have one.
+ * Below 768px the sidebar becomes a bottom tab bar of the portal's own destinations
+ * (section 14.4), padded clear of the home indicator on phones that have one. The caller
+ * decides which items those are; this only draws them.
  */
 export function BottomNav({ items }: { items: ShellNavItem[] }) {
   const pathname = usePathname()

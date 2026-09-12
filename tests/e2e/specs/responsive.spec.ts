@@ -11,7 +11,13 @@ test('on a phone the sidebar gives way to a bottom tab bar', async ({ page }) =>
   const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
   await expect(navigation).toHaveCount(1)
   await expect(navigation.getByRole('link', { name: 'Overview' })).toBeVisible()
-  await expect(navigation.getByRole('link', { name: 'Profile & security' })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'My records' })).toBeVisible()
+
+  // Account is not a tab — it would push a portal page off the bar — but it is one tap away
+  // from the account menu, at every width.
+  await expect(navigation.getByRole('link', { name: 'Profile & security' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Account menu' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Profile & security' })).toBeVisible()
 })
 
 test('nothing on the page scrolls sideways on a phone', async ({ page }) => {

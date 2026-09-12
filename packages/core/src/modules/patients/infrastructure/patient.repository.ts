@@ -19,6 +19,21 @@ export interface StoredPatient {
   contact: { phone: string | null; email: string | null }
   address: { line1: string | null; city: string | null; country: string | null }
   emergencyContacts: Array<{ name: string; relationship: string | null; phone: string }>
+  /** The chart banner, embedded so it renders with no second query (section 8.6). */
+  allergies: Array<{
+    id: string
+    substance: string
+    reaction: string | null
+    severity: string
+    notedAt: Date | null
+  }>
+  chronicConditions: Array<{
+    id: string
+    code: string | null
+    description: string
+    diagnosedAt: string | null
+    resolvedAt: string | null
+  }>
   adminNotes: string | null
   isActive: boolean
   createdAt: Date | null
@@ -39,6 +54,20 @@ interface PatientRecord {
   contact?: { phone?: string | null; email?: string | null } | null
   address?: { line1?: string | null; city?: string | null; country?: string | null } | null
   emergencyContacts?: Array<{ name: string; relationship?: string | null; phone: string }> | null
+  allergies?: Array<{
+    _id: string
+    substance: string
+    reaction?: string | null
+    severity?: string | null
+    notedAt?: Date | null
+  }> | null
+  chronicConditions?: Array<{
+    _id: string
+    code?: string | null
+    description: string
+    diagnosedAt?: string | null
+    resolvedAt?: string | null
+  }> | null
   adminNotes?: string | null
   isActive?: boolean | null
   createdAt?: Date | null
@@ -68,6 +97,20 @@ function toPatient(doc: PatientRecord): StoredPatient {
       name: contact.name,
       relationship: contact.relationship ?? null,
       phone: contact.phone,
+    })),
+    allergies: (doc.allergies ?? []).map((allergy) => ({
+      id: allergy._id,
+      substance: allergy.substance,
+      reaction: allergy.reaction ?? null,
+      severity: allergy.severity ?? 'UNKNOWN',
+      notedAt: allergy.notedAt ?? null,
+    })),
+    chronicConditions: (doc.chronicConditions ?? []).map((condition) => ({
+      id: condition._id,
+      code: condition.code ?? null,
+      description: condition.description,
+      diagnosedAt: condition.diagnosedAt ?? null,
+      resolvedAt: condition.resolvedAt ?? null,
     })),
     adminNotes: doc.adminNotes ?? null,
     isActive: doc.isActive ?? true,
@@ -303,5 +346,72 @@ export const patientRepository = {
       { session: sessionOf(tx) },
     )
     return result.modifiedCount === 1
+  },
+
+  /** The chart banner, replaced whole: an allergy list is edited as a list (section 8.6). */
+  async setAllergies(
+    clinicId: string,
+    patientId: string,
+    allergies: Array<{
+      substance: string
+      reaction: string | null
+      severity: string
+      notedAt: Date
+    }>,
+    by: PersonRef,
+  ): Promise<StoredPatient | null> {
+    const doc = (await PatientModel()
+      .findOneAndUpdate(
+        { clinicId, _id: patientId },
+        {
+          $set: {
+            allergies: allergies.map((allergy) => ({ _id: newId(), ...allergy })),
+            updatedBy: by,
+          },
+        },
+        { new: true },
+      )
+      .lean()) as unknown as PatientRecord | null
+    return doc ? toPatient(doc) : null
+  },
+
+  async setChronicConditions(
+    clinicId: string,
+    patientId: string,
+    conditions: Array<{
+      code: string | null
+      description: string
+      diagnosedAt: string | null
+      resolvedAt: string | null
+    }>,
+    by: PersonRef,
+  ): Promise<StoredPatient | null> {
+    const doc = (await PatientModel()
+      .findOneAndUpdate(
+        { clinicId, _id: patientId },
+        {
+          $set: {
+            chronicConditions: conditions.map((condition) => ({ _id: newId(), ...condition })),
+            updatedBy: by,
+          },
+        },
+        { new: true },
+      )
+      .lean()) as unknown as PatientRecord | null
+    return doc ? toPatient(doc) : null
+  },
+
+  /** "My patients" (D3): the records behind ids another module resolved, in that same order. */
+  async findByIds(clinicId: string, ids: readonly string[]): Promise<StoredPatient[]> {
+    if (ids.length === 0) return []
+    const docs = await PatientModel()
+      .find({ clinicId, _id: { $in: [...ids] } })
+      .lean()
+    const byId = new Map(
+      (docs as unknown as PatientRecord[]).map((doc) => [doc._id, toPatient(doc)]),
+    )
+    return ids
+      .map((id) => byId.get(id))
+      .filter((patient): patient is StoredPatient => Boolean(patient))
   },
 }

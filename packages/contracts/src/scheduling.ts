@@ -125,7 +125,7 @@ export const AppointmentStatus = z.enum([
 ])
 export type AppointmentStatus = z.infer<typeof AppointmentStatus>
 
-export const AppointmentSource = z.enum(['STAFF', 'PATIENT'])
+export const AppointmentSource = z.enum(['STAFF', 'PATIENT', 'WALK_IN'])
 export type AppointmentSource = z.infer<typeof AppointmentSource>
 
 const Duration = z.coerce.number().int().min(5).max(480)
@@ -141,6 +141,19 @@ export const BookAppointmentRequest = z.object({
   internalNote: nullableText(500),
 })
 export type BookAppointmentRequest = z.infer<typeof BookAppointmentRequest>
+
+/**
+ * Someone who arrived without an appointment (ADR-0023). No time is sent: the server puts them
+ * in the doctor's next open slot today, so a walk-in never lands off the booking grid.
+ */
+export const RegisterWalkInRequest = z.object({
+  patientId: IdParam,
+  doctorId: IdParam,
+  branchId: z.string().max(64).nullable().default(null),
+  reason: nullableText(300),
+  internalNote: nullableText(500),
+})
+export type RegisterWalkInRequest = z.infer<typeof RegisterWalkInRequest>
 
 /** The patient portal books for the signed-in patient; the server supplies who that is (P5). */
 export const BookOwnAppointmentRequest = z.object({

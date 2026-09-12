@@ -2373,6 +2373,15 @@ The `confirm` step exists because a presigned PUT succeeds without telling the a
 Without it, an abandoned upload leaves a `PENDING` row forever; a nightly job sweeps
 `PENDING` rows older than 24 hours.
 
+**As built, one correction to step 2.** The content type and length go into the signed request,
+but S3 does **not** cover them with the signature on a presigned PUT — a client can declare
+`application/pdf`, send an executable, and storage will take it. That was tested against MinIO
+rather than assumed. So what the URL really limits is *where* the bytes may go and *for how long*;
+what they are is established at step 5, by reading the object's first sixteen bytes and checking
+them against the declared type. A file whose bytes disagree is marked `FAILED`, audited as
+`file.rejected`, and never becomes downloadable. This is what section 12.3's "validated against
+the sniffed type, not the client-supplied header" costs in practice: one ranged read per upload.
+
 ### 12.2 Key layout
 
 ```
@@ -2843,16 +2852,16 @@ user, and that user's menu and API access change on their next request — with 
 **Exit criteria:** staff books, reschedules and cancels; a patient books from their portal; two
 simultaneous bookings for the same slot produce exactly one appointment and one clean 409.
 
-Two items on the list above are deliberately not in the first pass, and neither is on the exit
-criteria:
+One item on the list above is deliberately not in the first pass, and it is not on the exit
+criteria: **drag to reschedule**. Moving an appointment works, through a dialog that offers the
+doctor's open times; dragging is a second way to reach the same use case, and an expensive one to
+make keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
 
-- **Drag to reschedule.** Moving an appointment works, through a dialog that offers the doctor's
-  open times; dragging is a second way to reach the same use case, and an expensive one to make
-  keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
-- **The walk-in queue.** A walk-in arrives at 10:07 for a diary that offers 10:00 and 10:20. Taking
-  one means booking off the grid, and the grid is what makes double-booking impossible (ADR-0013).
-  How a clinic wants overbooking to behave — refuse, squeeze in, or queue for the next gap — is a
-  policy question, not a UI one, and it deserves its own decision rather than an improvised answer.
+The walk-in queue is here, and cost a decision rather than a feature flag: a walk-in takes the
+doctor's **next open slot** and is checked in at once (ADR-0023), so it is an ordinary appointment
+on an ordinary slot and the reservation grid keeps making double-booking impossible for everyone.
+The waiting room is then a query — today's appointments that are checked in — rather than a second
+kind of thing to keep in step with the first.
 
 ### Phase 4 — Clinical records and files · ~2.5 weeks
 
@@ -2863,10 +2872,22 @@ criteria:
 - File storage end to end: presign, confirm, scan, download-url, patient visibility gating
 - Patient medical timeline and document vault
 - **The `ASSIGNED` scope decision from section 7.5 must be settled before this phase ships.**
+  Settled: ADR-0004 is Accepted, and Phase 4 amended it for rows that name no doctor — a patient
+  is reachable through their own visits, while the chart's contents stay strict per row.
 
 **Exit criteria:** a doctor completes and signs an encounter; the note becomes immutable; the
 patient sees exactly what was flagged visible and nothing else; every PHI read appears in the
 audit log.
+
+Three items on the list above are deliberately not in the first pass, and none is on the exit
+criteria:
+
+- **Lab orders (D14).** Marked 🔸 in section 1.1 from the start; the file store and the encounter
+  already carry a result that arrives as an attachment, which is how a small clinic works today.
+- **The patient's e-signature on consent forms (P13)**, also 🔸. Consent documents upload and share
+  like any other; signing them in the browser is its own piece of work.
+- **Note templates and quick phrases (D13)**, 🔸 as well, and worth designing once real notes exist
+  to template from.
 
 ### Phase 5 — Billing and payments · ~2 weeks
 
@@ -3003,7 +3024,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0006 | Staff register patients; patients activate by emailed link | **Accepted** | `docs/adr/0006` — no public sign-up. Activation sets the first password on an account that already exists, so a leaked link cannot mint accounts |
 | 0017 | Own token service instead of Auth.js | **Accepted** | `docs/adr/0017` — rotating refresh tokens, one path for cookie and Bearer, authentication outside the framework layer |
 | 0018 | Portal permissions gated in layouts, not middleware | **Accepted** | `docs/adr/0018` — current grants rather than a token's, and every denial audited |
-| 0004 | `ASSIGNED` reaches the rows you are named on | **Accepted** | `docs/adr/0004` — strict: the resolver compares the row against the actor's own doctor profile, and a clinic that wants wider reach grants `CLINIC`, which the matrix shows. Break-the-glass stays additive for Phase 4 |
+| 0004 | `ASSIGNED` reaches the rows you are named on | **Accepted** | `docs/adr/0004` — strict: the resolver compares the row against the actor's own doctor profile, and a clinic that wants wider reach grants `CLINIC`, which the matrix shows. Break-the-glass stays additive. Amended in Phase 4 for rows that name no doctor: a patient is reachable through their visits, while the chart's contents stay strict per row |
 | 0007 | Payment provider for online payments | **OPEN** | Deferred with P16; `PaymentGateway` interface reserves the seam |
 | 0008 | SMS provider and whether SMS is in v1 at all | **OPEN** | Cost per message drives reminder strategy |
 | 0009 | Hosting target: **Atlas or self-hosted MongoDB**, and serverless or containers | **OPEN** | Now materially bigger than a hosting preference: Atlas brings Atlas Search (patient search quality, section 8.14), managed point-in-time restore and Online Archive. Serverless also forces connection-pool caching (section 15.2). Worth deciding early |
@@ -3012,6 +3033,10 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0020 | Possible duplicate patients warn, and saving anyway takes a reason | **Accepted** | `docs/adr/0020` — national ID, phone (last seven digits), email, or name plus date of birth; re-checked at save; overrides audited |
 | 0021 | One branch until a second exists | **Accepted** | `docs/adr/0021` — branch fields appear only in a multi-branch clinic; the last open branch cannot close |
 | 0022 | Patients book inside a window; staff are not limited | **Accepted** | `docs/adr/0022` — booking horizon, minimum notice and cancellation cutoff live in clinic settings and bind self-service only |
+| 0023 | A walk-in takes the next open slot, not the current minute | **Accepted** | `docs/adr/0023` — recording an arrival off the five-minute grid would end the double-booking guarantee for everyone; genuine overbooking stays a separate, deliberate decision |
+| 0024 | A signed note is closed to everyone, including its author | **Accepted** | `docs/adr/0024` — the precondition lives in the update's filter and corrections are `$push`ed addenda, so append-only is a property of the write rather than a rule to remember |
+| 0025 | A patient sees what was shared, and only once it is final | **Accepted** | `docs/adr/0025` — sharing is deliberate and reversible, a draft is never shared however it is flagged, and hidden content is projected out rather than loaded and filtered |
+| 0026 | Prescription PDFs are rendered on first request, then stored | **Accepted** | `docs/adr/0026` — the end state is what the queued job would have produced, so moving it to a worker later changes when it runs, not what exists |
 
 ### The ones to settle next
 

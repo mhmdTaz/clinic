@@ -27,8 +27,7 @@ export function shiftDate(date: string, days: number): string {
 }
 
 function isWeekend(date: string): boolean {
-  const [year, month, day] = partsOf(date)
-  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+  const weekday = weekdayOfDate(date)
   return weekday === 0 || weekday === 6
 }
 
@@ -40,4 +39,22 @@ export function workingDate(daysAhead: number): string {
   let date = shiftDate(clinicToday(), daysAhead)
   while (isWeekend(date)) date = shiftDate(date, 1)
   return date
+}
+
+/** Minutes past midnight in the clinic's zone — walk-ins only make sense while the day is open. */
+export function clinicMinutesOfDay(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: CLINIC_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now)
+  const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value ?? '0')
+  return part('hour') * 60 + part('minute')
+}
+
+/** The date's own weekday, 0 = Sunday, read in UTC like the date string itself. */
+export function weekdayOfDate(date: string): number {
+  const [year, month, day] = partsOf(date)
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
 }

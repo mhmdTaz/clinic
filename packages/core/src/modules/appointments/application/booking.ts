@@ -1,4 +1,4 @@
-import { SLOT_GRID_MINUTES } from '@clinic/config'
+import { SLOT_GRID_MINUTES, type AppointmentSource } from '@clinic/config'
 import type {
   AppointmentDetail,
   BookAppointmentRequest,
@@ -118,11 +118,12 @@ function worksThen(
   return Boolean(day?.slots.some((slot) => slot.startsAt.getTime() === startsAt.getTime()))
 }
 
-async function write(
+/** Shared by every way an appointment comes into being; not exported beyond the module. */
+export async function writeAppointment(
   actor: Actor,
   prepared: PreparedBooking,
   meta: {
-    source: 'STAFF' | 'PATIENT'
+    source: AppointmentSource
     reason: string | null
     internalNote: string | null
     branchId: string | null
@@ -186,7 +187,7 @@ export async function bookAppointment(
 ): Promise<AppointmentDetail> {
   await assertCan(actor, 'appointment:create')
   const prepared = await prepareBooking(actor, input)
-  const appointment = await write(actor, prepared, {
+  const appointment = await writeAppointment(actor, prepared, {
     source: 'STAFF',
     reason: input.reason,
     internalNote: input.internalNote,
@@ -229,7 +230,7 @@ export async function bookOwnAppointment(
     throw new BusinessRuleError('BEYOND_HORIZON', 'That is further ahead than booking opens.')
   }
 
-  const appointment = await write(actor, prepared, {
+  const appointment = await writeAppointment(actor, prepared, {
     source: 'PATIENT',
     reason: input.reason,
     internalNote: null,

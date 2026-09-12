@@ -46,6 +46,11 @@ export {
   type PortalDefinition,
 } from './domain/portals'
 export {
+  provideCareRelationship,
+  careRelationship,
+  type CareRelationship,
+} from './domain/care-relationship'
+export {
   NAVIGATION,
   NAV_ICONS,
   visibleNavigation,

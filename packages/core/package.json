@@ -19,7 +19,10 @@
     "./patients": "./src/modules/patients/index.ts",
     "./doctors": "./src/modules/doctors/index.ts",
     "./scheduling": "./src/modules/scheduling/index.ts",
-    "./appointments": "./src/modules/appointments/index.ts"
+    "./appointments": "./src/modules/appointments/index.ts",
+    "./clinical": "./src/modules/clinical/index.ts",
+    "./prescriptions": "./src/modules/prescriptions/index.ts",
+    "./files": "./src/modules/files/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",
@@ -29,6 +32,8 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1131.0",
+    "@aws-sdk/s3-request-presigner": "^3.1131.0",
     "@clinic/config": "workspace:*",
     "@clinic/contracts": "workspace:*",
     "@clinic/db": "workspace:*",
@@ -37,6 +42,7 @@
     "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "nodemailer": "^10.0.3",
+    "pdf-lib": "^1.17.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

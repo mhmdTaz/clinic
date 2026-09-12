@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { localDateIn, type AppointmentSummary } from '@clinic/contracts'
+import { Badge } from '@clinic/ui'
 import { AppointmentStatusBadge } from '@/components/portal/status-badges'
 import { formatCalendarDate, formatTimeRange } from '@/lib/format/dates'
 
@@ -52,7 +53,7 @@ export async function AppointmentCard({
               {formatTimeRange(appointment.startsAt, appointment.endsAt, locale, timeZone)}
             </span>
           </span>
-          <span className="font-medium break-words">
+          <span className="flex flex-wrap items-center gap-2 font-medium break-words">
             {href ? (
               <Link href={href} className="hover:underline">
                 {title}
@@ -60,6 +61,10 @@ export async function AppointmentCard({
             ) : (
               title
             )}
+            {/* Worth saying anywhere it shows: this person arrived without an appointment. */}
+            {appointment.source === 'WALK_IN' ? (
+              <Badge tone="neutral">{t('sources.WALK_IN')}</Badge>
+            ) : null}
           </span>
           {show.doctor && show.patient ? (
             <span className="text-muted-foreground text-xs">

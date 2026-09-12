@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { E2E } from '../e2e.env'
-import { workingDate } from '../helpers/calendar'
+import { clinicMinutesOfDay, clinicToday, weekdayOfDate, workingDate } from '../helpers/calendar'
 import { countAppointmentsAt, seededDoctorId, seededPatientId } from '../helpers/database'
 import { newPersonPage, signIn } from '../helpers/session'
 import { expect, test } from './fixtures'
@@ -81,6 +81,68 @@ test.describe('scheduling', () => {
     await expect(card.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
     await expect(card.getByRole('button', { name: 'Check in' })).toHaveCount(0)
     await expect(card.getByRole('button', { name: 'Complete' })).toHaveCount(0)
+  })
+
+  test('a walk-in is given the next open time and appears in the waiting room', async ({
+    page,
+  }) => {
+    // A walk-in is always today and always "from now", so the clinic's day has to have time
+    // left in it. Rather than depend on the hour CI happens to run, the doctor is opened for
+    // the whole of today first — and the last half hour is skipped, not hoped through.
+    test.skip(clinicMinutesOfDay() > 23 * 60 + 30, 'the clinic day has no time left for a walk-in')
+
+    await signIn(page, 'staff@clinic.local', E2E.password)
+    const doctorId = await seededDoctorId()
+    const today = clinicToday()
+
+    await page.goto('/staff/appointments')
+    await page.evaluate(
+      async ({ doctorId, dayOfWeek }) => {
+        const read = await fetch(`/api/v1/doctors/${doctorId}/availability`, {
+          credentials: 'same-origin',
+        })
+        const { data } = (await read.json()) as {
+          data: {
+            slotMinutes: number
+            blocks: Array<{ dayOfWeek: number; startsAt: string; endsAt: string }>
+          }
+        }
+        await fetch(`/api/v1/doctors/${doctorId}/availability`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            slotMinutes: data.slotMinutes,
+            blocks: [
+              ...data.blocks.filter((block) => block.dayOfWeek !== dayOfWeek),
+              { dayOfWeek, startsAt: '00:00', endsAt: '23:59' },
+            ],
+          }),
+        })
+      },
+      { doctorId, dayOfWeek: weekdayOfDate(today) },
+    )
+
+    // Deliberately looking at another day: a walk-in belongs to today regardless.
+    await page.goto(`/staff/appointments?date=${workingDate(5)}`)
+    await page.getByRole('button', { name: 'Walk-in', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Patient').fill('Haddad')
+    await dialog.getByRole('button', { name: /Rana Haddad/ }).click()
+    await dialog.getByLabel(/What have they come in for/).fill('Twisted her ankle')
+    await dialog.getByRole('button', { name: 'Register and check in' }).click()
+
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`date=${today}`))
+    await expect(page.getByRole('heading', { name: 'Waiting room' })).toBeVisible()
+
+    const waiting = page.getByRole('article').filter({ hasText: 'Rana Haddad' }).first()
+    await expect(waiting).toContainText('Walk-in')
+    await expect(waiting).toContainText('Checked in')
+    await expect(waiting).toContainText('Twisted her ankle')
+    // Already arrived, so the next step is the doctor taking them in.
+    await expect(waiting.getByRole('button', { name: 'Start visit' })).toBeVisible()
+    await expect(waiting.getByRole('button', { name: 'Check in' })).toHaveCount(0)
   })
 
   test('two bookings for one slot leave exactly one appointment and one clean refusal', async ({

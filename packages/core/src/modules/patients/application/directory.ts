@@ -5,6 +5,7 @@ import { assertCan, type Actor } from '../../access'
 import { findUser, type AuthUser } from '../../identity'
 import { parsePatientQuery } from '../domain/records'
 import { patientRepository, type StoredPatient } from '../infrastructure/patient.repository'
+import { toChartBanner } from './chart'
 import { patientListScope, patientResource } from './scope'
 
 const iso = (date: Date | null) => (date ? date.toISOString() : null)
@@ -38,6 +39,7 @@ export function toPatientDetail(patient: StoredPatient, account: AuthUser | null
     contact: patient.contact,
     address: patient.address,
     emergencyContacts: patient.emergencyContacts,
+    ...toChartBanner(patient),
     adminNotes: patient.adminNotes,
     isActive: patient.isActive,
     portalAccount: account ? { userId: account.id, status: account.status } : null,
@@ -74,6 +76,20 @@ export async function getPatient(actor: Actor, patientId: string): Promise<Patie
   return toPatientDetail(patient, account)
 }
 
+/**
+ * The records behind a set of ids, in that order — "my patients" (D3), where another module
+ * decided which patients those are. The permission is still checked here: an id list from
+ * elsewhere is a question, not an authorisation.
+ */
+export async function listPatientsByIds(
+  actor: Actor,
+  ids: readonly string[],
+): Promise<PatientSummary[]> {
+  await assertCan(actor, 'patient:read')
+  const patients = await patientRepository.findByIds(actor.clinicId, ids)
+  return patients.map(toPatientSummary)
+}
+
 /** The patient profile attached to an account, for the `pid` claim on a token (ADR-0004). */
 export function findPatientIdForUser(clinicId: string, userId: string): Promise<string | null> {
   return patientRepository.findIdByUserId(clinicId, userId)
@@ -84,6 +100,8 @@ export interface PatientSchedulingFacts {
   id: string
   userId: string | null
   name: string
+  /** A calendar date; the chart header needs it to show an age (ADR-0010). */
+  dateOfBirth: string | null
   medicalRecordNo: string
   phone: string | null
   isActive: boolean
@@ -99,6 +117,7 @@ export async function findPatientForScheduling(
     id: patient.id,
     userId: patient.userId,
     name: `${patient.firstName} ${patient.lastName}`,
+    dateOfBirth: patient.dateOfBirth,
     medicalRecordNo: patient.medicalRecordNo,
     phone: patient.contact.phone,
     isActive: patient.isActive,

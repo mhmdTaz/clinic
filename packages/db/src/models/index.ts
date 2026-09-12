@@ -18,3 +18,6 @@ export {
   SlotReservationSchema,
   type SlotReservationDoc,
 } from './slot-reservation.model'
+export { EncounterModel, EncounterSchema, type EncounterDoc } from './encounter.model'
+export { PrescriptionModel, PrescriptionSchema, type PrescriptionDoc } from './prescription.model'
+export { FileModel, FileSchema, type FileDoc } from './file.model'

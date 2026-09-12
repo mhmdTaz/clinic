@@ -46,6 +46,16 @@ export async function PortalShell({
     })),
   }))
   const items = sections.flatMap((section) => section.items)
+  /**
+   * The phone's tab bar carries the portal's own destinations, not the first four items of the
+   * menu. Account is deliberately not among them: it lives in the account menu, which is on
+   * every screen at every width, and letting it take a tab would push a portal page off the bar
+   * as soon as a phase adds one (section 14.4).
+   */
+  const tabs = sections
+    .filter((section) => section.id !== 'account')
+    .flatMap((section) => section.items)
+    .slice(0, 5)
   const portals = actor.portals.map((key) => ({
     key,
     href: PORTALS[key].homePath,
@@ -74,7 +84,7 @@ export async function PortalShell({
           {children}
         </main>
       </div>
-      <BottomNav items={items.slice(0, 4)} />
+      <BottomNav items={tabs} />
       {/* The menu above already reflects the current grants; this only stores the new token. */}
       {staleToken ? <TokenRenewal /> : null}
     </div>

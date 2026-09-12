@@ -1,7 +1,11 @@
 export { getClinicOverview } from './application/get-clinic-overview'
 export { getClinicProfile } from './application/get-clinic-profile'
 export { getClinicSessionInfo } from './application/get-clinic-session-info'
-export { getClinicFacts } from './application/get-clinic-facts'
+export {
+  getClinicFacts,
+  getClinicLetterhead,
+  type ClinicLetterhead,
+} from './application/get-clinic-facts'
 export { getSchedulingFacts, type SchedulingFacts } from './application/get-scheduling-facts'
 export {
   getClinicSettings,

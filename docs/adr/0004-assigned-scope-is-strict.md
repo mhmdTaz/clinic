@@ -37,3 +37,27 @@ editor is for, and the matrix shows it plainly.
   rescheduling onto them does. Standing cover is a `CLINIC` grant.
 - Phase 4 revisits only the override. Break-the-glass, if the clinic wants it, arrives as an
   additive audited action, not as a change to what `ASSIGNED` means.
+
+## Addendum, Phase 4 — a row that names no doctor
+
+Clinical records made the rule meet a case it did not cover. An encounter names its doctor, so
+`ASSIGNED` is decided by comparing one field. A **patient** row names no doctor at all. Read
+literally, a doctor holding `patient:read` at `ASSIGNED` could open nobody, and the doctor portal
+would have no charts in it.
+
+The answer is to keep the strictness where it was actually aimed:
+
+- **A patient is reachable when the doctor is named on one of that patient's visits.** That is
+  "my patients" (D3), and it is answered by a query against encounters, not by widening a grant.
+- **The chart's contents stay strict, row by row.** A colleague's note on the same patient is
+  still out of reach. Being able to open the patient is not being able to read everything ever
+  written about them — which is precisely the distinction that made chart-wide scope the wrong
+  answer above.
+
+Authorisation asks the question and visits answer it, and the two modules never import each
+other: `access` declares a `CareRelationship` port, `clinical` implements it, and the composition
+root wires them together. Until it does, the port denies.
+
+The doctor's directory follows the same logic. `patient:read` at `ASSIGNED` is refused the
+clinic-wide directory, and the doctor portal gets its own "my patients" list instead — the same
+rule, asked the right way round.

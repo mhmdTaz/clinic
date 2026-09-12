@@ -99,6 +99,8 @@ export interface DoctorSchedulingFacts {
   id: string
   userId: string
   name: string
+  /** Printed on anything the doctor puts their name to, a prescription first of all (D8). */
+  licenseNumber: string | null
   isActive: boolean
   defaultSlotMinutes: number
   availability: StoredDoctor['availability']
@@ -117,6 +119,7 @@ export async function findDoctorForScheduling(
     id: doctor.id,
     userId: doctor.userId,
     name: account ? displayNameOf(account) : '',
+    licenseNumber: doctor.licenseNumber,
     isActive: doctor.isActive,
     defaultSlotMinutes: doctor.defaultSlotMinutes,
     availability: doctor.availability,

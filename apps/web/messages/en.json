@@ -52,7 +52,11 @@
       "doctors": "Doctors",
       "account": "Profile & security",
       "appointments": "Appointments",
-      "schedule": "My schedule"
+      "schedule": "My schedule",
+      "myPatients": "My patients",
+      "myRecords": "My records",
+      "prescriptions": "Prescriptions",
+      "documents": "Documents"
     }
   },
   "shell": {
@@ -117,7 +121,9 @@
     "ENDS_BEFORE_STARTS": "The end must come after the start.",
     "OVERLAPPING_BLOCKS": "These hours overlap another block on the same day.",
     "NOT_ON_THE_BOOKING_GRID": "Appointments start on the five-minute mark.",
-    "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once."
+    "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once.",
+    "INVALID_ICD10_CODE": "That is not an ICD-10 code.",
+    "INVALID_MEASUREMENT": "Use a number, with at most one decimal place."
   },
   "auth": {
     "login": {
@@ -218,7 +224,20 @@
     "TOO_SOON": "That is too soon to book online. Please call the clinic.",
     "BEYOND_HORIZON": "That is further ahead than booking is open.",
     "TOO_LATE_TO_CHANGE": "That is too close to the appointment to change online. Please call the clinic.",
-    "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands."
+    "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands.",
+    "NO_SLOT_TODAY": "That doctor has no open time left today. Book a later appointment instead.",
+    "NOTE_ALREADY_SIGNED": "This note has been signed and can no longer be changed. Add an addendum instead.",
+    "NOTE_NOT_SIGNED": "A draft is still editable — an addendum belongs to a signed note.",
+    "NOTE_IS_EMPTY": "There is nothing in this note to sign.",
+    "ENCOUNTER_EXISTS": "That appointment already has a visit recorded against it.",
+    "ENCOUNTER_CANCELLED": "That visit was cancelled.",
+    "ENCOUNTER_CLOSED": "That visit has already been closed.",
+    "NO_DOCTOR_PROFILE": "Only a doctor with a profile at this clinic can open a visit.",
+    "UPLOAD_NOT_FOUND": "Nothing was uploaded. Try again.",
+    "UPLOAD_ALREADY_CONFIRMED": "That upload was already confirmed.",
+    "UPLOAD_REJECTED": "That file is not the kind of file it was uploaded as.",
+    "UPLOAD_FAILED": "The upload did not finish. Check your connection and try again.",
+    "FILE_NOT_AVAILABLE": "That file is not available to download."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -593,7 +612,8 @@
         "archiveTitle": "Archive {name}?",
         "archiveBody": "The record leaves the directory, but nothing in it is deleted. It can be restored at any time.",
         "archiveConfirm": "Archive",
-        "restore": "Restore record"
+        "restore": "Restore record",
+        "visits": "Visits"
       }
     },
     "doctors": {
@@ -697,7 +717,9 @@
         "reason": "Reason",
         "internalNote": "Note for the clinic",
         "history": "What has happened"
-      }
+      },
+      "waiting": "Waiting room",
+      "waitingCount": "{count, plural, one {# person is here} other {# people are here}}"
     }
   },
   "doctor": {
@@ -710,11 +732,67 @@
       "noneThisDay": "Nothing booked.",
       "weekOf": "Week of {date}",
       "statusFilter": "Status",
-      "allStatuses": "Any status"
+      "allStatuses": "Any status",
+      "openNote": "Open the note",
+      "recordVisit": "Record the visit"
     },
     "schedule": {
       "title": "My schedule",
       "subtitle": "The hours you work and the days you are away. Patients are only offered times inside them."
+    },
+    "patients": {
+      "title": "My patients",
+      "subtitle": "Everyone you have seen, most recent first.",
+      "columns": {
+        "patient": "Patient",
+        "age": "Age",
+        "contact": "Phone"
+      },
+      "years": "{count, plural, one {# year} other {# years}}",
+      "emptyTitle": "No patients yet",
+      "emptyBody": "A patient appears here once you have recorded a visit with them."
+    },
+    "chart": {
+      "title": "Patient chart",
+      "back": "My patients",
+      "about": "About",
+      "dateOfBirth": "Date of birth",
+      "bloodType": "Blood type",
+      "phone": "Phone",
+      "years": "{count, plural, one {# year old} other {# years old}}",
+      "visits": "Visits",
+      "noVisits": "No visits recorded",
+      "noVisitsBody": "Start a visit to write the first note.",
+      "startVisit": "Start a visit"
+    },
+    "encounter": {
+      "title": "Visit",
+      "subtitle": "{number} · started {started}",
+      "backToChart": "Back to the chart",
+      "noteStatuses": {
+        "DRAFT": "Note in progress",
+        "SIGNED": "Note signed"
+      },
+      "sharedWithPatient": "Shared with the patient",
+      "note": "Clinical note",
+      "draftHint": "Still a draft. Nothing here is visible to the patient until it is signed and shared.",
+      "signedBy": "Signed by {name} on {at}.",
+      "signedNotice": "This note is signed. Its text can no longer be changed — add an addendum below instead.",
+      "notYours": "This visit was recorded by another doctor, so its note is not yours to change.",
+      "sign": "Sign the note",
+      "sections": {
+        "subjective": "Subjective",
+        "objective": "Objective",
+        "assessment": "Assessment",
+        "plan": "Plan"
+      },
+      "addenda": "Addenda",
+      "vitals": "Vitals",
+      "diagnoses": "Diagnoses",
+      "diagnosesHint": "ICD-10. The first one ticked is the primary diagnosis.",
+      "prescribe": "Write a prescription",
+      "noPrescriptionsBody": "Nothing has been prescribed at this visit.",
+      "attachments": "Attachments"
     }
   },
   "patient": {
@@ -744,6 +822,35 @@
         "noDoctors": "No doctors are taking appointments",
         "noDoctorsBody": "Please call the clinic to arrange a time."
       }
+    },
+    "records": {
+      "title": "My records",
+      "subtitle": "Every visit, and what came out of it.",
+      "emptyTitle": "Nothing here yet",
+      "emptyBody": "Your visits appear here after you have been seen.",
+      "visitTitle": "Visit",
+      "visitWith": "Visit with {doctor}",
+      "summary": "Summary",
+      "notes": "Notes from your doctor",
+      "notesNotShared": "Your doctor has not shared the notes from this visit. Ask them at your next appointment if you would like to see them.",
+      "sections": {
+        "subjective": "What you described",
+        "objective": "What the doctor found",
+        "assessment": "What it is",
+        "plan": "What happens next"
+      }
+    },
+    "documents": {
+      "title": "My documents",
+      "subtitle": "Everything the clinic has shared with you.",
+      "emptyBody": "Documents your clinic shares with you appear here."
+    },
+    "prescriptions": {
+      "title": "My prescriptions",
+      "subtitle": "What you are taking, and what you have taken before.",
+      "current": "Current",
+      "past": "Past prescriptions",
+      "noneBody": "Prescriptions your doctor writes appear here."
     }
   },
   "account": {
@@ -946,7 +1053,8 @@
     },
     "sources": {
       "STAFF": "Booked by the clinic",
-      "PATIENT": "Booked by the patient"
+      "PATIENT": "Booked by the patient",
+      "WALK_IN": "Walk-in"
     },
     "actions": {
       "book": "Book an appointment",
@@ -955,7 +1063,8 @@
       "complete": "Complete",
       "reschedule": "Reschedule",
       "noShow": "Did not attend",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "walkIn": "Walk-in"
     },
     "confirm": {
       "cancelTitle": "Cancel this appointment?",
@@ -1028,6 +1137,167 @@
       "startDate": "First day",
       "endDate": "Last day",
       "add": "Add time off"
+    },
+    "walkIn": {
+      "title": "Register a walk-in",
+      "description": "They are given the doctor's next open time today and checked in straight away.",
+      "doctor": "Who will see them",
+      "chooseDoctor": "Choose a doctor",
+      "reason": "What have they come in for?",
+      "internalNote": "Note for the clinic",
+      "submit": "Register and check in"
+    }
+  },
+  "clinical": {
+    "chart": {
+      "bannerLabel": "Allergies and chronic conditions",
+      "allergies": "Allergies",
+      "noAllergies": "None recorded",
+      "conditions": "Chronic conditions",
+      "noConditions": "None recorded",
+      "resolved": "Resolved: {list}",
+      "edit": "Edit",
+      "editTitle": "Allergies and chronic conditions",
+      "editDescription": "Both lists are saved together, exactly as they read here.",
+      "severities": {
+        "SEVERE": "severe",
+        "MODERATE": "moderate",
+        "MILD": "mild",
+        "UNKNOWN": "severity unknown"
+      },
+      "substance": "Substance",
+      "reaction": "Reaction",
+      "severity": "Severity",
+      "addAllergy": "Add an allergy",
+      "removeAllergy": "Remove the allergy to {substance}",
+      "condition": "Condition",
+      "code": "Code",
+      "diagnosedAt": "Diagnosed",
+      "addCondition": "Add a condition",
+      "removeCondition": "Remove {condition}"
+    },
+    "note": {
+      "sections": {
+        "subjective": "Subjective",
+        "objective": "Objective",
+        "assessment": "Assessment",
+        "plan": "Plan"
+      },
+      "hints": {
+        "subjective": "What the patient describes.",
+        "objective": "What you found on examination.",
+        "assessment": "What you think it is.",
+        "plan": "What happens next."
+      },
+      "save": "Save the note",
+      "saved": "Note saved.",
+      "shareWithPatient": "Share this note with the patient",
+      "shareHint": "They see it in their own records once it has been signed.",
+      "signTitle": "Sign this note",
+      "signDescription": "Type your name as it should appear beneath the note.",
+      "signWarning": "Once signed, the text of this note cannot be changed by anyone — including you. Corrections are added underneath as addenda.",
+      "signature": "Signature",
+      "signConfirm": "Sign the note",
+      "addendum": "Add an addendum",
+      "addendumHint": "A correction or an addition. It appears beneath the signed note.",
+      "addAddendum": "Add the addendum"
+    },
+    "vitals": {
+      "save": "Save vitals",
+      "saved": "Vitals saved.",
+      "fields": {
+        "heightCm": "Height",
+        "weightKg": "Weight",
+        "temperatureC": "Temperature",
+        "systolicMmHg": "Systolic",
+        "diastolicMmHg": "Diastolic",
+        "heartRateBpm": "Heart rate",
+        "respiratoryRate": "Respiratory rate",
+        "oxygenSaturation": "Oxygen saturation",
+        "bloodGlucose": "Blood glucose"
+      }
+    },
+    "diagnoses": {
+      "code": "Code",
+      "description": "Diagnosis",
+      "primary": "Primary",
+      "primaryFor": "Make {code} the primary diagnosis",
+      "chronic": "Chronic",
+      "chronicFor": "Mark {code} as chronic",
+      "add": "Add a diagnosis",
+      "remove": "Remove {code}",
+      "save": "Save diagnoses",
+      "saved": "Diagnoses saved.",
+      "none": "None coded."
+    },
+    "encounters": {
+      "noteStatuses": {
+        "DRAFT": "Note in progress",
+        "SIGNED": "Note signed"
+      },
+      "open": "Visit open",
+      "noneForPatient": "No visits recorded yet"
+    },
+    "prescriptions": {
+      "title": "Prescriptions",
+      "none": "No prescriptions",
+      "print": "Print",
+      "expired": "Expired",
+      "validUntilLabel": "valid until {date}",
+      "forDays": "{count, plural, one {for # day} other {for # days}}",
+      "newTitle": "Write a prescription",
+      "newDescription": "Issued whole and never edited: a correction is a new prescription.",
+      "item": "Medication {number}",
+      "removeItem": "Remove medication {number}",
+      "addItem": "Add another medication",
+      "drugName": "Medication",
+      "strength": "Strength",
+      "form": "Form",
+      "dosage": "Dose",
+      "frequency": "How often",
+      "durationDays": "Days",
+      "quantity": "Quantity",
+      "instructions": "Instructions",
+      "validUntil": "Valid until",
+      "notes": "Notes",
+      "issue": "Issue the prescription"
+    },
+    "files": {
+      "title": "Documents",
+      "none": "No documents",
+      "upload": "Upload a document",
+      "uploading": "Uploading…",
+      "uploadTitle": "Upload a document",
+      "uploadDescription": "The file goes straight to storage; only its details pass through the clinic's server.",
+      "file": "File",
+      "accepted": "PDF, JPEG, PNG, WebP, HEIC or CSV, up to 25 MB.",
+      "unsupportedType": "That kind of file cannot be uploaded here.",
+      "tooLarge": "That file is larger than {megabytes} MB.",
+      "category": "What is it?",
+      "description": "Description",
+      "shareWithPatient": "Share with the patient",
+      "shareHint": "They see it in their own documents straight away.",
+      "download": "Download",
+      "share": "Share",
+      "stopSharing": "Stop sharing",
+      "sharedBadge": "Shared",
+      "remove": "Delete",
+      "categories": {
+        "LAB_RESULT": "Lab result",
+        "IMAGING": "Imaging",
+        "REFERRAL": "Referral",
+        "CONSENT": "Consent form",
+        "PRESCRIPTION": "Prescription",
+        "INSURANCE": "Insurance",
+        "OTHER": "Other"
+      },
+      "statuses": {
+        "PENDING": "Not uploaded",
+        "SCANNING": "Being checked",
+        "CLEAN": "Ready",
+        "INFECTED": "Quarantined",
+        "FAILED": "Rejected"
+      }
     }
   }
 }

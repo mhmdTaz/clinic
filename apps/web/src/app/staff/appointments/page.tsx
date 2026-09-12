@@ -13,6 +13,7 @@ import { AppointmentCard } from '@/components/scheduling/appointment-card'
 import { Board, type BoardColumn } from '@/components/scheduling/board'
 import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-dialog'
 import { CalendarToolbar } from '@/components/scheduling/calendar-toolbar'
+import { WalkInDialog } from '@/components/scheduling/walk-in-dialog'
 import { requirePortal } from '@/lib/auth/server-session'
 import {
   datesBetween,
@@ -56,8 +57,13 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
       : undefined,
   }
 
-  const [appointments, doctors, t, tScheduling] = await Promise.all([
+  // The waiting room is asked for separately so a status filter on the calendar cannot empty
+  // it: who is sitting in the clinic right now is not a view of the diary.
+  const [appointments, waiting, doctors, t, tScheduling] = await Promise.all([
     listAppointments(actor, query),
+    view === 'day'
+      ? listAppointments(actor, { from: date, to: date, status: 'CHECKED_IN', doctorId })
+      : [],
     holds(actor, 'doctor:read') ? listDoctors(actor, { status: 'active' }) : [],
     getTranslations('staff.appointments'),
     getTranslations('scheduling'),
@@ -67,26 +73,39 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
     id: doctor.id,
     name: [doctor.title, doctor.displayName].filter(Boolean).join(' '),
   }))
-  const book =
-    holds(actor, 'appointment:create') && doctorOptions.length > 0 ? (
-      <BookAppointmentDialog
+  const mayBook = holds(actor, 'appointment:create') && doctorOptions.length > 0
+  const book = mayBook ? (
+    <BookAppointmentDialog
+      doctors={doctorOptions}
+      date={date}
+      locale={locale}
+      timeZone={clinic.timezone}
+      label={tScheduling('actions.book')}
+      followDate
+    />
+  ) : null
+  const walkIn =
+    mayBook && holds(actor, 'appointment:check_in') ? (
+      <WalkInDialog
         doctors={doctorOptions}
-        date={date}
-        locale={locale}
-        timeZone={clinic.timezone}
-        label={tScheduling('actions.book')}
-        followDate
+        label={tScheduling('actions.walkIn')}
+        onDay={{ date, today }}
       />
     ) : null
 
-  const card = (appointment: (typeof appointments)[number], withActions: boolean) => (
+  const card = (
+    appointment: (typeof appointments)[number],
+    withActions: boolean,
+    // The waiting room always names the doctor: the question there is who this person is for.
+    showDoctor = view === 'week',
+  ) => (
     <AppointmentCard
       key={appointment.id}
       appointment={appointment}
       locale={locale}
       timeZone={clinic.timezone}
       href={`/staff/appointments/${appointment.id}`}
-      show={{ patient: true, doctor: view === 'week', recordNumber: true }}
+      show={{ patient: true, doctor: showDoctor, recordNumber: true }}
       actions={
         withActions ? (
           <AppointmentActions
@@ -126,7 +145,16 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
 
   return (
     <>
-      <PageHeader title={t('title')} subtitle={heading} actions={book} />
+      <PageHeader
+        title={t('title')}
+        subtitle={heading}
+        actions={
+          <>
+            {walkIn}
+            {book}
+          </>
+        }
+      />
 
       <div className="flex flex-col gap-6">
         <CalendarToolbar
@@ -161,6 +189,20 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
             },
           ]}
         />
+
+        {waiting.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold">
+              {t('waiting')}{' '}
+              <span className="text-muted-foreground text-sm font-normal">
+                {t('waitingCount', { count: waiting.length })}
+              </span>
+            </h2>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {waiting.map((appointment) => card(appointment, true, true))}
+            </div>
+          </section>
+        ) : null}
 
         {columns.length === 0 ? (
           <EmptyState title={t('emptyTitle')} body={t('emptyBody')} action={book} />
