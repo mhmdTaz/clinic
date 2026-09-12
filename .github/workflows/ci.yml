@@ -73,7 +73,24 @@ jobs:
         # A GitHub `services:` block cannot run rs.initiate(), and object storage is part of
         # the stack from Phase 4: files and prescription PDFs are tested against real storage,
         # never a stub, because a presigned upload is exactly the part a stub would get wrong.
-        run: docker compose up -d --wait mongo mongo-init redis mailpit minio minio-init
+        #
+        # `--wait` covers the long-running services only. It waits for "running and healthy", so
+        # a one-shot initialiser that does its job and exits reads to it as a container that went
+        # away, and it returns 1 — even on a clean exit 0. That was always true of mongo-init;
+        # it only passed because compose usually saw it already gone before the wait began, and
+        # a second initialiser made that race lose. The initialisers are therefore waited on with
+        # `docker wait`, which is what actually answers "did it finish, and did it work".
+        run: |
+          docker compose up -d mongo mongo-init redis mailpit minio minio-init
+          docker compose up -d --wait mongo redis mailpit minio
+          for container in clinic-mongo-init clinic-minio-init; do
+            code=$(docker wait "$container")
+            if [ "$code" != "0" ]; then
+              echo "::error::$container exited with $code"
+              docker logs "$container"
+              exit 1
+            fi
+          done
 
       - name: Environment
         run: cp .env.example .env
@@ -125,7 +142,28 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Start the stack
-        run: docker compose up -d --wait mongo mongo-init redis mailpit minio minio-init
+        # The same compose file developers run locally, so CI cannot drift from it.
+        # A GitHub `services:` block cannot run rs.initiate(), and object storage is part of
+        # the stack from Phase 4: files and prescription PDFs are tested against real storage,
+        # never a stub, because a presigned upload is exactly the part a stub would get wrong.
+        #
+        # `--wait` covers the long-running services only. It waits for "running and healthy", so
+        # a one-shot initialiser that does its job and exits reads to it as a container that went
+        # away, and it returns 1 — even on a clean exit 0. That was always true of mongo-init;
+        # it only passed because compose usually saw it already gone before the wait began, and
+        # a second initialiser made that race lose. The initialisers are therefore waited on with
+        # `docker wait`, which is what actually answers "did it finish, and did it work".
+        run: |
+          docker compose up -d mongo mongo-init redis mailpit minio minio-init
+          docker compose up -d --wait mongo redis mailpit minio
+          for container in clinic-mongo-init clinic-minio-init; do
+            code=$(docker wait "$container")
+            if [ "$code" != "0" ]; then
+              echo "::error::$container exited with $code"
+              docker logs "$container"
+              exit 1
+            fi
+          done
 
       - name: Environment
         run: cp .env.example .env
