@@ -62,3 +62,4 @@ export {
   type StreamCursorDoc,
 } from './outbox-event.model'
 export { NotificationModel, NotificationSchema, type NotificationDoc } from './notification.model'
+export { DeviceTokenModel, DeviceTokenSchema, type DeviceTokenDoc } from './device-token.model'

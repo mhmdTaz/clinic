@@ -1,5 +1,6 @@
 import {
   AppointmentDetail,
+  RegisteredDevice,
   AppointmentSummary,
   DaySlots,
   DownloadLink,
@@ -15,6 +16,7 @@ import {
 } from '@clinic/contracts'
 import type {
   AppointmentListQuery,
+  RegisterDeviceRequest,
   BookOwnAppointmentRequest,
   CancelAppointmentRequest,
   DoctorListQuery,
@@ -197,6 +199,33 @@ export function patientPortal(client: ApiClient) {
     },
 
     /** An empty list marks everything read — the "clear all" the bell offers. */
+    // ── Push (§9.4) ──────────────────────────────────────────────────────────
+    /**
+     * Registers this installation for push.
+     *
+     * Called on **every launch**, not once. A push token is reissued on reinstall, on a restore
+     * from backup, and sometimes for no reason the app is told; registration is an upsert on the
+     * token, so calling it repeatedly is free and calling it rarely is a bug.
+     */
+    registerDevice(input: RegisterDeviceRequest) {
+      return client.request('/api/v1/me/devices', {
+        method: 'POST',
+        body: input,
+        schema: RegisteredDevice,
+      })
+    },
+
+    myDevices() {
+      return client.request('/api/v1/me/devices', { schema: z.array(RegisteredDevice) })
+    },
+
+    removeDevice(deviceId: string) {
+      return client.request(`/api/v1/me/devices/${deviceId}`, {
+        method: 'DELETE',
+        schema: z.object({ ok: z.boolean() }),
+      })
+    },
+
     markNotificationsRead(ids: string[] = []) {
       return client.request('/api/v1/me/notifications', {
         method: 'POST',
