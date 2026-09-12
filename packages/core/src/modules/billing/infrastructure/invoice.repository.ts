@@ -1,4 +1,5 @@
 import { InvoiceModel, decimal128, newId, nextFormatted } from '@clinic/db'
+import { addAmounts } from '@clinic/contracts'
 import type { InvoiceStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
@@ -180,38 +181,47 @@ export const invoiceRepository = {
     return nextFormatted(`invoice:${clinicId}:${year}`, `INV-${year}`, 6)
   },
 
-  async create(input: {
-    clinicId: string
-    number: string
-    branchId: string | null
-    patientId: string
-    patient: { name: string; medicalRecordNo: string }
-    encounterId: string | null
-    currency: string
-    totals: ComputedTotals
-    notes: string | null
-    createdBy: PersonRef
-  }): Promise<StoredInvoice> {
-    const doc = await InvoiceModel().create({
-      _id: newId(),
-      clinicId: input.clinicId,
-      number: input.number,
-      branchId: input.branchId,
-      patientId: input.patientId,
-      patient: input.patient,
-      encounterId: input.encounterId,
-      status: 'DRAFT',
-      lines: linesFor(input.totals.lines),
-      currency: input.currency,
-      subtotal: input.totals.subtotal,
-      discountTotal: input.totals.discountTotal,
-      taxTotal: input.totals.taxTotal,
-      total: input.totals.total,
-      amountPaid: '0',
-      balanceDue: input.totals.total,
-      notes: input.notes,
-      createdBy: input.createdBy,
-    })
+  async create(
+    input: {
+      clinicId: string
+      number: string
+      branchId: string | null
+      patientId: string
+      patient: { name: string; medicalRecordNo: string }
+      encounterId: string | null
+      currency: string
+      totals: ComputedTotals
+      notes: string | null
+      createdBy: PersonRef
+    },
+    tx?: Transaction,
+  ): Promise<StoredInvoice> {
+    const [doc] = await InvoiceModel().create(
+      [
+        {
+          _id: newId(),
+          clinicId: input.clinicId,
+          number: input.number,
+          branchId: input.branchId,
+          patientId: input.patientId,
+          patient: input.patient,
+          encounterId: input.encounterId,
+          status: 'DRAFT',
+          lines: linesFor(input.totals.lines),
+          currency: input.currency,
+          subtotal: input.totals.subtotal,
+          discountTotal: input.totals.discountTotal,
+          taxTotal: input.totals.taxTotal,
+          total: input.totals.total,
+          amountPaid: '0',
+          balanceDue: input.totals.total,
+          notes: input.notes,
+          createdBy: input.createdBy,
+        },
+      ],
+      { session: sessionOf(tx) },
+    )
+    if (!doc) throw new Error('Failed to write the invoice')
     return toInvoice(doc.toObject() as InvoiceRecord)
   },
 
@@ -288,6 +298,47 @@ export const invoiceRepository = {
 
     const doc = (await InvoiceModel()
       .findOneAndUpdate({ clinicId, _id: invoiceId, status: 'DRAFT' }, { $set: set }, { new: true })
+      .lean()) as InvoiceRecord | null
+    return doc ? toInvoice(doc) : null
+  },
+
+  /**
+   * Adding lines to a draft that is already there — what consuming stock during a visit does.
+   *
+   * This is a $push and an $inc rather than a read, a recompute and a write, and it is correct
+   * for a reason worth naming: **because each line rounds once and the invoice is defined as the
+   * sum of rounded lines (ADR-0027), appending a line changes every total by exactly that line's
+   * own figures.** Nothing has to be recomputed from the others, so two people adding lines at
+   * once both land, and neither overwrites the other's.
+   */
+  async appendLines(
+    clinicId: string,
+    invoiceId: string,
+    lines: ComputedLine[],
+    currency: string,
+    tx?: Transaction,
+  ): Promise<StoredInvoice | null> {
+    if (lines.length === 0) return this.findById(clinicId, invoiceId)
+
+    const sum = (pick: (line: ComputedLine) => string) =>
+      decimal128(addAmounts(currency, ...lines.map(pick)))
+
+    const doc = (await InvoiceModel()
+      .findOneAndUpdate(
+        { clinicId, _id: invoiceId, status: 'DRAFT' },
+        {
+          $push: { lines: { $each: linesFor(lines) } },
+          $inc: {
+            subtotal: sum((line) => line.gross),
+            discountTotal: sum((line) => line.discount),
+            taxTotal: sum((line) => line.tax),
+            total: sum((line) => line.lineTotal),
+            // A draft has taken no money, so the balance moves with the total.
+            balanceDue: sum((line) => line.lineTotal),
+          },
+        },
+        { new: true, session: sessionOf(tx) },
+      )
       .lean()) as InvoiceRecord | null
     return doc ? toInvoice(doc) : null
   },

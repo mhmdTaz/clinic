@@ -152,6 +152,33 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 /** How long an issued invoice has before it counts as late, unless the clinic says otherwise. */
 export const INVOICE_DUE_DAYS_DEFAULT = 14
 
+/**
+ * Why stock moved (section 8.11). Every movement is signed — positive in, negative out — so the
+ * ledger sums to the balance and nothing has to remember which types add and which subtract.
+ *
+ * ADJUSTMENT is the only one that may be either sign: it is a correction to a count, and a count
+ * can be wrong in both directions.
+ */
+export const STOCK_MOVEMENT_TYPES = [
+  'RECEIPT',
+  'CONSUMPTION',
+  'WASTAGE',
+  'RETURN',
+  'ADJUSTMENT',
+] as const
+export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number]
+
+/** Which way each type must move. ADJUSTMENT is absent because it may go either way. */
+export const STOCK_MOVEMENT_DIRECTION: Readonly<Record<string, 'IN' | 'OUT'>> = {
+  RECEIPT: 'IN',
+  RETURN: 'IN',
+  CONSUMPTION: 'OUT',
+  WASTAGE: 'OUT',
+}
+
+/** How far ahead "expiring soon" looks, unless a clinic says otherwise. */
+export const EXPIRING_SOON_DAYS = 90
+
 /** Patient demographics (section 8.6): closed sets, so an enum in both layers. */
 export const GENDERS = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'] as const
 export type Gender = (typeof GENDERS)[number]

@@ -24,6 +24,11 @@ const MODEL_CATEGORY: Readonly<Record<string, AuditCategory>> = {
   Invoice: 'FINANCIAL',
   Payment: 'FINANCIAL',
   Refund: 'FINANCIAL',
+  // What is on the shelf and why it moved: its own category, its own retention.
+  InventoryItem: 'INVENTORY',
+  StockMovement: 'INVENTORY',
+  InventoryCategory: 'ADMIN',
+  Supplier: 'ADMIN',
 }
 
 /**

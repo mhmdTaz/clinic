@@ -108,7 +108,10 @@ export const PERMISSIONS = {
 
   'inventory:read': define('inventory'),
   'inventory:manage': define('inventory'),
-  'inventory:adjust': define('inventory'),
+  // Recording what a visit used is not the same authority as correcting a count, so a doctor
+  // can hold the first without the second.
+  'inventory:consume': define('inventory'),
+  'inventory:adjust': define('inventory', { dangerous: true }),
 
   'ticket:read': define('support', { scopable: true }),
   'ticket:create': define('support', { scopable: true }),

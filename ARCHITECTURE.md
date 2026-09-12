@@ -1647,6 +1647,29 @@ is what keeps the embedded array bounded and honest about the rule in 8.2.
 `Supplier` and `PurchaseOrder` are straightforward collections; `PurchaseOrder` embeds its lines
 (bounded, snapshot semantics) exactly as `Invoice` does.
 
+**What Phase 6 shipped differs from the sketch above in four places**, each for a reason worth
+keeping:
+
+- **A batch's `expiresAt` is a calendar date string, not a `Date`.** Stock goes out of date *on a
+  day* in the clinic's own zone, and a batch that expires today is usable today — the same
+  reasoning as ADR-0010, and it makes every expiry comparison a string comparison with no clock
+  involved.
+- **A withdrawal may span several batches**, so it is one conditional update with one
+  `arrayFilters` entry per batch, and it writes **one ledger row per batch** — the ledger has to
+  say which box the stock came out of. The bill still gets a single line: the patient was given
+  five, not "three and two".
+- **Quantities are decimal strings at three places**, counted by the same exact `bigint` engine as
+  money (`@clinic/contracts/decimal.ts`, shared by `money.ts` and `quantity.ts`). A stock level is
+  a running total of every movement ever made, and a float drifts a little further from the shelf
+  with each one.
+- **`isTracked` and `isBillable` are separate switches.** Gloves are consumed and never charged
+  for; tap water is used and never counted. Collapsing them would force a clinic to either count
+  what it does not count or charge for what it does not charge for.
+
+The distinction the allocator draws between "there is not enough" and "what is left has expired"
+is load-bearing rather than cosmetic: they call for entirely different actions, and an item whose
+remaining stock has all expired reports a healthy count while refusing every withdrawal.
+
 ### 8.12 Support, notifications, outbox
 
 ```ts
@@ -2950,6 +2973,25 @@ Two decisions were recorded on the way through:
 **Exit criteria:** consuming an item during a visit decrements stock, writes a ledger row, and
 appears on the invoice — all in one transaction, and the ledger explains the balance.
 
+Two items on the list above are deliberately not in this pass, and neither is on the exit
+criteria:
+
+- **Purchase orders.** Section 8.11 calls them straightforward and they are, but nothing in the
+  phase's bullets or its exit criteria needs one: stock arrives through a RECEIPT movement
+  against a supplier, which is what a small clinic actually does with a delivery note. The
+  movement already carries a `reference` for the note's number, so a PO workflow later fills a
+  field that exists rather than migrating the ledger.
+- **The monthly batch-archive job.** Depleted batches are pruned on every withdrawal, which keeps
+  the embedded array bounded in normal use; sweeping long-expired ones to `inventoryBatchArchive`
+  needs a scheduled worker, and Phase 6 ships no background processor — the same reasoning that
+  produced ADR-0026 in Phase 4.
+
+One decision was recorded on the way through:
+
+- **ADR-0029** — stock leaves the shelf by a single conditional document write whose filter
+  carries the preconditions, which is what the embedded batches buy; consumption is FEFO, and
+  expired stock is refused with its own error code rather than counted as a shortage.
+
 ### Phase 7 — Support and notifications · ~1.5 weeks
 
 - Support tickets: patient and doctor submission, staff inbox, assignment, threaded replies with
@@ -3078,6 +3120,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0026 | Prescription PDFs are rendered on first request, then stored | **Accepted** | `docs/adr/0026` — the end state is what the queued job would have produced, so moving it to a worker later changes when it runs, not what exists |
 | 0027 | Invoice totals round once per line | **Accepted** | `docs/adr/0027` — each line rounds once and the invoice is the sum of rounded lines, so a printed column adds up. Half away from zero rather than half-even: a missing cent on a receipt is read by the person paying it |
 | 0028 | A payment is idempotent at the index | **Accepted** | `docs/adr/0028` — unique `(clinicId, idempotencyKey)`, the insert and every balance it moves in one transaction, and each balance moved by a conditional pipeline update. A read before the insert has a window exactly wide enough for the second request |
+| 0029 | Stock leaves by one conditional document write | **Accepted** | `docs/adr/0029` — embedded batches make the precondition and the decrement inseparable, so two clinicians cannot both take the last vial. FEFO, with expired stock refused under its own error code because "order more" and "write it off" are different jobs |
 
 ### The ones to settle next
 

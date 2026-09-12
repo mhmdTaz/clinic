@@ -9,6 +9,8 @@ export {
   getInvoice,
   toInvoiceSummary,
   toInvoiceDetail,
+  // The seam Phase 5 left for inventory: charging a visit for what it consumed.
+  billToEncounter,
 } from './application/invoicing'
 export {
   recordPayment,
