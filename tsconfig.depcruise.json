@@ -3,6 +3,12 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["apps/web/src/*"] }
+    // Two apps, two aliases, on purpose. dependency-cruiser resolves the whole repo with one
+    // tsconfig, so a shared "@/*" would map a mobile import onto a web file and quietly check the
+    // wrong module — a rule that passes when it should fail. The mobile app uses "~/*".
+    "paths": {
+      "@/*": ["apps/web/src/*"],
+      "~/*": ["apps/mobile/src/*"]
+    }
   }
 }

@@ -19,4 +19,4 @@ export {
 } from './tokens'
 export { authResource } from './resources/auth'
 export { patientPortal } from './resources/patient-portal'
-export { queryKeys } from './query-keys'
+export { queryKeys, invalidatedBy } from './query-keys'
