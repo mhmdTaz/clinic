@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getTranslations } from 'next-intl/server'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { getNotificationPreferences } from '@clinic/core/notifications'
 import { getMe, listMySessions } from '@clinic/core/session'
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@clinic/ui'
 import { PageHeader } from '@/components/portal/page-header'
@@ -9,6 +10,7 @@ import { summariseAccess } from '@/lib/access-summary'
 import { requireActor } from '@/lib/auth/server-session'
 import { PasswordForm } from './password-form'
 import { ProfileForm } from './profile-form'
+import { NotificationPreferences } from './notification-preferences'
 import { SessionsCard } from './sessions-card'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -18,10 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AccountPage() {
   const actor = await requireActor()
-  const [me, sessions, clinic, t] = await Promise.all([
+  const [me, sessions, clinic, notificationRows, t] = await Promise.all([
     getMe(actor),
     listMySessions(actor),
     getClinicSessionInfo(actor.clinicId),
+    getNotificationPreferences(actor),
     getTranslations(),
   ])
   const access = summariseAccess(actor.permissions)
@@ -44,6 +47,16 @@ export default async function AccountPage() {
         />
         <PasswordForm />
       </div>
+
+      <Card id="notifications" className="mt-4 scroll-mt-20">
+        <CardHeader>
+          <CardTitle>{t('notifications.preferences.title')}</CardTitle>
+          <CardDescription>{t('notifications.preferences.subtitle')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NotificationPreferences rows={notificationRows} />
+        </CardContent>
+      </Card>
 
       <SessionsCard sessions={sessions} timeZone={clinic.timezone} />
 

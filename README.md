@@ -23,6 +23,17 @@ pnpm dev                      # http://localhost:3000
 
 Or in one step, from a clean clone: `pnpm setup && pnpm dev`.
 
+The background worker runs separately, in a second terminal:
+
+```bash
+pnpm worker                   # the outbox relay, the backstop sweep and appointment reminders
+```
+
+Nothing in the app _needs_ it to serve a request — every screen works without it. What stops
+without it is delivery: confirmations, reminders and ticket notifications queue up in
+`outboxEvents` and go out whenever a worker next runs, which is the point of an outbox
+(section 13.4).
+
 Open **http://localhost:3000** — not `127.0.0.1`. Sign-in requests from any origin other than
 `APP_URL` are refused as cross-site.
 

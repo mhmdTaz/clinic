@@ -16,6 +16,11 @@ export {
   markNoShow,
 } from './application/lifecycle'
 export { offerSlots } from './application/slots'
+export {
+  findAppointmentForNotification,
+  appointmentsStartingBetween,
+  type AppointmentNotificationFacts,
+} from './application/notifications'
 export { installAppointmentScopeResolvers } from './application/scope'
 export {
   canTransition,

@@ -18,7 +18,24 @@ export const EVENTS = {
   'payment.recorded': z.object({ paymentId: z.string() }),
   'stock.low': z.object({ itemId: z.string(), quantityOnHand: z.string() }),
   'ticket.created': z.object({ ticketId: z.string() }),
+  'ticket.replied': z.object({ ticketId: z.string(), messageId: z.string() }),
+  'ticket.assigned': z.object({ ticketId: z.string(), assigneeId: z.string() }),
 } as const
+
+/**
+ * An envelope as it leaves the outbox. The relay sees this, never the schema — which is what
+ * lets a handler live in the worker without importing the module that emitted the event.
+ */
+export interface OutboxEnvelope {
+  id: string
+  clinicId: string
+  eventName: EventName
+  payload: unknown
+  occurredAt: Date
+  attempts: number
+}
+
+export const isEventName = (value: string): value is EventName => value in EVENTS
 
 export type EventName = keyof typeof EVENTS
 export type EventPayload<N extends EventName> = z.infer<(typeof EVENTS)[N]>

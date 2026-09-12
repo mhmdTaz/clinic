@@ -10,7 +10,7 @@ import {
 import { generateOpaqueToken, hashOpaqueToken } from '../domain/tokens'
 import { passwordResetEmail } from '../infrastructure/email-templates'
 import { newId } from '../infrastructure/ids'
-import { mailer } from '../infrastructure/mailer'
+import { mailer } from '../../../mailer'
 import { passwordHasher } from '../infrastructure/password-hasher'
 import { passwordResetRepository } from '../infrastructure/password-reset.repository'
 import { rateLimitKey, rateLimiter } from '../infrastructure/rate-limiter'

@@ -41,3 +41,17 @@ export {
   StockMovementSchema,
   type StockMovementDoc,
 } from './stock-movement.model'
+export {
+  SupportTicketModel,
+  SupportTicketSchema,
+  type SupportTicketDoc,
+} from './support-ticket.model'
+export {
+  OutboxEventModel,
+  OutboxEventSchema,
+  StreamCursorModel,
+  StreamCursorSchema,
+  type OutboxEventDoc,
+  type StreamCursorDoc,
+} from './outbox-event.model'
+export { NotificationModel, NotificationSchema, type NotificationDoc } from './notification.model'

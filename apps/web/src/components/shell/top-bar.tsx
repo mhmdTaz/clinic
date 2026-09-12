@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { activeHref, type ShellNavItem } from './nav-utils'
 import { PortalSwitcher, type PortalOption } from './portal-switcher'
+import { NotificationBell } from './notification-bell'
 import { UserMenu } from './user-menu'
 
 export function TopBar({
@@ -59,6 +60,7 @@ export function TopBar({
         </ol>
       </nav>
       {portals.length > 1 ? <PortalSwitcher current={portal} portals={portals} /> : null}
+      <NotificationBell />
       <UserMenu name={userName} />
     </header>
   )

@@ -19,6 +19,7 @@ import {
 } from '../../../errors'
 import type { Transaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
+import { emitEvent } from '../../outbox'
 import { assertCan, careRelationship, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
 import { findEncounterOwner } from '../../clinical'
@@ -282,6 +283,8 @@ export async function issueInvoice(
       'That invoice has already been issued or was voided.',
     )
   }
+
+  await emitEvent(actor.clinicId, 'invoice.issued', { invoiceId: invoice.id }, undefined, now)
 
   await recordAudit({
     action: 'invoice.issued',

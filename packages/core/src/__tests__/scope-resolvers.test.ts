@@ -14,6 +14,7 @@ import { installDoctorScopeResolvers } from '../modules/doctors'
 import { installFileScopeResolvers } from '../modules/files'
 import { installPatientScopeResolvers } from '../modules/patients'
 import { installPrescriptionScopeResolvers } from '../modules/prescriptions'
+import { installTicketScopeResolvers } from '../modules/support'
 
 /**
  * Section 7.5: a narrow grant on a subject with no registered resolver DENIES. That is the right
@@ -24,7 +25,9 @@ import { installPrescriptionScopeResolvers } from '../modules/prescriptions'
  * Subjects below arrive with their modules in later phases. Each is a deliberate line: deleting
  * one when the module lands is how the check keeps working.
  */
-const NOT_BUILT_YET = new Set(['ticket'])
+// Every subject a seeded role narrows now has a resolver. The set stays as the place a future
+// phase's subject goes while its module is being built.
+const NOT_BUILT_YET = new Set<string>()
 
 const actor: Actor = {
   kind: 'USER',
@@ -48,6 +51,7 @@ beforeAll(() => {
   installPrescriptionScopeResolvers()
   installFileScopeResolvers()
   installBillingScopeResolvers()
+  installTicketScopeResolvers()
 })
 
 describe('scope resolvers', () => {

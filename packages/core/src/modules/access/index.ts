@@ -93,3 +93,4 @@ export {
   roleDirectory,
 } from './application/role-assignment'
 // NOT exported: the repositories.
+export { usersHolding } from './application/audience'

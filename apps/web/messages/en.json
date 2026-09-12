@@ -60,7 +60,9 @@
       "services": "Services & prices",
       "billing": "Billing",
       "bills": "Bills & payments",
-      "inventory": "Inventory"
+      "inventory": "Inventory",
+      "support": "Support",
+      "getHelp": "Get help"
     }
   },
   "shell": {
@@ -809,6 +811,36 @@
         "low": "{count, plural, one {# item is running low} other {# items are running low}}",
         "expiring": "{count, plural, one {# item expires soon} other {# items expire soon}}",
         "expired": "{count, plural, one {# item has expired} other {# items have expired}}"
+      }
+    },
+    "support": {
+      "title": "Support",
+      "subtitle": "What people have asked, and who is answering.",
+      "searchHint": "Search by subject",
+      "log": "Log a call",
+      "back": "Support",
+      "none": "Nothing waiting",
+      "noneBody": "Every question has been answered and closed.",
+      "unanswered": "No reply yet",
+      "unassigned": "Nobody yet",
+      "triage": "Triage",
+      "about": "About this",
+      "requester": "Asked by",
+      "opened": "Opened",
+      "firstReply": "First reply",
+      "stillWaiting": "Still waiting",
+      "answered": "Answered",
+      "columns": {
+        "ticket": "Question",
+        "status": "Status",
+        "assignee": "Owner",
+        "updated": "Last message"
+      },
+      "views": {
+        "open": "Needs attention",
+        "mine": "Mine",
+        "unassigned": "Unassigned",
+        "all": "Everything"
       }
     }
   },
@@ -1630,6 +1662,98 @@
       "addAnother": "Add another item",
       "cancel": "Cancel",
       "confirm": "Record it"
+    }
+  },
+  "notifications": {
+    "bell": "Notifications",
+    "bellWithCount": "{count, plural, one {# unread notification} other {# unread notifications}}",
+    "title": "Notifications",
+    "none": "Nothing new",
+    "managePreferences": "Choose what you hear about",
+    "types": {
+      "APPOINTMENT_CONFIRMED": "An appointment is booked",
+      "APPOINTMENT_REMINDER": "An appointment is coming up",
+      "APPOINTMENT_CANCELLED": "An appointment is cancelled",
+      "INVOICE_ISSUED": "A bill is issued",
+      "PAYMENT_RECEIVED": "A payment is received",
+      "TICKET_REPLY": "Somebody replies to a ticket",
+      "TICKET_ASSIGNED": "A ticket is given to you",
+      "STOCK_LOW": "Stock is running low"
+    },
+    "preferences": {
+      "title": "Notifications",
+      "subtitle": "What you hear about, and how. Saved as you change it.",
+      "caption": "Notification preferences by type and channel",
+      "about": "Tell me when",
+      "inApp": "In the app",
+      "email": "By email",
+      "inAppFor": "In the app: {type}",
+      "emailFor": "By email: {type}",
+      "alwaysOn": "Always sent — you would turn up to a closed door.",
+      "saving": "Saving…",
+      "savedAutomatically": "Changes save as you make them."
+    }
+  },
+  "support": {
+    "statuses": {
+      "OPEN": "Open",
+      "IN_PROGRESS": "Being looked at",
+      "PENDING": "Waiting on you",
+      "RESOLVED": "Resolved",
+      "CLOSED": "Closed"
+    },
+    "priorities": {
+      "LOW": "Low",
+      "NORMAL": "Normal",
+      "HIGH": "High",
+      "URGENT": "Urgent"
+    },
+    "categories": {
+      "APPOINTMENT": "Appointments",
+      "BILLING": "Billing",
+      "MEDICAL_RECORDS": "Medical records",
+      "TECHNICAL": "Something is broken",
+      "OTHER": "Something else"
+    },
+    "mine": {
+      "title": "Get help",
+      "subtitle": "Ask the clinic something, and read their answer here.",
+      "yours": "Your questions",
+      "ask": "Ask a question",
+      "back": "Get help",
+      "none": "You have not asked anything yet",
+      "noneBody": "Anything you ask the clinic will appear here, along with their reply.",
+      "closed": "This is closed. If you need anything else, ask a new question."
+    },
+    "open": {
+      "title": "Ask the clinic",
+      "body": "Tell us what you need. Somebody will read it and reply here.",
+      "subject": "What is it about?",
+      "category": "Kind of question",
+      "message": "Your message",
+      "cancel": "Cancel",
+      "confirm": "Send it"
+    },
+    "thread": {
+      "title": "Conversation",
+      "internal": "Internal note",
+      "someone": "Someone"
+    },
+    "reply": {
+      "label": "Your reply",
+      "internalLabel": "Internal note",
+      "placeholder": "Write your reply…",
+      "internalPlaceholder": "A note for colleagues. The person who asked will not see this.",
+      "internalToggle": "Make this an internal note",
+      "internalHint": "Only people who work here will see this. It is not sent to anybody.",
+      "send": "Send reply",
+      "sendInternal": "Save note"
+    },
+    "triage": {
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Owner",
+      "unassigned": "Nobody yet"
     }
   }
 }

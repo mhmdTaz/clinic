@@ -8,6 +8,7 @@ import { installDoctorScopeResolvers } from './modules/doctors'
 import { installFileScopeResolvers } from './modules/files'
 import { installPatientScopeResolvers } from './modules/patients'
 import { installPrescriptionScopeResolvers } from './modules/prescriptions'
+import { installTicketScopeResolvers } from './modules/support'
 
 const bootstrap = processSingleton('core:bootstrap', () => ({ started: false }))
 
@@ -31,12 +32,24 @@ export function bootstrapServer(): void {
   installPrescriptionScopeResolvers()
   installFileScopeResolvers()
   installBillingScopeResolvers()
+  installTicketScopeResolvers()
   // "Is this patient one of mine?" is asked by authorisation and answered by visits; the two
   // modules never import each other, so the composition root is where they meet (ADR-0004).
   provideCareRelationship(careRelationshipFromEncounters)
   installAuditCapture()
   bootstrap.started = true
 }
+
+/**
+ * Opening and closing the database, for a process that owns its own lifecycle.
+ *
+ * The web app never calls these — Next.js starts the connection lazily on first use — but the
+ * worker is a long-running process that has to connect before it can watch anything and
+ * disconnect when it stops. They are re-exported here rather than imported from `@clinic/db`
+ * directly because an app reaching for the driver is exactly what section 6 forbids, and the
+ * composition root is the one place allowed to know both sides.
+ */
+export { connect, disconnect } from '@clinic/db'
 
 /** Waits for in-flight audit writes. Call on graceful shutdown. */
 export { flushAudit }

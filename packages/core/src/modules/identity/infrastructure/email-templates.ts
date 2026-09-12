@@ -1,4 +1,4 @@
-import type { OutgoingMail } from './mailer'
+import type { OutgoingMail } from '../../../mailer'
 
 /**
  * Transactional emails. Names are escaped before they reach HTML: a first name is text a

@@ -17,6 +17,10 @@ const shared = processSingleton('identity:mail-transport', () => ({
  * SMTP through a single adapter (section 3). Locally this is Mailpit on port 1025, and
  * every message is visible at http://localhost:8025. A provider such as SES or Resend
  * is a different SMTP_URL, not a code change.
+ *
+ * It lives at the root rather than inside a module because two modules send mail — identity
+ * sends invitations, notifications sends everything else — and a transport one of them owned
+ * would make the other import through it. Same reasoning as pdf-text.ts.
  */
 export const mailer = {
   async send(mail: OutgoingMail): Promise<void> {
