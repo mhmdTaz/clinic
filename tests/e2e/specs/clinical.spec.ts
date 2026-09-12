@@ -193,21 +193,35 @@ test.describe('the clinical record', () => {
     await dialog.getByRole('button', { name: 'Issue the prescription' }).click()
     await expect(dialog).toBeHidden()
     // Named precisely: the note's plan also mentions paracetamol, in a sentence.
-    await expect(page.getByText('Paracetamol · 500 mg')).toBeVisible()
+    await expect(page.getByText('Paracetamol · 500 mg').first()).toBeVisible()
+
+    /**
+     * From here the prescription is followed by its own number rather than by its drug. A retry
+     * of this test issues a second prescription, and "the one with paracetamol on it" then means
+     * two things — which is how a green suite turns red on the retry rather than on the bug.
+     */
+    const issued = await page.evaluate(async (encounterId) => {
+      const response = await fetch(`/api/v1/encounters/${encounterId}/prescriptions`, {
+        credentials: 'same-origin',
+      })
+      const body = (await response.json()) as { data: Array<{ id: string; number: string }> }
+      return body.data[0] ?? { id: '', number: '' }
+    }, encounterId)
+    expect(issued.number).toMatch(/^RX-\d{6}$/)
 
     await page.context().close()
 
     // The patient can print it, and it is rendered once and stored (ADR-0026).
     const patient = await signedInAs(browser, 'patient@clinic.local')
     await patient.goto('/patient/prescriptions')
-    await expect(patient.getByText('Paracetamol · 500 mg')).toBeVisible()
+    await expect(patient.getByText(issued.number)).toBeVisible()
 
-    const pdf = await patient.evaluate(async () => {
-      const list = await fetch('/api/v1/prescriptions', { credentials: 'same-origin' })
-      const body = (await list.json()) as { data: Array<{ id: string }> }
-      const id = body.data[0]?.id ?? ''
-      const link = await fetch(`/api/v1/prescriptions/${id}/pdf`, { credentials: 'same-origin' })
+    const pdf = await patient.evaluate(async (prescriptionId) => {
+      const link = await fetch(`/api/v1/prescriptions/${prescriptionId}/pdf`, {
+        credentials: 'same-origin',
+      })
       const { data } = (await link.json()) as { data: { url: string; fileName: string } }
+      // Straight to object storage: the bytes never pass through the application (12.1).
       const file = await fetch(data.url)
       const bytes = new Uint8Array(await file.arrayBuffer())
       return {
@@ -215,10 +229,10 @@ test.describe('the clinical record', () => {
         status: file.status,
         header: new TextDecoder().decode(bytes.slice(0, 5)),
       }
-    })
+    }, issued.id)
     expect(pdf.status).toBe(200)
     expect(pdf.header).toBe('%PDF-')
-    expect(pdf.fileName).toMatch(/^RX-\d{6}\.pdf$/)
+    expect(pdf.fileName).toBe(`${issued.number}.pdf`)
 
     await patient.goto('/patient/documents')
     await expect(patient.getByText(pdf.fileName)).toBeVisible()

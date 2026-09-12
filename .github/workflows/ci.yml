@@ -70,8 +70,10 @@ jobs:
 
       - name: Start the stack
         # The same compose file developers run locally, so CI cannot drift from it.
-        # A GitHub `services:` block cannot run rs.initiate().
-        run: docker compose up -d --wait mongo mongo-init redis mailpit
+        # A GitHub `services:` block cannot run rs.initiate(), and object storage is part of
+        # the stack from Phase 4: files and prescription PDFs are tested against real storage,
+        # never a stub, because a presigned upload is exactly the part a stub would get wrong.
+        run: docker compose up -d --wait mongo mongo-init redis mailpit minio minio-init
 
       - name: Environment
         run: cp .env.example .env
@@ -123,7 +125,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Start the stack
-        run: docker compose up -d --wait mongo mongo-init redis mailpit
+        run: docker compose up -d --wait mongo mongo-init redis mailpit minio minio-init
 
       - name: Environment
         run: cp .env.example .env
