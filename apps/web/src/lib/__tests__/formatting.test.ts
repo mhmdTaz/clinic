@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import type { AppointmentSummary } from '@clinic/contracts'
 import { activeHref } from '../../components/shell/nav-utils'
+import {
+  datesBetween,
+  formatTimeOfDay,
+  isCalendarDate,
+  shiftDate,
+  startOfWeek,
+  weekdayOfDate,
+} from '../format/dates'
 import { partOfDay } from '../format/greeting'
 import { describeUserAgent } from '../format/user-agent'
 import { WEEK_ORDER, weekdayName } from '../format/weekdays'
+import { groupByDate, groupByDoctor } from '../scheduling/group'
 
 describe('partOfDay', () => {
   const at = (iso: string) => new Date(iso)
@@ -86,5 +96,81 @@ describe('activeHref', () => {
 
   it('returns null when nothing matches', () => {
     expect(activeHref('/patient', hrefs)).toBeNull()
+  })
+})
+
+describe('calendar arithmetic', () => {
+  it('steps a day without a timezone ever moving it', () => {
+    expect(shiftDate('2026-03-28', 1)).toBe('2026-03-29')
+    // 29 March 2026 is the night the clocks go forward in most of Europe: 23 hours long.
+    expect(shiftDate('2026-03-29', 1)).toBe('2026-03-30')
+    expect(shiftDate('2026-12-31', 1)).toBe('2027-01-01')
+    expect(shiftDate('2026-01-01', -1)).toBe('2025-12-31')
+    expect(shiftDate('2028-02-28', 1)).toBe('2028-02-29')
+  })
+
+  it('starts the week on Monday, whichever day it is given', () => {
+    // 2026-09-12 is a Saturday; 2026-09-13 the Sunday that ends the same week.
+    expect(weekdayOfDate('2026-09-12')).toBe(6)
+    expect(startOfWeek('2026-09-12')).toBe('2026-09-07')
+    expect(startOfWeek('2026-09-13')).toBe('2026-09-07')
+    expect(startOfWeek('2026-09-07')).toBe('2026-09-07')
+    expect(WEEK_ORDER[0]).toBe(1)
+  })
+
+  it('lists a range inclusively, and nothing when it runs backwards', () => {
+    expect(datesBetween('2026-09-07', '2026-09-09')).toEqual([
+      '2026-09-07',
+      '2026-09-08',
+      '2026-09-09',
+    ])
+    expect(datesBetween('2026-09-07', '2026-09-07')).toEqual(['2026-09-07'])
+    expect(datesBetween('2026-09-09', '2026-09-07')).toEqual([])
+  })
+
+  it('rejects anything that is not a real calendar date', () => {
+    expect(isCalendarDate('2026-09-12')).toBe(true)
+    expect(isCalendarDate('2026-02-30')).toBe(false)
+    expect(isCalendarDate('2026-9-12')).toBe(false)
+    expect(isCalendarDate('')).toBe(false)
+  })
+
+  it('shows the clock face of an instant in the clinic timezone', () => {
+    // 06:00 UTC is 09:00 in Beirut in September (UTC+3).
+    expect(formatTimeOfDay('2026-09-12T06:00:00.000Z', 'en-GB', 'Asia/Beirut')).toBe('09:00')
+    expect(formatTimeOfDay('2026-09-12T06:00:00.000Z', 'en-GB', 'UTC')).toBe('06:00')
+  })
+})
+
+describe('calendar grouping', () => {
+  const at = (id: string, startsAt: string, doctor: { id: string; name: string }) =>
+    ({
+      id,
+      startsAt,
+      doctor,
+    }) as AppointmentSummary
+
+  it('puts an appointment in the clinic day it falls on, not the UTC one', () => {
+    // 21:30 UTC on the 12th is 00:30 on the 13th in Beirut: the clinic's next day.
+    const groups = groupByDate(
+      [at('a', '2026-09-12T21:30:00.000Z', { id: 'd1', name: 'Dr A' })],
+      ['2026-09-12', '2026-09-13'],
+      'Asia/Beirut',
+    )
+    expect(groups.map((group) => group.items.length)).toEqual([0, 1])
+  })
+
+  it('keeps a column for every day asked for, even an empty one', () => {
+    expect(groupByDate([], ['2026-09-12', '2026-09-13'], 'UTC')).toHaveLength(2)
+  })
+
+  it('gives a column only to doctors who have something, in name order', () => {
+    const columns = groupByDoctor([
+      at('a', '2026-09-12T06:00:00.000Z', { id: 'd2', name: 'Dr Zaher' }),
+      at('b', '2026-09-12T07:00:00.000Z', { id: 'd1', name: 'Dr Aoun' }),
+      at('c', '2026-09-12T08:00:00.000Z', { id: 'd2', name: 'Dr Zaher' }),
+    ])
+    expect(columns.map((column) => column.name)).toEqual(['Dr Aoun', 'Dr Zaher'])
+    expect(columns.map((column) => column.items.length)).toEqual([1, 2])
   })
 })

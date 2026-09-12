@@ -1,20 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
-import { AppointmentModel, SlotReservationModel, newId } from '@clinic/db'
-import { signedInActor, uniqueEmail } from '../../../../test/fixtures'
+import { AppointmentModel, PatientModel, SlotReservationModel, newId } from '@clinic/db'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  signedInActor,
+  uniqueEmail,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { getClinicSettings } from '../../clinic'
 import { createDoctor, setDoctorAvailability } from '../../doctors'
 import { registerPatient } from '../../patients'
 import { localMoment, weekdayOf } from '../../scheduling'
+import { authenticateAccessToken, login } from '../../session'
 import {
   bookAppointment,
+  bookOwnAppointment,
   cancelAppointment,
   checkInAppointment,
   completeAppointment,
   listAppointments,
+  markNoShow,
   offerSlots,
   rescheduleAppointment,
+  startAppointment,
 } from '../index'
 
 const clinicId = () => env().CLINIC_ID
@@ -69,6 +79,23 @@ async function newPatient(staff: Actor) {
     inviteToPortal: false,
   })
   return registered.patient
+}
+
+/**
+ * A patient with a portal account, as the front desk would set one up: the record first, then
+ * the login attached to it. Signing in afterwards is what puts the `pid` claim on the token,
+ * and without it an OWN grant resolves to nothing (ADR-0004).
+ */
+async function portalPatient(staff: Actor) {
+  const account = await createUser({ role: 'patient' })
+  const patient = await newPatient(staff)
+  await PatientModel()
+    .updateOne({ _id: patient.id, clinicId: clinicId() }, { $set: { userId: account.id } })
+    .setOptions({ skipAudit: true })
+
+  const session = await login({ email: account.email, password: TEST_PASSWORD, meta: meta() })
+  const { actor } = await authenticateAccessToken(session.accessToken)
+  return { actor, patient }
 }
 
 describe('booking', () => {
@@ -299,5 +326,75 @@ describe('who sees which appointments', () => {
 
     const everyone = await listAppointments(staff, { from: date, to: date })
     expect(everyone.some((appointment) => appointment.doctor.id === doctor.id)).toBe(true)
+  })
+})
+
+describe('self-service', () => {
+  it('lets a patient book, move and cancel their own appointment — and nothing else', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { date } = await workingDay(staff, 20)
+    const doctor = await scheduledDoctor(staff, date)
+    const { actor: patient, patient: record } = await portalPatient(staff)
+
+    const [day] = await offerSlots(patient, doctor.id, { from: date, to: date })
+    const first = day?.slots[0]?.startsAt ?? ''
+    const second = day?.slots[1]?.startsAt ?? ''
+
+    const booked = await bookOwnAppointment(patient, {
+      doctorId: doctor.id,
+      startsAt: first,
+      reason: 'Sore throat',
+    })
+    expect(booked.source).toBe('PATIENT')
+    expect(booked.patient.id).toBe(record.id)
+    // The staff note is not theirs to read, even on their own appointment.
+    expect(booked.internalNote).toBeNull()
+
+    // P5: rescheduling is theirs, inside the clinic's cutoff (ADR-0022).
+    const moved = await rescheduleAppointment(patient, booked.id, {
+      startsAt: second,
+      reason: 'Something came up',
+    })
+    expect(moved.startsAt).toBe(second)
+    expect(moved.number).toBe(booked.number)
+
+    // What happened in the room is the clinic's to record, never the patient's. Called one at
+    // a time: three rejections started together would leave two unhandled while the first runs.
+    for (const attempt of [
+      () => startAppointment(patient, booked.id),
+      () => completeAppointment(patient, booked.id),
+      () => markNoShow(patient, booked.id, 'not me'),
+    ]) {
+      await expect(attempt()).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 })
+    }
+
+    const cancelled = await cancelAppointment(patient, booked.id, { reason: 'Feeling better' })
+    expect(cancelled.status).toBe('CANCELLED')
+  })
+
+  it('shows a patient only their own appointments', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { date } = await workingDay(staff, 21)
+    const doctor = await scheduledDoctor(staff, date)
+    const { actor: patient } = await portalPatient(staff)
+    const someoneElse = await newPatient(staff)
+
+    const [day] = await offerSlots(staff, doctor.id, { from: date, to: date })
+    await bookAppointment(staff, {
+      patientId: someoneElse.id,
+      doctorId: doctor.id,
+      startsAt: day?.slots[0]?.startsAt ?? '',
+      branchId: null,
+      reason: null,
+      internalNote: null,
+    })
+    const own = await bookOwnAppointment(patient, {
+      doctorId: doctor.id,
+      startsAt: day?.slots[1]?.startsAt ?? '',
+      reason: null,
+    })
+
+    const mine = await listAppointments(patient, { from: date, to: date })
+    expect(mine.map((appointment) => appointment.id)).toEqual([own.id])
   })
 })

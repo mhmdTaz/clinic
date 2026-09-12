@@ -4,6 +4,8 @@ import { scopeAtLeast, type PermissionMap, type Scope } from './scopes'
 
 export const NAV_ICONS = [
   'building',
+  'calendar-clock',
+  'calendar-days',
   'clipboard-list',
   'contact',
   'heart-pulse',
@@ -113,6 +115,14 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           permission: 'portal.staff:access',
         },
         {
+          id: 'staff.appointments',
+          labelKey: 'nav.items.appointments',
+          href: '/staff/appointments',
+          icon: 'calendar-days',
+          permission: 'appointment:read',
+          minScope: 'CLINIC',
+        },
+        {
           id: 'staff.patients',
           labelKey: 'nav.items.patients',
           href: '/staff/patients',
@@ -143,6 +153,20 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           icon: 'stethoscope',
           permission: 'portal.doctor:access',
         },
+        {
+          id: 'doctor.appointments',
+          labelKey: 'nav.items.appointments',
+          href: '/doctor/appointments',
+          icon: 'calendar-days',
+          permission: 'appointment:read',
+        },
+        {
+          id: 'doctor.schedule',
+          labelKey: 'nav.items.schedule',
+          href: '/doctor/schedule',
+          icon: 'calendar-clock',
+          permission: 'availability:manage',
+        },
       ],
     },
     accountSection,
@@ -158,6 +182,13 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           href: '/patient',
           icon: 'heart-pulse',
           permission: 'portal.patient:access',
+        },
+        {
+          id: 'patient.appointments',
+          labelKey: 'nav.items.appointments',
+          href: '/patient/appointments',
+          icon: 'calendar-days',
+          permission: 'appointment:read',
         },
       ],
     },

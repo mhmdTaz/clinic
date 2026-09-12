@@ -4,7 +4,7 @@ import type {
   CancelAppointmentRequest,
   RescheduleAppointmentRequest,
 } from '@clinic/contracts'
-import { BusinessRuleError, ConflictError, NotFoundError } from '../../../errors'
+import { BusinessRuleError, ConflictError, ForbiddenError, NotFoundError } from '../../../errors'
 import { runInTransaction } from '../../../transaction'
 import { assertCan, type Actor, type PermissionKey } from '../../access'
 import { getSchedulingFacts } from '../../clinic'
@@ -55,6 +55,19 @@ async function assertChangeAllowed(
       'TOO_LATE_TO_CHANGE',
       'That is too close to the appointment to change online. Please call the clinic.',
     )
+  }
+}
+
+/**
+ * Steps only the clinic itself takes: the patient has arrived, the doctor has taken them in,
+ * the visit is over, nobody came. `appointment:update` at OWN is a patient acting on their own
+ * appointment (ADR-0022) — enough to move it or give it up, never to record what happened in a
+ * room they were not in. Without this, granting patients the reschedule they are promised (P5)
+ * would also let them close their own visit as completed.
+ */
+function assertClinicSide(actor: Actor): void {
+  if (actor.permissions.get('appointment:update') === 'OWN') {
+    throw new ForbiddenError('appointment:update')
   }
 }
 
@@ -217,6 +230,7 @@ export async function startAppointment(
   now: Date = new Date(),
 ): Promise<AppointmentDetail> {
   const appointment = await load(actor, appointmentId, 'appointment:update')
+  assertClinicSide(actor)
   const started = await transition(actor, appointment, 'IN_PROGRESS', { startedAt: now }, null)
   return detailFor(actor, started)
 }
@@ -227,6 +241,7 @@ export async function completeAppointment(
   now: Date = new Date(),
 ): Promise<AppointmentDetail> {
   const appointment = await load(actor, appointmentId, 'appointment:update')
+  assertClinicSide(actor)
   const completed = await transition(actor, appointment, 'COMPLETED', { completedAt: now }, null)
   return detailFor(actor, completed)
 }
@@ -238,6 +253,7 @@ export async function markNoShow(
   reason: string | null = null,
 ): Promise<AppointmentDetail> {
   const appointment = await load(actor, appointmentId, 'appointment:update')
+  assertClinicSide(actor)
   const missed = await transition(actor, appointment, 'NO_SHOW', {}, reason)
   return detailFor(actor, missed)
 }

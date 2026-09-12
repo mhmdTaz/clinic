@@ -136,7 +136,8 @@ export const clinicRepository = {
     }
   },
 
-  async findSettings(clinicId: string): Promise<ClinicSettings | null> {
+  /** Everything but the booking window, which is stored apart and defaulted by the use case. */
+  async findSettings(clinicId: string): Promise<Omit<ClinicSettings, 'booking'> | null> {
     const doc = (await ClinicModel().findById(clinicId).lean()) as ClinicRecord | null
     if (!doc) return null
     return {

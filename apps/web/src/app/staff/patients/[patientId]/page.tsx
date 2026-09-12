@@ -3,10 +3,12 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { localDateIn } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { listDoctors } from '@clinic/core/doctors'
 import { getPatient } from '@clinic/core/patients'
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle } from '@clinic/ui'
 import { ConfirmAction } from '@/components/portal/confirm-action'
 import { PageHeader } from '@/components/portal/page-header'
+import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-dialog'
 import { requirePortal } from '@/lib/auth/server-session'
 import { formatInstant } from '@/lib/format/dates'
 import { countryOptions } from '@/lib/format/regions'
@@ -37,9 +39,13 @@ export default async function PatientPage({
   const registered = param(await searchParams, 'registered')
 
   const patient = await orNotFound(getPatient(actor, patientId))
-  const [clinic, t, locale] = await Promise.all([
+  const canBook =
+    patient.isActive && holds(actor, 'appointment:create') && holds(actor, 'doctor:read')
+  const [clinic, doctors, t, tScheduling, locale] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
+    canBook ? listDoctors(actor, { status: 'active' }) : [],
     getTranslations('staff.patients.detail'),
+    getTranslations('scheduling'),
     getLocale(),
   ])
   const name = `${patient.firstName} ${patient.lastName}`
@@ -57,6 +63,25 @@ export default async function PatientPage({
           )
         }
         back={{ href: '/staff/patients', label: t('back') }}
+        actions={
+          doctors.length > 0 ? (
+            <BookAppointmentDialog
+              doctors={doctors.map((doctor) => ({
+                id: doctor.id,
+                name: [doctor.title, doctor.displayName].filter(Boolean).join(' '),
+              }))}
+              patient={{
+                id: patient.id,
+                name,
+                medicalRecordNo: patient.medicalRecordNo,
+              }}
+              date={localDateIn(clinic.timezone)}
+              locale={locale}
+              timeZone={clinic.timezone}
+              label={tScheduling('actions.book')}
+            />
+          ) : null
+        }
       />
 
       {registered ? (

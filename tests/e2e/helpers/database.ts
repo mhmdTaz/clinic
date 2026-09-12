@@ -51,3 +51,30 @@ export async function closeDatabase(): Promise<void> {
   await client?.close()
   client = null
 }
+
+/** The seeded clinic's only doctor profile. */
+export async function seededDoctorId(): Promise<string> {
+  const doctors = (await database()).collection<{ _id: string }>('doctors')
+  const doctor = await doctors.findOne({ clinicId: E2E.clinicId })
+  if (!doctor) throw new Error('no doctor is seeded')
+  return doctor._id
+}
+
+/** A seeded patient by family name — the journeys name people, not ids. */
+export async function seededPatientId(lastName: string): Promise<string> {
+  const patients = (await database()).collection<{ _id: string }>('patients')
+  const patient = await patients.findOne({ clinicId: E2E.clinicId, lastName })
+  if (!patient) throw new Error(`no patient named ${lastName} is seeded`)
+  return patient._id
+}
+
+/** Appointments still holding a doctor's time at that instant — the double-booking check. */
+export async function countAppointmentsAt(doctorId: string, startsAt: string): Promise<number> {
+  const appointments = (await database()).collection('appointments')
+  return appointments.countDocuments({
+    clinicId: E2E.clinicId,
+    doctorId,
+    startsAt: new Date(startsAt),
+    status: { $in: ['SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS'] },
+  })
+}

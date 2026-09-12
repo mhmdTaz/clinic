@@ -5,10 +5,13 @@ import {
   type ClinicSettings,
   type SetHolidaysRequest,
   type SetWorkingHoursRequest,
+  type UpdateBookingWindowRequest,
   type UpdateBranchRequest,
 } from '@clinic/contracts'
 import { BusinessRuleError, NotFoundError, ValidationError } from '../../../errors'
 import { assertCan, type Actor } from '../../access'
+import { bookingWindowOf } from '../../scheduling'
+import { saveBookingWindow } from './get-scheduling-facts'
 import { leavesAnActiveBranch } from '../domain/clinic'
 import { clinicRepository } from '../infrastructure/clinic.repository'
 
@@ -17,9 +20,13 @@ import { clinicRepository } from '../infrastructure/clinic.repository'
  * screen never shows a stale mix of what it sent and what the server kept.
  */
 async function settingsOf(clinicId: string): Promise<ClinicSettings> {
-  const settings = await clinicRepository.findSettings(clinicId)
+  const [settings, booking] = await Promise.all([
+    clinicRepository.findSettings(clinicId),
+    clinicRepository.findBookingWindow(clinicId),
+  ])
   if (!settings) throw new NotFoundError(`Clinic ${clinicId}`)
-  return settings
+  // Anything the clinic has not set falls back to the defaults (ADR-0022).
+  return { ...settings, booking: bookingWindowOf(booking) }
 }
 
 export async function getClinicSettings(actor: Actor): Promise<ClinicSettings> {
@@ -118,5 +125,18 @@ export async function setClinicHolidays(
   }
 
   await clinicRepository.setHolidays(actor.clinicId, input.holidays)
+  return settingsOf(actor.clinicId)
+}
+
+/**
+ * The self-service booking window (ADR-0022). It binds patients booking for themselves; the
+ * front desk is never held to it, so a rule here cannot lock the clinic out of its own diary.
+ */
+export async function updateBookingWindow(
+  actor: Actor,
+  input: UpdateBookingWindowRequest,
+): Promise<ClinicSettings> {
+  await assertCan(actor, 'clinic:update')
+  await saveBookingWindow(actor.clinicId, input)
   return settingsOf(actor.clinicId)
 }

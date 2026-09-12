@@ -680,6 +680,15 @@ export async function assertCan(actor, permission, resource?) {
 }
 ```
 
+The resolver is looked up by the permission's **subject** — the part before the colon — so
+`availability:manage` and `availability:read` share one resolver, registered by whichever module
+owns those documents. A subject with no registered resolver **denies**: forgetting one must never
+open a door. The cost of that choice is that forgetting one instead closes a door quietly, and a
+doctor refused their own working week looks exactly like a doctor who was never granted it. So the
+set is checked rather than remembered: a unit test walks every permission the seeded roles grant at
+`OWN` or `ASSIGNED` and asserts each subject resolves, with an explicit list of the subjects whose
+modules have not been built yet. Deleting a line from that list is part of building the module.
+
 For **list** endpoints, the same scope is compiled into a MongoDB filter rather than filtering in
 memory — permission checks must never load documents the actor cannot see:
 
@@ -2833,6 +2842,17 @@ user, and that user's menu and API access change on their next request — with 
 
 **Exit criteria:** staff books, reschedules and cancels; a patient books from their portal; two
 simultaneous bookings for the same slot produce exactly one appointment and one clean 409.
+
+Two items on the list above are deliberately not in the first pass, and neither is on the exit
+criteria:
+
+- **Drag to reschedule.** Moving an appointment works, through a dialog that offers the doctor's
+  open times; dragging is a second way to reach the same use case, and an expensive one to make
+  keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
+- **The walk-in queue.** A walk-in arrives at 10:07 for a diary that offers 10:00 and 10:20. Taking
+  one means booking off the grid, and the grid is what makes double-booking impossible (ADR-0013).
+  How a clinic wants overbooking to behave — refuse, squeeze in, or queue for the next gap — is a
+  policy question, not a UI one, and it deserves its own decision rather than an improvised answer.
 
 ### Phase 4 — Clinical records and files · ~2.5 weeks
 

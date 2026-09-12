@@ -27,6 +27,13 @@ around by inventing fake records.
 
 A refusal names the clinic's phone number, so the patient can do what the screen will not.
 
+**What "self-service" means in code:** a grant at `OWN` scope. A patient holds `appointment:create`,
+`appointment:update` and `appointment:cancel` at `OWN`, which is exactly enough to book their own
+time, move it and give it up — the three things P5 promises. It is deliberately not enough to
+record what happened: check-in, starting a visit, completing one and marking a no-show all refuse
+an `OWN` grant, because they are statements about a room the patient was not running. Staff and
+doctors reach the same appointments at `CLINIC` or `ASSIGNED`, and are held to none of the window.
+
 ## Consequences
 
 - The window is business logic in `scheduling`, checked server-side on every self-service booking

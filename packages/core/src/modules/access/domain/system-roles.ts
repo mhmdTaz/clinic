@@ -150,6 +150,9 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
         'patient:update',
         'appointment:read',
         'appointment:create',
+        // Reschedule as well as cancel, both inside the clinic's cutoff (P5, ADR-0022). The
+        // clinic-side steps — check-in, start, complete, no-show — refuse an OWN grant.
+        'appointment:update',
         'appointment:cancel',
         'encounter:read',
         'prescription:read',

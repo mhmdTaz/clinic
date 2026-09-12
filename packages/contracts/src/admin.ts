@@ -16,6 +16,7 @@ import {
   requiredText,
 } from './common'
 import { PaginationQuery } from './envelope'
+import { BookingWindow } from './scheduling'
 import { PermissionGrant } from './me'
 
 /** Contracts for the admin control plane: clinic settings, users, roles (section 9.3). */
@@ -137,6 +138,8 @@ export const ClinicSettings = z.object({
   locale: z.string(),
   branches: z.array(BranchDetail),
   holidays: z.array(Holiday),
+  /** Self-service booking limits (ADR-0022). */
+  booking: BookingWindow,
 })
 export type ClinicSettings = z.infer<typeof ClinicSettings>
 

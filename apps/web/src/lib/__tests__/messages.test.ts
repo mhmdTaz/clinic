@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { BLOOD_TYPES, GENDERS, PERMISSION_SCOPES, USER_STATUSES } from '@clinic/config'
+import {
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  BLOOD_TYPES,
+  GENDERS,
+  PERMISSION_SCOPES,
+  USER_STATUSES,
+} from '@clinic/config'
 import { DUPLICATE_REASONS } from '@clinic/contracts'
-import { PERMISSION_GROUPS, PERMISSION_KEYS, permissionLabelKey } from '@clinic/core/access'
+import {
+  NAVIGATION,
+  PERMISSION_GROUPS,
+  PERMISSION_KEYS,
+  permissionLabelKey,
+} from '@clinic/core/access'
 import {
   buildBody,
   fieldForPath,
@@ -34,10 +46,22 @@ describe('the English catalogue', () => {
       ...PERMISSION_SCOPES.map((scope) => `scopes.${scope}`),
       ...GENDERS.map((gender) => `genders.${gender}`),
       ...DUPLICATE_REASONS.map((reason) => `duplicateReasons.${reason}`),
+      ...APPOINTMENT_STATUSES.map((status) => `scheduling.statuses.${status}`),
+      ...APPOINTMENT_SOURCES.map((source) => `scheduling.sources.${source}`),
       'bloodTypes.UNKNOWN',
     ].filter((key) => typeof text(key) !== 'string')
     expect(missing).toEqual([])
     expect(BLOOD_TYPES).toContain('UNKNOWN')
+  })
+
+  it('labels every navigation section and item in every portal', () => {
+    const keys = Object.values(NAVIGATION).flatMap((sections) =>
+      sections.flatMap((section) => [
+        section.labelKey,
+        ...section.items.map((item) => item.labelKey),
+      ]),
+    )
+    expect(keys.filter((key) => typeof text(key) !== 'string')).toEqual([])
   })
 })
 

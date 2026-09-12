@@ -2,12 +2,7 @@ export { getClinicOverview } from './application/get-clinic-overview'
 export { getClinicProfile } from './application/get-clinic-profile'
 export { getClinicSessionInfo } from './application/get-clinic-session-info'
 export { getClinicFacts } from './application/get-clinic-facts'
-export {
-  getSchedulingFacts,
-  findBookingWindow,
-  saveBookingWindow,
-  type SchedulingFacts,
-} from './application/get-scheduling-facts'
+export { getSchedulingFacts, type SchedulingFacts } from './application/get-scheduling-facts'
 export {
   getClinicSettings,
   updateClinicProfile,
@@ -15,6 +10,7 @@ export {
   updateBranch,
   setBranchWorkingHours,
   setClinicHolidays,
+  updateBookingWindow,
 } from './application/manage-settings'
 export {
   hasBookableBranch,
