@@ -15,10 +15,18 @@ export function effectivePreferredPortal(user: AuthUser, access: ResolvedAccess)
     : null
 }
 
+/**
+ * @param profiles the doctor and patient records this account is (ADR-0004).
+ *
+ * Carried in the response rather than left to the server-side actor, because a mobile client has
+ * no actor: a patient's app that cannot name its own record cannot open a single screen. The web
+ * ignores them and keeps reading the actor, so there is one source of truth and one extra field.
+ */
 export function buildSessionUser(
   user: AuthUser,
   access: ResolvedAccess,
   clinic: ClinicSessionInfo,
+  profiles: { doctorId?: string; patientId?: string } = {},
 ): SessionUser {
   return {
     id: user.id,
@@ -32,6 +40,8 @@ export function buildSessionUser(
     portals: access.portals,
     preferredPortal: effectivePreferredPortal(user, access),
     landingPath: landingPath(access.portals, user.preferredPortal),
+    patientId: profiles.patientId ?? null,
+    doctorId: profiles.doctorId ?? null,
     clinic: { id: clinic.id, name: clinic.name, timezone: clinic.timezone, locale: clinic.locale },
   }
 }

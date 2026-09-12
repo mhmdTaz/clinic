@@ -17,5 +17,9 @@
     "migrate-mongo": "^11.0.0",
     "mongodb": "^6.12.0",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@clinic/api-client": "workspace:*",
+    "@clinic/contracts": "workspace:*"
   }
 }

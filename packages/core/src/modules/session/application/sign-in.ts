@@ -11,7 +11,7 @@ import {
   verifyCredentials,
 } from '../../identity'
 import { openSession } from './open-session'
-import { buildSessionUser, issueAccessToken } from './session-user'
+import { buildSessionUser, issueAccessToken, resolveProfileIds } from './session-user'
 import { deviceFrom, type IssuedSession, type RequestMeta } from './types'
 
 /** Every function here serves the installation's single clinic (ADR-0005). */
@@ -57,7 +57,7 @@ export async function refresh(
   const accessToken = await issueAccessToken(user, access, clinic, rotated.refresh.familyId, now)
 
   return {
-    user: buildSessionUser(user, access, clinic),
+    user: buildSessionUser(user, access, clinic, await resolveProfileIds(user, access)),
     sessionId: rotated.refresh.familyId,
     accessToken: accessToken.token,
     accessTokenExpiresAt: accessToken.expiresAt,

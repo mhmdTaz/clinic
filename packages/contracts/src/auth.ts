@@ -62,6 +62,16 @@ export const SessionUser = z.object({
   portals: z.array(PortalKey),
   preferredPortal: PortalKey.nullable(),
   landingPath: z.string(),
+  /**
+   * The profile records this account *is*, when it is one (ADR-0004).
+   *
+   * The web reads these off the server-side actor and never needed them in a payload. A device
+   * has no actor: without them a patient's app cannot find its own record, and every screen in
+   * the patient portal starts from that record. Nullable because staff and administrators are
+   * neither.
+   */
+  patientId: z.string().nullable(),
+  doctorId: z.string().nullable(),
   clinic: z.object({
     id: z.string(),
     name: z.string(),
