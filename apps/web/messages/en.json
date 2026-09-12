@@ -62,7 +62,9 @@
       "bills": "Bills & payments",
       "inventory": "Inventory",
       "support": "Support",
-      "getHelp": "Get help"
+      "getHelp": "Get help",
+      "analytics": "Analytics",
+      "audit": "Audit log"
     }
   },
   "shell": {
@@ -79,7 +81,9 @@
     "firstPage": "Back to the first page",
     "nextPage": "Next page",
     "emptyFilteredTitle": "Nothing matches",
-    "emptyFilteredBody": "Try a different search or filter."
+    "emptyFilteredBody": "Try a different search or filter.",
+    "export": "Export CSV",
+    "exportFailed": "The export did not finish. Try again."
   },
   "validation": {
     "REQUIRED": "This field is required.",
@@ -127,6 +131,7 @@
     "ENDS_BEFORE_STARTS": "The end must come after the start.",
     "OVERLAPPING_BLOCKS": "These hours overlap another block on the same day.",
     "NOT_ON_THE_BOOKING_GRID": "Appointments start on the five-minute mark.",
+    "RANGE_INVERTED": "The start of the range is after its end.",
     "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once.",
     "INVALID_ICD10_CODE": "That is not an ICD-10 code.",
     "INVALID_MEASUREMENT": "Use a number, with at most one decimal place."
@@ -552,6 +557,124 @@
         "cancel": "Cancel",
         "save": "Save"
       }
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Every write, every privileged read and every refusal. Opening this page is itself recorded.",
+      "entryTitle": "Audit entry",
+      "backToLog": "Back to the audit log",
+      "export": "Export CSV",
+      "none": "Nothing recorded yet",
+      "noneBody": "Entries appear here as soon as anybody uses the system.",
+      "systemActor": "The system",
+      "fieldsChanged": "{count, plural, one {# field changed} other {# fields changed}}",
+      "whoDidIt": "Who did it",
+      "whatChanged": "What changed",
+      "context": "Context",
+      "integrity": "Integrity",
+      "integrityBody": "Each entry is hashed together with the one before it, so changing any entry after the fact breaks every hash that follows.",
+      "unchained": "This entry carries no hash. It was written before the chain existed, or by something that bypassed it.",
+      "columns": {
+        "what": "What happened",
+        "who": "Who",
+        "entity": "Record",
+        "when": "When"
+      },
+      "filters": {
+        "any": "Anything",
+        "actor": "Who",
+        "category": "Area",
+        "outcome": "Outcome",
+        "kind": "Show",
+        "everything": "Everything",
+        "readsOnly": "Only who looked",
+        "from": "From",
+        "to": "To"
+      },
+      "fields": {
+        "actor": "Person",
+        "impersonator": "Acting as, on behalf of",
+        "entity": "Record",
+        "ipAddress": "IP address",
+        "requestId": "Request id",
+        "userAgent": "Browser",
+        "previousHash": "Previous hash",
+        "hash": "Hash"
+      },
+      "diff": {
+        "field": "Field",
+        "before": "Before",
+        "after": "After",
+        "redacted": "Withheld",
+        "none": "This entry records an action rather than a change, so there is nothing to compare.",
+        "caption": "Fields changed by this action, before and after"
+      },
+      "chain": {
+        "ok": "{count, plural, one {# entry verified} other {# entries verified}} — the chain is intact.",
+        "brokenTitle": "The audit log fails its integrity check",
+        "brokenAt": "First affected entry: {action} ({id}).",
+        "brokenAdvice": "{count, plural, one {# entry was} other {# entries were}} verified before the break. Treat everything after it as unreliable and escalate immediately.",
+        "reason": {
+          "HASH_MISMATCH": "An entry no longer matches its own hash, which means its contents were changed after it was written.",
+          "BROKEN_LINK": "An entry does not follow the one before it, which means an entry was removed from the middle of the log.",
+          "MISSING_HASH": "An entry carries no hash at all, which means it was written by something that bypassed the chain.",
+          "HEAD_MISMATCH": "The log is internally consistent but does not end where the recorded chain head says it should, which is the signature of a rewritten history.",
+          "UNKNOWN": "The chain could not be verified."
+        },
+        "unchained": "{count, plural, one {# older entry predates the chain and is not covered.} other {# older entries predate the chain and are not covered.}}"
+      },
+      "noRecordId": "No record id"
+    },
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "{from} to {to}. Every figure is worked out from the records as they stand right now.",
+      "noData": "Nothing in this range.",
+      "range": {
+        "from": "From",
+        "to": "To",
+        "presets": "Quick ranges",
+        "last7": "Last 7 days",
+        "last30": "Last 30 days",
+        "last90": "Last 90 days"
+      },
+      "money": "Money",
+      "collected": "Collected",
+      "collectedHint": "Payments received, less anything refunded.",
+      "invoiced": "Invoiced",
+      "invoicedHint": "Billed in this range, excluding voided invoices.",
+      "outstanding": "Outstanding",
+      "outstandingHint": "Still owed on invoices issued in this range.",
+      "refunded": "Refunded",
+      "refundedHint": "Given back against payments taken in this range.",
+      "revenueByDay": "Collected by day",
+      "revenueCaption": "Money collected, net of refunds, by day",
+      "visits": "Visits",
+      "booked": "Appointments",
+      "bookedHint": "Starting in this range, whatever became of them.",
+      "completed": "Completed",
+      "noShows": "No-shows",
+      "cancelled": "Cancelled",
+      "ofBooked": "{count, plural, one {# appointment} other {# appointments}}",
+      "appointmentsByDay": "Appointments by day",
+      "appointmentsCaption": "Appointments booked, by day",
+      "doctors": "Doctors",
+      "utilisationCaption": "Booked time against rostered time, per doctor",
+      "notRostered": "Not rostered",
+      "noDoctors": "No doctors are set up yet.",
+      "columns": {
+        "doctor": "Doctor",
+        "appointments": "Appointments",
+        "bookedHours": "Booked (h)",
+        "rosteredHours": "Rostered (h)",
+        "utilisation": "Utilisation"
+      },
+      "people": "People",
+      "seen": "Patients seen",
+      "seenHint": "Distinct patients with an appointment that was not cancelled.",
+      "newPatients": "New",
+      "newHint": "{percent}% of everybody seen.",
+      "returning": "Returning",
+      "returningHint": "Registered before this range began."
     }
   },
   "staff": {
@@ -1034,6 +1157,11 @@
       "subtitle": "What your roles allow. Areas appear in the menu as they become available.",
       "roles": "Roles",
       "permissionCount": "{count, plural, one {# permission} other {# permissions}}"
+    },
+    "language": {
+      "title": "Language",
+      "hint": "Your own interface language. It does not change what your colleagues see.",
+      "failed": "The language could not be changed. Try again."
     }
   },
   "permissionGroups": {
@@ -1678,7 +1806,8 @@
       "PAYMENT_RECEIVED": "A payment is received",
       "TICKET_REPLY": "Somebody replies to a ticket",
       "TICKET_ASSIGNED": "A ticket is given to you",
-      "STOCK_LOW": "Stock is running low"
+      "STOCK_LOW": "Stock is running low",
+      "AUDIT_CHAIN_BROKEN": "The audit log fails its integrity check"
     },
     "preferences": {
       "title": "Notifications",
@@ -1754,6 +1883,30 @@
       "priority": "Priority",
       "assignee": "Owner",
       "unassigned": "Nobody yet"
+    }
+  },
+  "audit": {
+    "categories": {
+      "AUTH": "Sign-in",
+      "ACCESS_CONTROL": "Access control",
+      "CLINICAL": "Clinical",
+      "FINANCIAL": "Billing",
+      "INVENTORY": "Inventory",
+      "ADMIN": "Administration",
+      "FILE": "Documents",
+      "SUPPORT": "Support",
+      "SYSTEM": "System"
+    },
+    "severities": {
+      "INFO": "Routine",
+      "NOTICE": "Worth noting",
+      "WARNING": "Warning",
+      "CRITICAL": "Critical"
+    },
+    "outcomes": {
+      "SUCCESS": "Succeeded",
+      "FAILURE": "Failed",
+      "DENIED": "Refused"
     }
   }
 }

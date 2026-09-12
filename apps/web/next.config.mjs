@@ -30,19 +30,9 @@ const nextConfig = {
   // importing any of them from this app.
   serverExternalPackages: ['mongoose', '@node-rs/argon2', 'ioredis', 'nodemailer'],
 
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-        ],
-      },
-    ]
-  },
+  // Security headers are NOT here. They live in src/middleware.ts, because the CSP carries a
+  // per-request nonce and a static config cannot generate one — and two places setting security
+  // headers is one place too many to keep in agreement. See src/lib/security/csp.ts.
 }
 
 export default withNextIntl(nextConfig)

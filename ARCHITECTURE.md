@@ -378,6 +378,9 @@ export { APPOINTMENT_EVENTS }    from './events'
 Modules may only depend **downward**. Anything else is an event.
 
 ```
+  audit-explorer   analytics                     ← read surfaces, above everything they read
+        │              │
+        ▼              ▼
         support   notifications   audit          ← leaf consumers, depend on events only
             ▲            ▲          ▲
             └────────────┴──────────┘   (subscribe, never called directly)
@@ -401,6 +404,8 @@ Modules may only depend **downward**. Anything else is an event.
 | `notifications` subscribes to `appointment.booked` | `appointments` importing `notifications` directly |
 | `session` imports `identity`, `access` and `clinic` to turn a verified user into a signed-in session | `identity` importing `access` — authentication sits beneath authorisation, which is why login lives in `session` and not in `identity` |
 | Any module calls `recordAudit()` for an event that carries intent (section 11.4) | `audit` importing any feature module |
+| `audit-explorer` imports `audit` and `access` to gate a read of the log | `audit` importing `access` — `access` already calls `audit` to record a denial, so that is a cycle. The explorer sits above both, and `audit` exposes actor-free reads instead |
+| `analytics` reads across billing, scheduling and patients through **its own** reporting repository | `analytics` reaching into another module's repository, or a transactional repository serving a report — reporting reads run on a secondary and must not compete with the front desk (13.5) |
 
 ### 5.3 How boundaries are enforced
 
@@ -2375,14 +2380,29 @@ plus a `BEFORE UPDATE` trigger — does not port. Four layers replace it:
 2. **A `$jsonSchema` validator plus a required-field guard** on the collection, so a malformed or
    partial audit document is rejected by the server rather than accepted and later
    uninterpretable.
-3. **Hash chain.** Each document stores `hash = sha256(previousHash + canonicalJson(doc))`.
-   Altering any historical document breaks every subsequent hash. A nightly job verifies the
-   chain and raises a `CRITICAL` alert on a mismatch. Chaining is per `clinicId` so a single
-   sequence is not a write bottleneck.
-4. **Off-box shipping.** Documents are streamed to an append-only external sink (S3 Object Lock
-   or a log platform) so a full database compromise cannot erase the trail.
+3. **Hash chain.** ✅ Each document stores `hash = sha256(previousHash + canonical(entry))`.
+   Altering any historical document breaks every subsequent hash. Chaining is per `clinicId` so a
+   single sequence is not a write bottleneck, and a `chainSeq` handed out by the same
+   compare-and-swap that moves the hash gives the chain its own order — `occurredAt` is stamped at
+   the call site, so two concurrent writes can be timestamped in one order and chained in the
+   other. A job walks it every six hours (not nightly at a fixed hour: a worker that was down at
+   3am would silently skip it) and raises a `CRITICAL` alert, an unmutable notification and a
+   stderr line on a mismatch. See ADR-0031 and `docs/runbooks/audit-chain-broken.md`.
+4. **Off-box shipping.** 🔸 Documents streamed to an append-only external sink (S3 Object Lock or a
+   log platform) so a full database compromise cannot erase the trail. **Not in v1.** The chain
+   makes such a shipment verifiable when it lands; publishing just the daily head hash somewhere
+   external is the cheap version and the recommended next step, because it defeats a head rewrite
+   outright.
 
-Layers 1 and 2 are mandatory in v1. Layers 3 and 4 are Phase 8.
+Layers 1, 2 and 3 ship in v1. Layer 4 is the first thing to add after it.
+
+> **What the chain does and does not prove.** It proves that entries carrying a `chainSeq` have
+> not been edited, deleted from the middle, or reordered, and — by comparison against the recorded
+> head — that the log has not been truncated or rewritten wholesale. It proves nothing about
+> entries written before the chain existed, which carry no position: those are **counted and
+> reported** beside the verified total, never quietly folded into it. Treating them as breaks
+> would leave every existing installation permanently red, which is how a tamper alarm gets
+> ignored.
 
 > **The TTL caveat.** MongoDB's TTL monitor deletes expired documents, which means the database
 > *does* delete audit documents even though the application cannot. That is intended — it is the
@@ -3044,18 +3064,41 @@ One decision was recorded on the way through:
   than by remembering what was sent, and reminders are found by sweeping the diary rather than by
   scheduling a job per appointment: an appointment that moves is simply found in its new window.
 
-### Phase 8 — Audit explorer, analytics, hardening, launch · ~2 weeks
+### Phase 8 — Audit explorer, analytics, hardening, launch · ~2 weeks ✅
 
-- Audit log explorer: filters, diff viewer, CSV export, `audit.viewed` self-logging
-- Append-only database role and the update/delete trigger; hash chain and nightly verification
-- Admin analytics dashboard
-- Full i18n pass with an RTL locale; accessibility audit
-- Load testing against the section 15.3 budgets; index tuning under realistic data volume
-- Backup **and rehearsed restore**; runbooks; on-call alerting
-- Security review: dependency audit, CSP, rate limits, penetration test of the four portals
+- ✅ Audit log explorer: filters (actor, entity, action, category, severity, outcome, date range,
+  reads-only), side-by-side diff viewer, CSV export, `audit.viewed` self-logging
+- ✅ Hash chain and scheduled verification, on top of the restricted role from Phase 1 (ADR-0031)
+- ✅ Admin analytics dashboard: revenue, appointments, per-doctor utilisation, new vs returning
+- ✅ Backup **and rehearsed restore**, verified by recomputing the audit chain over the restored
+  documents (`docs/runbooks/backup-and-restore.md`)
+- ✅ Nonce-based CSP and the security headers, set in middleware (`lib/security/csp.ts`)
+- ✅ RTL infrastructure: direction from the locale, per-person locale cookie, English fallback per
+  key, bidi isolation on identifiers and stored values
+- ✅ Runbooks: backup and restore, audit chain broken
+- 🔸 **Arabic catalogue is partial.** Shell, navigation, validation, errors and sign-in are
+  translated; the clinical, billing, inventory and scheduling screens are not. A medical
+  interface's wording is a clinical-safety question as much as a linguistic one, so the rest
+  waits for a native speaker rather than being guessed at. `ar` is marked `isComplete: false`
+  and is therefore wired and testable but never offered in the switcher.
+- 🔸 **Not done: load testing against the section 15.3 budgets**, index tuning under realistic
+  volume, the formal accessibility audit, on-call alerting wiring, and the penetration test.
+  Each needs either a production-shaped data volume or a person, and none is a code change.
 
-**Exit criteria:** an admin can answer "who viewed this patient's file last Tuesday, and what did
-they change" in under a minute; a restore has been performed successfully from a real backup.
+**Exit criteria — both met:**
+
+1. *An admin can answer "who viewed this patient's file last Tuesday, and what did they change" in
+   under a minute.* One URL does it:
+   `/admin/audit?entityType=Patient&entityId=<id>&readsOnly=yes&from=<date>&to=<date>`.
+   Proving this surfaced a bug that predated the phase: `requirePortal` scoped the audit context
+   to the permission check alone, so **every privileged read performed by a server component was
+   recorded with no actor at all** — which is to say the question was unanswerable for exactly
+   the pages people use. Fixed by giving core a request-context resolver the delivery layer
+   supplies (`lib/auth/request-scope.ts`).
+2. *A restore has been performed successfully from a real backup.* Taken and restored against the
+   local cluster, verified by collection counts, migration state, and 142 audit chain links
+   recomputed over the restored documents — which is what proves the rows came back
+   byte-identical rather than merely in the right quantity.
 
 ### Phase 9 — React Native app · after v1
 

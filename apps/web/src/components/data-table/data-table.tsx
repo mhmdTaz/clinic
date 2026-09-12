@@ -7,6 +7,7 @@ import { Search } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button, Input, Select, cn } from '@clinic/ui'
 import { EmptyState } from '@/components/portal/empty-state'
+import { ExportCsvButton } from './export-csv-button'
 import { useRouter } from '@/lib/navigation/use-router'
 
 export interface DataTableColumn {
@@ -34,6 +35,37 @@ export interface DataTableFilter {
   options: ReadonlyArray<{ value: string; label: string }>
 }
 
+/**
+ * A date range, as two search parameters.
+ *
+ * Two `<input type="date">` rather than a calendar widget: it is keyboard-navigable and
+ * screen-reader-correct for free, it accepts typing, and it is the control somebody answering
+ * "what happened last Tuesday" already knows how to use.
+ */
+export interface DataTableDateRange {
+  fromParam: string
+  toParam: string
+  from: string
+  to: string
+  fromLabel: string
+  toLabel: string
+  /** Nothing later than today: the audit log has no future. */
+  max?: string
+}
+
+/**
+ * CSV export (section 14.3 — "arrives with the audit log explorer, the first screen that needs it").
+ *
+ * The endpoint returns the file **inside the API envelope** rather than as a `text/csv` body, so
+ * the download goes through the same authenticated fetch as every other call and the server-side
+ * audit entry is written on the same path. The browser turns the string into a file here.
+ */
+export interface DataTableExport {
+  /** Path only; the component appends the current search parameters. */
+  href: string
+  label: string
+}
+
 const INTERACTIVE = 'a, button, input, select, textarea, label'
 
 /**
@@ -47,6 +79,9 @@ export function DataTable({
   rows,
   search,
   filters = [],
+  dateRange,
+  exportCsv,
+  isFiltered = false,
   nextCursor = null,
   empty,
 }: {
@@ -55,6 +90,14 @@ export function DataTable({
   rows: readonly DataTableRow[]
   search?: { placeholder: string; value: string }
   filters?: readonly DataTableFilter[]
+  dateRange?: DataTableDateRange
+  exportCsv?: DataTableExport
+  /**
+   * For a page that narrows by search parameters this component knows nothing about — the audit
+   * explorer's entity and action, for instance. Without it an empty result says "nothing recorded
+   * yet", which reads as "the audit log is empty" when it is merely filtered to nothing.
+   */
+  isFiltered?: boolean
   nextCursor?: string | null
   empty: { title: string; body?: string; action?: ReactNode }
 }) {
@@ -108,14 +151,18 @@ export function DataTable({
   }
 
   const onFirstPage = !params.has('cursor')
-  const filtered = urlQuery !== '' || filters.some((filter) => params.has(filter.param))
+  const filtered =
+    isFiltered ||
+    urlQuery !== '' ||
+    filters.some((filter) => params.has(filter.param)) ||
+    (dateRange !== undefined && (params.has(dateRange.fromParam) || params.has(dateRange.toParam)))
   const [firstColumn, ...otherColumns] = columns
   const alignment = (column: DataTableColumn) =>
     column.align === 'end' ? 'text-end' : 'text-start'
 
   return (
     <div className="flex flex-col gap-4">
-      {search || filters.length > 0 ? (
+      {search || filters.length > 0 || dateRange || exportCsv ? (
         <div role="search" className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           {search ? (
             <div className="relative min-w-0 flex-1 sm:min-w-64">
@@ -157,6 +204,52 @@ export function DataTable({
               </Select>
             </div>
           ))}
+          {dateRange ? (
+            <>
+              <div className="flex flex-col gap-1 sm:w-44">
+                <label
+                  htmlFor={`${searchId}-${dateRange.fromParam}`}
+                  className="text-muted-foreground text-xs font-medium"
+                >
+                  {dateRange.fromLabel}
+                </label>
+                <Input
+                  id={`${searchId}-${dateRange.fromParam}`}
+                  type="date"
+                  value={dateRange.from}
+                  max={dateRange.to || dateRange.max}
+                  onChange={(event) =>
+                    navigate({ [dateRange.fromParam]: event.target.value || null })
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1 sm:w-44">
+                <label
+                  htmlFor={`${searchId}-${dateRange.toParam}`}
+                  className="text-muted-foreground text-xs font-medium"
+                >
+                  {dateRange.toLabel}
+                </label>
+                <Input
+                  id={`${searchId}-${dateRange.toParam}`}
+                  type="date"
+                  value={dateRange.to}
+                  min={dateRange.from || undefined}
+                  max={dateRange.max}
+                  onChange={(event) =>
+                    navigate({ [dateRange.toParam]: event.target.value || null })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          {exportCsv ? (
+            <ExportCsvButton
+              href={exportCsv.href}
+              label={exportCsv.label}
+              params={params.toString()}
+            />
+          ) : null}
         </div>
       ) : null}
 

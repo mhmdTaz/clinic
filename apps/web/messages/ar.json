@@ -1,0 +1,184 @@
+{
+  "_note": "Partial, deliberately. The shell, navigation, validation, errors and the sign-in flow are translated; the clinical, billing, inventory and scheduling screens are not, and fall back to English key by key (see src/i18n/request.ts). A medical interface's wording is a clinical-safety question as much as a linguistic one, so the rest waits for a native speaker rather than being guessed at. `ar` is marked isComplete: false in src/i18n/locales.ts and is therefore wired and testable but never offered in the switcher.",
+  "meta": {
+    "appName": "العيادة"
+  },
+  "common": {
+    "loading": "جارٍ التحميل…",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ…",
+    "saved": "تم الحفظ",
+    "unsaved": "تغييرات غير محفوظة",
+    "signOut": "تسجيل الخروج",
+    "backToSignIn": "العودة إلى تسجيل الدخول",
+    "showPassword": "إظهار كلمة المرور",
+    "hidePassword": "إخفاء كلمة المرور",
+    "retry": "إعادة المحاولة",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "add": "إضافة",
+    "remove": "إزالة",
+    "edit": "تعديل",
+    "close": "إغلاق",
+    "optional": "اختياري",
+    "notSet": "غير محدد",
+    "none": "لا شيء",
+    "yes": "نعم",
+    "no": "لا",
+    "never": "أبدًا",
+    "reason": "السبب",
+    "reasonOptional": "السبب (اختياري)"
+  },
+  "portals": {
+    "admin": "الإدارة",
+    "staff": "الاستقبال",
+    "doctor": "الطبيب",
+    "patient": "المريض"
+  },
+  "nav": {
+    "sections": {
+      "administration": "الإدارة",
+      "frontDesk": "الاستقبال",
+      "practice": "العيادة",
+      "myCare": "رعايتي",
+      "account": "الحساب"
+    },
+    "items": {
+      "clinicOverview": "نظرة عامة على العيادة",
+      "clinicSettings": "إعدادات العيادة",
+      "users": "المستخدمون",
+      "roles": "الأدوار والصلاحيات",
+      "overview": "نظرة عامة",
+      "patients": "المرضى",
+      "doctors": "الأطباء",
+      "account": "الملف الشخصي والأمان",
+      "appointments": "المواعيد",
+      "schedule": "جدولي",
+      "myPatients": "مرضاي",
+      "myRecords": "سجلاتي",
+      "prescriptions": "الوصفات الطبية",
+      "documents": "المستندات",
+      "services": "الخدمات والأسعار",
+      "billing": "الفوترة",
+      "bills": "الفواتير والمدفوعات",
+      "inventory": "المخزون",
+      "support": "الدعم",
+      "getHelp": "اطلب المساعدة",
+      "analytics": "التحليلات",
+      "audit": "سجل التدقيق"
+    }
+  },
+  "shell": {
+    "skipToContent": "تخطَّ إلى المحتوى",
+    "primaryNavigation": "التنقل الرئيسي",
+    "breadcrumb": "مسار التنقل",
+    "switchPortal": "تبديل البوابة",
+    "userMenu": "قائمة الحساب",
+    "account": "الملف الشخصي والأمان"
+  },
+  "dataTable": {
+    "updating": "جارٍ تحديث القائمة…",
+    "pagination": "الصفحات",
+    "firstPage": "العودة إلى الصفحة الأولى",
+    "nextPage": "الصفحة التالية",
+    "emptyFilteredTitle": "لا توجد نتائج مطابقة",
+    "emptyFilteredBody": "جرّب بحثًا أو تصفية مختلفة.",
+    "export": "تصدير CSV",
+    "exportFailed": "لم يكتمل التصدير. حاول مرة أخرى."
+  },
+  "validation": {
+    "REQUIRED": "هذا الحقل مطلوب.",
+    "TOO_SHORT": "هذا قصير جدًا.",
+    "TOO_LONG": "هذا طويل جدًا.",
+    "TOO_SMALL": "هذا الرقم صغير جدًا.",
+    "TOO_LARGE": "هذا الرقم كبير جدًا.",
+    "INVALID": "هذه القيمة غير صالحة.",
+    "INVALID_FORMAT": "الصيغة غير متوقعة.",
+    "INVALID_OPTION": "اختر أحد الخيارات.",
+    "INVALID_EMAIL": "أدخل بريدًا إلكترونيًا صالحًا.",
+    "INVALID_DATE": "أدخل تاريخًا حقيقيًا.",
+    "INVALID_TIME": "أدخل وقتًا مثل 09:30.",
+    "INVALID_TIMEZONE": "اختر منطقة زمنية من القائمة.",
+    "INVALID_COUNTRY": "اختر دولة من القائمة.",
+    "INVALID_AMOUNT": "أدخل مبلغًا مثل 45 أو 45.50.",
+    "TOO_MANY_DECIMALS": "عملة العيادة لا تحتوي على هذا العدد من الخانات العشرية.",
+    "SELECT_AT_LEAST_ONE": "اختر واحدًا على الأقل.",
+    "CLOSES_BEFORE_OPENS": "يجب أن يكون وقت الإغلاق بعد وقت الفتح.",
+    "IN_FUTURE": "لا يمكن أن يكون هذا التاريخ في المستقبل.",
+    "NOT_FOUND": "لم يعد هذا السجل موجودًا.",
+    "RANGE_INVERTED": "بداية الفترة بعد نهايتها.",
+    "RANGE_TOO_LONG": "الفترة المطلوبة طويلة جدًا."
+  },
+  "auth": {
+    "login": {
+      "title": "تسجيل الدخول",
+      "subtitle": "استخدم البريد الإلكتروني المسجل لدى العيادة.",
+      "email": "البريد الإلكتروني",
+      "password": "كلمة المرور",
+      "forgot": "نسيت كلمة المرور؟",
+      "submit": "تسجيل الدخول",
+      "notices": {
+        "ended": "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.",
+        "reset": "تم تغيير كلمة المرور. سجّل الدخول بالكلمة الجديدة."
+      }
+    },
+    "forgot": {
+      "title": "إعادة تعيين كلمة المرور",
+      "subtitle": "أدخل بريدك الإلكتروني وسنرسل إليك رابطًا لاختيار كلمة مرور جديدة.",
+      "email": "البريد الإلكتروني",
+      "submit": "إرسال رابط إعادة التعيين",
+      "sent": "إذا كان هناك حساب بهذا العنوان، فرابط إعادة التعيين في طريقه إليك. تنتهي صلاحيته خلال 30 دقيقة."
+    }
+  },
+  "password": {
+    "requirements": "12 حرفًا على الأقل. الأطول أقوى — جملة قصيرة خيار جيد.",
+    "mismatch": "كلمتا المرور غير متطابقتين.",
+    "issues": {
+      "TOO_SHORT": "استخدم 12 حرفًا على الأقل.",
+      "TOO_LONG": "استخدم 128 حرفًا أو أقل.",
+      "TOO_COMMON": "كلمة المرور هذه شائعة جدًا. اختر شيئًا أقل قابلية للتخمين.",
+      "TOO_REPETITIVE": "استخدم تنوعًا أكبر في الأحرف.",
+      "CONTAINS_PERSONAL_INFO": "لا تُدرج اسمك أو بريدك الإلكتروني.",
+      "SAME_AS_CURRENT": "اختر كلمة مرور مختلفة عن الحالية.",
+      "INCORRECT": "كلمة المرور الحالية غير صحيحة."
+    }
+  },
+  "status": {
+    "INVITED": "مدعو",
+    "ACTIVE": "نشط",
+    "SUSPENDED": "موقوف",
+    "DEACTIVATED": "معطّل"
+  },
+  "scopes": {
+    "OWN": "الخاصة به",
+    "ASSIGNED": "المسندة إليه",
+    "CLINIC": "العيادة كاملة",
+    "GLOBAL": "الكل"
+  },
+  "genders": {
+    "FEMALE": "أنثى",
+    "MALE": "ذكر",
+    "OTHER": "آخر",
+    "UNDISCLOSED": "غير مُفصح عنه"
+  },
+  "noAccess": {
+    "title": "ليس لديك صلاحية الوصول إلى هذه الصفحة",
+    "body": "إذا كنت تعتقد أن هذا خطأ، تواصل مع مسؤول العيادة."
+  },
+  "errorPage": {
+    "title": "حدث خطأ ما",
+    "body": "حدث خطأ غير متوقع. حاول مرة أخرى، وإذا تكرر ذلك فتواصل مع العيادة.",
+    "segmentTitle": "تعذّر تحميل هذه الصفحة",
+    "segmentBody": "حدث خطأ أثناء تحميلها. حاول مرة أخرى؛ وإذا تكرر ذلك فتواصل مع الدعم واذكر وقت حدوثه.",
+    "notFoundTitle": "الصفحة غير موجودة",
+    "notFoundBody": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
+    "home": "الانتقال إلى صفحتي الرئيسية"
+  },
+  "account": {
+    "language": {
+      "title": "اللغة",
+      "hint": "لغة واجهتك أنت. لا تتغير بها لغة زملائك.",
+      "failed": "تعذّر تغيير اللغة. حاول مرة أخرى."
+    }
+  }
+}

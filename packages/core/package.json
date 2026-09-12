@@ -11,6 +11,7 @@
     "./edge": "./src/edge.ts",
     "./access": "./src/modules/access/index.ts",
     "./audit": "./src/modules/audit/index.ts",
+    "./audit-explorer": "./src/modules/audit-explorer/index.ts",
     "./clinic": "./src/modules/clinic/index.ts",
     "./health": "./src/modules/health/index.ts",
     "./identity": "./src/modules/identity/index.ts",
@@ -27,7 +28,8 @@
     "./inventory": "./src/modules/inventory/index.ts",
     "./outbox": "./src/modules/outbox/index.ts",
     "./notifications": "./src/modules/notifications/index.ts",
-    "./support": "./src/modules/support/index.ts"
+    "./support": "./src/modules/support/index.ts",
+    "./analytics": "./src/modules/analytics/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

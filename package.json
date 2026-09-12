@@ -17,12 +17,15 @@
     "worker": "pnpm --filter @clinic/worker start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit": "pnpm audit --prod --audit-level high",
     "graph": "depcruise packages apps --config .dependency-cruiser.cjs",
     "infra:up": "docker compose up -d --wait",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v && docker compose up -d --wait",
     "db:migrate": "pnpm --filter @clinic/db migrate:up",
     "db:seed": "pnpm --filter @clinic/core seed",
+    "db:backup": "pnpm --filter @clinic/db backup",
+    "db:restore": "pnpm --filter @clinic/db restore",
     "db:verify": "pnpm --filter @clinic/db verify:replica-set",
     "setup": "pnpm install && pnpm infra:up && pnpm db:migrate && pnpm db:seed",
     "verify": "pnpm lint && pnpm typecheck && pnpm graph && pnpm test"
@@ -40,5 +43,10 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1",
     "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.23"
+    }
   }
 }

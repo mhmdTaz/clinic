@@ -36,6 +36,15 @@ export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number]
 export const ACTOR_TYPES = ['USER', 'SYSTEM', 'API_CLIENT', 'ANONYMOUS'] as const
 export type ActorType = (typeof ACTOR_TYPES)[number]
 
+/**
+ * What stands in for a sensitive value in an audit diff (section 11.3).
+ *
+ * Declared here because the capture plugin in @clinic/db writes it and the explorer in
+ * @clinic/core has to recognise it — a field whose value was never stored still has to render
+ * as "changed, value withheld" rather than as a literal string somebody could mistake for data.
+ */
+export const REDACTED_MARKER = '[redacted]'
+
 /** Smallest bookable increment, and the slot-reservation grid size (section 8.7). */
 export const SLOT_GRID_MINUTES = 5
 
@@ -194,6 +203,8 @@ export const NOTIFICATION_TYPES = [
   'TICKET_REPLY',
   'TICKET_ASSIGNED',
   'STOCK_LOW',
+  /** The audit chain failed verification. A tamper alert, and it cannot be switched off. */
+  'AUDIT_CHAIN_BROKEN',
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

@@ -1,6 +1,7 @@
 export * from './errors'
 export {
   runWithContext,
+  provideContextResolver,
   currentContext,
   systemContext,
   type RequestContext,

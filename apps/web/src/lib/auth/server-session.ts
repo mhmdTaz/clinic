@@ -2,11 +2,12 @@ import { cache } from 'react'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import type { PortalKey } from '@clinic/config'
-import { isDomainError, runWithContext } from '@clinic/core'
+import { isDomainError, type RequestContext } from '@clinic/core'
 import { PORTALS, assertCan, landingPath, type Actor } from '@clinic/core/access'
 import { authenticateAccessToken } from '@clinic/core/session'
 import { ACCESS_COOKIE } from './cookies'
 import { requestMetaFrom } from './request-meta'
+import { setRequestContext } from './request-scope'
 
 type Resolution =
   | { status: 'authenticated'; actor: Actor; stale: boolean }
@@ -34,6 +35,36 @@ const resolveSession = cache(async (): Promise<Resolution> => {
 async function currentPath(): Promise<string> {
   return (await headers()).get('x-pathname') ?? '/'
 }
+
+/**
+ * Opens the audit context for the whole render, not just for the permission check.
+ *
+ * A server component has no callback to wrap: the page establishes who is acting and then
+ * *renders*, and everything it calls — `getPatient`, `listInvoices`, the audit explorer itself —
+ * runs after the helper has returned. Scoping the context to `assertCan` alone would mean every
+ * privileged read performed by a page render is recorded with no actor, no request id and no
+ * address, which makes "who viewed this patient's file" unanswerable for exactly the pages people
+ * actually use.
+ *
+ * Memoised per request, so the layout and the page share one context rather than opening two with
+ * different ids.
+ */
+const enterRequestContext = cache(async (actor: Actor): Promise<RequestContext> => {
+  const requestHeaders = await headers()
+  const meta = requestMetaFrom(requestHeaders)
+  const context: RequestContext = {
+    requestId: requestHeaders.get('x-request-id') ?? crypto.randomUUID(),
+    actorId: actor.userId,
+    actorType: actor.kind,
+    actorLabel: actor.displayName,
+    actorRoles: actor.roleKeys,
+    clinicId: actor.clinicId,
+    ipAddress: meta.ipAddress ?? undefined,
+    userAgent: meta.userAgent ?? undefined,
+  }
+  setRequestContext(context)
+  return context
+})
 
 export async function optionalActor(): Promise<Actor | null> {
   const resolution = await resolveSession()
@@ -73,23 +104,10 @@ export async function requireActor(): Promise<Actor> {
  */
 export const requirePortal = cache(async (portal: PortalKey): Promise<Actor> => {
   const actor = await requireActor()
-  const requestHeaders = await headers()
-  const meta = requestMetaFrom(requestHeaders)
+  await enterRequestContext(actor)
 
   try {
-    await runWithContext(
-      {
-        requestId: requestHeaders.get('x-request-id') ?? crypto.randomUUID(),
-        actorId: actor.userId,
-        actorType: actor.kind,
-        actorLabel: actor.displayName,
-        actorRoles: actor.roleKeys,
-        clinicId: actor.clinicId,
-        ipAddress: meta.ipAddress ?? undefined,
-        userAgent: meta.userAgent ?? undefined,
-      },
-      () => assertCan(actor, PORTALS[portal].permission),
-    )
+    await assertCan(actor, PORTALS[portal].permission)
   } catch (error) {
     if (isDomainError(error) && error.code === 'FORBIDDEN') {
       return redirect(landingPath(actor.portals, actor.preferredPortal))
