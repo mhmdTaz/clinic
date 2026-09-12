@@ -218,7 +218,8 @@
     "TOO_SOON": "That is too soon to book online. Please call the clinic.",
     "BEYOND_HORIZON": "That is further ahead than booking is open.",
     "TOO_LATE_TO_CHANGE": "That is too close to the appointment to change online. Please call the clinic.",
-    "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands."
+    "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands.",
+    "NO_SLOT_TODAY": "That doctor has no open time left today. Book a later appointment instead."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -697,7 +698,9 @@
         "reason": "Reason",
         "internalNote": "Note for the clinic",
         "history": "What has happened"
-      }
+      },
+      "waiting": "Waiting room",
+      "waitingCount": "{count, plural, one {# person is here} other {# people are here}}"
     }
   },
   "doctor": {
@@ -946,7 +949,8 @@
     },
     "sources": {
       "STAFF": "Booked by the clinic",
-      "PATIENT": "Booked by the patient"
+      "PATIENT": "Booked by the patient",
+      "WALK_IN": "Walk-in"
     },
     "actions": {
       "book": "Book an appointment",
@@ -955,7 +959,8 @@
       "complete": "Complete",
       "reschedule": "Reschedule",
       "noShow": "Did not attend",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "walkIn": "Walk-in"
     },
     "confirm": {
       "cancelTitle": "Cancel this appointment?",
@@ -1028,6 +1033,15 @@
       "startDate": "First day",
       "endDate": "Last day",
       "add": "Add time off"
+    },
+    "walkIn": {
+      "title": "Register a walk-in",
+      "description": "They are given the doctor's next open time today and checked in straight away.",
+      "doctor": "Who will see them",
+      "chooseDoctor": "Choose a doctor",
+      "reason": "What have they come in for?",
+      "internalNote": "Note for the clinic",
+      "submit": "Register and check in"
     }
   }
 }

@@ -55,7 +55,7 @@ export const APPOINTMENT_STATUSES = [
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number]
 
 /** Who booked. Self-service is held to the clinic's window; the front desk is not (ADR-0022). */
-export const APPOINTMENT_SOURCES = ['STAFF', 'PATIENT'] as const
+export const APPOINTMENT_SOURCES = ['STAFF', 'PATIENT', 'WALK_IN'] as const
 export type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number]
 
 /** Self-service booking limits, overridable per clinic (ADR-0022). */

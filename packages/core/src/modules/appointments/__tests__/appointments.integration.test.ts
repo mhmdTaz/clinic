@@ -12,7 +12,7 @@ import type { Actor } from '../../access'
 import { getClinicSettings } from '../../clinic'
 import { createDoctor, setDoctorAvailability } from '../../doctors'
 import { registerPatient } from '../../patients'
-import { localMoment, weekdayOf } from '../../scheduling'
+import { instantOf, localMoment, weekdayOf } from '../../scheduling'
 import { authenticateAccessToken, login } from '../../session'
 import {
   bookAppointment,
@@ -23,6 +23,7 @@ import {
   listAppointments,
   markNoShow,
   offerSlots,
+  registerWalkIn,
   rescheduleAppointment,
   startAppointment,
 } from '../index'
@@ -61,6 +62,24 @@ async function scheduledDoctor(staff: Actor, date: string) {
     blocks: [{ dayOfWeek: weekdayOf(date), startsAt: '09:00', endsAt: '17:00' }],
   })
   return created.doctor
+}
+
+/**
+ * Mid-morning on the clinic's today. Walk-ins are relative to "now", and a suite that runs at
+ * 18:00 would otherwise find a doctor's day already over and fail for the time of day.
+ */
+async function thisMorning(actor: Actor): Promise<{ today: string; at: Date }> {
+  const settings = await getClinicSettings(actor)
+  const today = localMoment(new Date(), settings.timezone).date
+  return { today, at: instantOf(today, '09:00', settings.timezone) }
+}
+
+/** A date on a different weekday, for a doctor who deliberately does not work today. */
+function shiftedWeekday(date: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + 1))
+    .toISOString()
+    .slice(0, 10)
 }
 
 async function newPatient(staff: Actor) {
@@ -396,5 +415,86 @@ describe('self-service', () => {
 
     const mine = await listAppointments(patient, { from: date, to: date })
     expect(mine.map((appointment) => appointment.id)).toEqual([own.id])
+  })
+})
+
+describe('walk-ins', () => {
+  it('puts someone who arrived into the next open time today and checks them in', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { today, at } = await thisMorning(staff)
+    const doctor = await scheduledDoctor(staff, today)
+    const patient = await newPatient(staff)
+
+    const [day] = await offerSlots(staff, doctor.id, { from: today, to: today }, at)
+    const next = day?.slots[0]?.startsAt
+
+    const walkIn = await registerWalkIn(
+      staff,
+      {
+        patientId: patient.id,
+        doctorId: doctor.id,
+        branchId: null,
+        reason: 'Cut their hand',
+        internalNote: null,
+      },
+      at,
+    )
+
+    expect(walkIn.source).toBe('WALK_IN')
+    // Already at the desk, so already checked in — the queue is people, not intentions.
+    expect(walkIn.status).toBe('CHECKED_IN')
+    expect(walkIn.checkedInAt).not.toBeNull()
+    expect(walkIn.startsAt).toBe(next)
+    expect(walkIn.statusHistory.map((entry) => entry.toStatus)).toEqual(['SCHEDULED', 'CHECKED_IN'])
+
+    // On the grid like any other appointment, holding its cells (ADR-0013).
+    const held = await SlotReservationModel().countDocuments({
+      clinicId: clinicId(),
+      appointmentId: walkIn.id,
+    })
+    expect(held).toBeGreaterThan(0)
+    const [after] = await offerSlots(staff, doctor.id, { from: today, to: today }, at)
+    expect(after?.slots.map((slot) => slot.startsAt)).not.toContain(next)
+  })
+
+  it('gives the second walk-in the slot after the first, not a refusal', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { today, at } = await thisMorning(staff)
+    const doctor = await scheduledDoctor(staff, today)
+    const [first, second] = await Promise.all([newPatient(staff), newPatient(staff)])
+
+    const walkIn = (patientId: string) =>
+      registerWalkIn(
+        staff,
+        { patientId, doctorId: doctor.id, branchId: null, reason: null, internalNote: null },
+        at,
+      )
+
+    const [one, two] = await Promise.all([walkIn(first.id), walkIn(second.id)])
+    expect(one.startsAt).not.toBe(two.startsAt)
+    expect([one.status, two.status]).toEqual(['CHECKED_IN', 'CHECKED_IN'])
+  })
+
+  it('says so plainly when the doctor has nothing left today', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { today, at } = await thisMorning(staff)
+    const patient = await newPatient(staff)
+
+    // A doctor whose week does not include today at all.
+    const doctor = await scheduledDoctor(staff, shiftedWeekday(today))
+
+    await expect(
+      registerWalkIn(
+        staff,
+        {
+          patientId: patient.id,
+          doctorId: doctor.id,
+          branchId: null,
+          reason: null,
+          internalNote: null,
+        },
+        at,
+      ),
+    ).rejects.toMatchObject({ code: 'NO_SLOT_TODAY', status: 422 })
   })
 })

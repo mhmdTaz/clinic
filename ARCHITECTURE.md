@@ -2843,16 +2843,16 @@ user, and that user's menu and API access change on their next request — with 
 **Exit criteria:** staff books, reschedules and cancels; a patient books from their portal; two
 simultaneous bookings for the same slot produce exactly one appointment and one clean 409.
 
-Two items on the list above are deliberately not in the first pass, and neither is on the exit
-criteria:
+One item on the list above is deliberately not in the first pass, and it is not on the exit
+criteria: **drag to reschedule**. Moving an appointment works, through a dialog that offers the
+doctor's open times; dragging is a second way to reach the same use case, and an expensive one to
+make keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
 
-- **Drag to reschedule.** Moving an appointment works, through a dialog that offers the doctor's
-  open times; dragging is a second way to reach the same use case, and an expensive one to make
-  keyboard-accessible. It is worth doing once the calendar's shape has settled under real use.
-- **The walk-in queue.** A walk-in arrives at 10:07 for a diary that offers 10:00 and 10:20. Taking
-  one means booking off the grid, and the grid is what makes double-booking impossible (ADR-0013).
-  How a clinic wants overbooking to behave — refuse, squeeze in, or queue for the next gap — is a
-  policy question, not a UI one, and it deserves its own decision rather than an improvised answer.
+The walk-in queue is here, and cost a decision rather than a feature flag: a walk-in takes the
+doctor's **next open slot** and is checked in at once (ADR-0023), so it is an ordinary appointment
+on an ordinary slot and the reservation grid keeps making double-booking impossible for everyone.
+The waiting room is then a query — today's appointments that are checked in — rather than a second
+kind of thing to keep in step with the first.
 
 ### Phase 4 — Clinical records and files · ~2.5 weeks
 
@@ -3012,6 +3012,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0020 | Possible duplicate patients warn, and saving anyway takes a reason | **Accepted** | `docs/adr/0020` — national ID, phone (last seven digits), email, or name plus date of birth; re-checked at save; overrides audited |
 | 0021 | One branch until a second exists | **Accepted** | `docs/adr/0021` — branch fields appear only in a multi-branch clinic; the last open branch cannot close |
 | 0022 | Patients book inside a window; staff are not limited | **Accepted** | `docs/adr/0022` — booking horizon, minimum notice and cancellation cutoff live in clinic settings and bind self-service only |
+| 0023 | A walk-in takes the next open slot, not the current minute | **Accepted** | `docs/adr/0023` — recording an arrival off the five-minute grid would end the double-booking guarantee for everyone; genuine overbooking stays a separate, deliberate decision |
 
 ### The ones to settle next
 

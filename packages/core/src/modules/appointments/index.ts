@@ -6,6 +6,7 @@ export {
   toAppointmentDetail,
 } from './application/directory'
 export { bookAppointment, bookOwnAppointment } from './application/booking'
+export { registerWalkIn } from './application/walk-in'
 export {
   rescheduleAppointment,
   cancelAppointment,
