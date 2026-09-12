@@ -21,3 +21,5 @@ export {
   type StoredPreference,
 } from './domain/preferences'
 // NOT exported: the repositories, the mailer or the templates.
+export { registerDevice, listMyDevices, removeDevice, detachDevice } from './application/devices'
+// NOT exported: the device repository.

@@ -45,6 +45,13 @@ const EnvSchema = z.object({
 
   SMTP_URL: z.string().min(1),
   MAIL_FROM: z.string().email(),
+
+  /**
+   * Expo's push relay (§9.4). Optional: a deployment with no mobile app sends no push, and a
+   * developer with no device needs nothing configured — `push.send` reports why rather than
+   * pretending to have delivered.
+   */
+  EXPO_ACCESS_TOKEN: z.string().optional(),
 })
 
 export type Env = z.infer<typeof EnvSchema>

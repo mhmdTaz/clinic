@@ -187,7 +187,13 @@ export type TicketCategory = (typeof TICKET_CATEGORIES)[number]
  * our own database; EMAIL depends on somebody else's server, which is why delivery is tracked
  * per channel rather than per notification.
  */
-export const NOTIFICATION_CHANNELS = ['IN_APP', 'EMAIL'] as const
+/**
+ * How a notification reaches somebody.
+ *
+ * PUSH arrives with the mobile app (Phase 9). ARCHITECTURE §9.4 said it was "already in the
+ * enum"; it was not, which is the sort of claim a plan makes and an implementation has to settle.
+ */
+export const NOTIFICATION_CHANNELS = ['IN_APP', 'EMAIL', 'PUSH'] as const
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number]
 
 /**

@@ -31,7 +31,12 @@ import {
   listLiveSessions,
   updateProfile,
 } from '../../identity'
-import { buildSessionUser, issueAccessToken, requireSession } from './session-user'
+import {
+  buildSessionUser,
+  issueAccessToken,
+  requireSession,
+  resolveProfileIds,
+} from './session-user'
 import type { IssuedAccessToken } from './types'
 
 async function freshSessionParts(actor: Actor) {
@@ -46,7 +51,7 @@ async function freshSessionParts(actor: Actor) {
 
 export async function getMe(actor: Actor): Promise<SessionUser> {
   const { user, access, clinic } = await freshSessionParts(actor)
-  return buildSessionUser(user, access, clinic)
+  return buildSessionUser(user, access, clinic, await resolveProfileIds(user, access))
 }
 
 /**
@@ -78,7 +83,7 @@ export async function updateMe(
 
   const { user, access, clinic } = await freshSessionParts(actor)
   return {
-    user: buildSessionUser(user, access, clinic),
+    user: buildSessionUser(user, access, clinic, await resolveProfileIds(user, access)),
     // The token carries the display name and the preferred portal, so it is reissued.
     accessToken: await issueAccessToken(user, access, clinic, sessionId, now),
   }

@@ -2045,7 +2045,7 @@ GET    /api/v1/admin/analytics/overview
 | Auth | JWT in an httpOnly cookie | The same JWT as a Bearer token, plus `RefreshToken` rows for long-lived sessions — **already in the schema** |
 | Data | REST + TanStack Query | The same client and the same query keys; persist the cache for offline reads |
 | Files | Presigned PUT from the browser | The same presign endpoint from the device |
-| Push | In-app and email | Register a device token; `NotificationChannel.PUSH` is **already in the enum** |
+| Push | In-app and email | Register a device token; the `PUSH` channel, the `deviceTokens` collection and Expo's relay arrived in Phase 9. (This row previously claimed `NotificationChannel.PUSH` was "already in the enum". It was not — a plan can say that; an implementation has to settle it.) |
 | Realtime | Revalidation and polling in v1 | SSE or WebSocket added as a new transport over the same domain events |
 
 None of these require reworking v1 — they are additive, which is the whole point of doing the
@@ -3100,12 +3100,43 @@ One decision was recorded on the way through:
    recomputed over the restored documents — which is what proves the rows came back
    byte-identical rather than merely in the right quantity.
 
-### Phase 9 — React Native app · after v1
+### Phase 9 — React Native app · after v1 · 🔸 in progress
 
 Expo app consuming `@clinic/api-client`. Patient portal first (appointments, documents,
 reminders, support), then the doctor portal (my day, chart read, note capture). No backend work
 should be required beyond push registration — that is the test of whether sections 6 and 9 were
 implemented honestly.
+
+**How the test came out.** `tests/e2e/specs/mobile-api-parity.spec.ts` drives the whole patient
+portal through the client over HTTP with a Bearer token and no cookie, using no browser at all.
+It passes — but building it needed **one backend change beyond push**:
+
+- `SessionUser` carried no `patientId` or `doctorId`. The web reads them off the server-side
+  actor and never needed them in a payload; a device has no actor, so a patient's app had no way
+  to find its own record, and every patient screen starts from that record. Now returned by the
+  session. Small, but the promise was "no backend work beyond push registration", and this was
+  backend work beyond push registration.
+
+Two further findings, recorded rather than quietly fixed:
+
+- **`/api/v1/me/patients` is a doctor's caseload**, not "my record". It returns an empty array
+  for a patient rather than an error — the kind of silent wrong answer a mobile client ships. The
+  client method is named `patientsITreat` so the mistake cannot be repeated.
+- **§9.2 states cursor pagination as the convention; only `patients` and `users` follow it.**
+  The rest return filtered arrays bounded by a date range or by one patient. Bounded in practice,
+  unbounded in the contract, and a real limit for a device. Not changed here: repaginating six
+  endpoints is an API change that would break the web, and it deserves its own decision.
+
+**Done:** `packages/api-client` (one client, two transports, single-flight refresh, contract
+validation); push registration end to end (`deviceTokens`, the `PUSH` channel, Expo's relay
+behind the same seam as the mailer); the Expo app's foundations — session gate, query layer on
+the shared cache keys, offline reads, notification routing — and the patient screens for home,
+appointments, updates and account.
+
+**Not done, and stated plainly:** the app has been typechecked, linted and unit-tested, but
+**never run on a device or a simulator** — there is none in the environment it was built in. The
+booking flow, the documents screen and the whole doctor portal are not written. Neither is the
+CSFLE work §16.1 anticipates for a device holding PHI at rest.
 
 ### Sequencing rationale
 

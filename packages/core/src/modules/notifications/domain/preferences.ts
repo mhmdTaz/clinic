@@ -19,18 +19,21 @@ import {
 const DEFAULTS: Readonly<Record<NotificationType, readonly NotificationChannel[]>> = {
   // Things about an appointment reach a patient both ways: the in-app row is the record, and the
   // email is what actually gets read.
-  APPOINTMENT_CONFIRMED: ['IN_APP', 'EMAIL'],
-  APPOINTMENT_REMINDER: ['IN_APP', 'EMAIL'],
-  APPOINTMENT_CANCELLED: ['IN_APP', 'EMAIL'],
+  APPOINTMENT_CONFIRMED: ['IN_APP', 'EMAIL', 'PUSH'],
+  // The flagship reason to have the app at all: a reminder that arrives as a buzz rather than as
+  // an email somebody reads the following Tuesday.
+  APPOINTMENT_REMINDER: ['IN_APP', 'EMAIL', 'PUSH'],
+  APPOINTMENT_CANCELLED: ['IN_APP', 'EMAIL', 'PUSH'],
+  // Money is not urgent and a push about it is intrusive. In the app and in the inbox is enough.
   INVOICE_ISSUED: ['IN_APP', 'EMAIL'],
   PAYMENT_RECEIVED: ['IN_APP'],
-  TICKET_REPLY: ['IN_APP', 'EMAIL'],
+  TICKET_REPLY: ['IN_APP', 'EMAIL', 'PUSH'],
   // Clinic-side noise: it belongs in the bell, not in somebody's inbox.
   TICKET_ASSIGNED: ['IN_APP'],
   STOCK_LOW: ['IN_APP'],
   // A tamper alert goes both ways: the bell is the record, the email is what reaches somebody
   // who is not looking at the admin portal at 2am.
-  AUDIT_CHAIN_BROKEN: ['IN_APP', 'EMAIL'],
+  AUDIT_CHAIN_BROKEN: ['IN_APP', 'EMAIL', 'PUSH'],
 }
 
 /**

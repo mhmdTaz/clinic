@@ -53,3 +53,9 @@ export { connect, disconnect } from '@clinic/db'
 
 /** Waits for in-flight audit writes. Call on graceful shutdown. */
 export { flushAudit }
+
+/**
+ * The push sender, so a deployment can swap Expo's relay for APNs/FCM and a test can install a
+ * double without reaching into the notifications module. Same seam as the mailer.
+ */
+export { push, providePushSender, type PushMessage, type PushResult } from './push'

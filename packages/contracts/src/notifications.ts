@@ -9,7 +9,7 @@ import { z } from 'zod'
  * single status would make "sent" mean two different things.
  */
 
-export const NotificationChannel = z.enum(['IN_APP', 'EMAIL'])
+export const NotificationChannel = z.enum(['IN_APP', 'EMAIL', 'PUSH'])
 export type NotificationChannel = z.infer<typeof NotificationChannel>
 
 export const NotificationType = z.enum([
@@ -83,3 +83,35 @@ export const NotificationPreferenceRow = z.object({
   isLocked: z.boolean(),
 })
 export type NotificationPreferenceRow = z.infer<typeof NotificationPreferenceRow>
+
+// ── Devices (§9.4) ───────────────────────────────────────────────────────────
+
+export const DevicePlatform = z.enum(['ios', 'android', 'web'])
+export type DevicePlatform = z.infer<typeof DevicePlatform>
+
+/**
+ * Registering a device for push.
+ *
+ * The app calls this on every launch, not once: a push token is reissued on reinstall, on a
+ * restore from backup, and sometimes for no reason the app is told. Registration is therefore an
+ * upsert keyed on the token — which also reassigns a handed-over phone to whoever is signed in
+ * now, instead of pushing the previous owner's appointments to them.
+ */
+export const RegisterDeviceRequest = z.object({
+  token: z.string().min(8).max(256),
+  platform: DevicePlatform,
+  deviceName: z.string().trim().max(80).nullish(),
+  appVersion: z.string().trim().max(40).nullish(),
+})
+export type RegisterDeviceRequest = z.infer<typeof RegisterDeviceRequest>
+
+export const RegisteredDevice = z.object({
+  id: z.string(),
+  platform: DevicePlatform,
+  deviceName: z.string().nullable(),
+  appVersion: z.string().nullable(),
+  lastSeenAt: z.string().datetime(),
+  /** Never the token itself: it is a credential-shaped secret and a list is not a place for one. */
+  isThisDevice: z.boolean(),
+})
+export type RegisteredDevice = z.infer<typeof RegisteredDevice>

@@ -28,7 +28,11 @@ export default tseslint.config(
   {
     // A hook called conditionally is a bug React only reports at runtime, and only on the
     // render path that skips it.
-    files: ['apps/web/src/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
+    files: [
+      'apps/web/src/**/*.{ts,tsx}',
+      'apps/mobile/{src,app}/**/*.{ts,tsx}',
+      'packages/ui/src/**/*.{ts,tsx}',
+    ],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
@@ -177,7 +181,15 @@ export default tseslint.config(
   // ── Cross-cutting rules from sections 13.1, 16.1 and 8.15 ──────────────────
   {
     files: ['apps/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
-    ignores: ['packages/config/**', '**/*.config.{ts,js,mjs}', '**/scripts/**'],
+    ignores: [
+      'packages/config/**',
+      '**/*.config.{ts,js,mjs}',
+      '**/scripts/**',
+      // A React Native build has no @clinic/config: it is a bundle on a phone, not a server
+      // process, and its configuration arrives through Expo's app config at build time. The one
+      // place it reads process.env is app.config.ts, which is that build step.
+      'apps/mobile/app.config.ts',
+    ],
     rules: {
       'no-restricted-syntax': [
         'error',

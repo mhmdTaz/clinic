@@ -2,7 +2,7 @@ import { recordAudit } from '../../audit'
 import { resolveAccess } from '../../access'
 import { getClinicSessionInfo } from '../../clinic'
 import { displayNameOf, startSession, type AuthUser } from '../../identity'
-import { buildSessionUser, issueAccessToken } from './session-user'
+import { buildSessionUser, issueAccessToken, resolveProfileIds } from './session-user'
 import { deviceFrom, type IssuedSession, type RequestMeta } from './types'
 
 /**
@@ -41,7 +41,7 @@ export async function openSession(
   })
 
   return {
-    user: buildSessionUser(user, access, clinic),
+    user: buildSessionUser(user, access, clinic, await resolveProfileIds(user, access)),
     sessionId: refresh.familyId,
     accessToken: accessToken.token,
     accessTokenExpiresAt: accessToken.expiresAt,

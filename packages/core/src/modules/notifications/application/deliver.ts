@@ -2,6 +2,8 @@ import type { NotificationChannel, NotificationType } from '@clinic/config'
 import { getClinicLetterhead } from '../../clinic'
 import { notificationTemplate } from '../infrastructure/notification-templates'
 import { mailer } from '../../../mailer'
+import { push, type PushMessage } from '../../../push'
+import { deviceRepository } from '../infrastructure/device.repository'
 import {
   notificationRepository,
   preferenceRepository,
@@ -35,6 +37,8 @@ export interface DeliveryResult {
   /** How many were already there — the ordinary shape of a retry, not a failure. */
   duplicates: number
   emailed: number
+  /** Devices the relay accepted. Zero with recipients present means nobody has the app. */
+  pushed: number
 }
 
 /**
@@ -54,10 +58,19 @@ export interface DeliveryResult {
  */
 export async function deliver(request: DeliveryRequest): Promise<DeliveryResult> {
   const recipients = await preferenceRepository.recipients(request.clinicId, request.userIds)
-  if (recipients.size === 0) return { created: 0, duplicates: 0, emailed: 0 }
+  if (recipients.size === 0) return { created: 0, duplicates: 0, emailed: 0, pushed: 0 }
 
   const clinic = await getClinicLetterhead(request.clinicId)
-  const result: DeliveryResult = { created: 0, duplicates: 0, emailed: 0 }
+  const result: DeliveryResult = { created: 0, duplicates: 0, emailed: 0, pushed: 0 }
+
+  /**
+   * Push is gathered across recipients and sent once at the end, not per person.
+   *
+   * The relay takes a hundred messages per call, and a clinic-wide notice is a hundred devices;
+   * one call each would be a hundred round trips inside a loop that is already holding up
+   * whatever raised the event.
+   */
+  const outgoing: Array<{ userId: string; notificationId: string; message: PushMessage }> = []
 
   for (const userId of request.userIds) {
     const recipient = recipients.get(userId)
@@ -108,9 +121,90 @@ export async function deliver(request: DeliveryRequest): Promise<DeliveryResult>
       )
       if (sent.ok) result.emailed += 1
     }
+
+    if (channels.includes('PUSH')) {
+      const devices = await deviceRepository.tokensForUsers(request.clinicId, [userId])
+      for (const device of devices) {
+        outgoing.push({
+          userId,
+          notificationId: notification.id,
+          message: {
+            to: device.token,
+            title: request.title,
+            body: request.body,
+            // Small on purpose: the payload limit is about 4 KB, and everything the app needs to
+            // open the right screen is an id and a path. The rest it fetches.
+            data: {
+              notificationId: notification.id,
+              type: request.type,
+              ...(request.href ? { href: request.href } : {}),
+            },
+          },
+        })
+      }
+      // No device registered is not a failure — it is somebody who has not installed the app.
+      if (devices.length === 0) {
+        await notificationRepository.markChannel(
+          request.clinicId,
+          notification.id,
+          'PUSH',
+          'FAILED',
+          'NO_DEVICE',
+        )
+      }
+    }
   }
 
+  if (outgoing.length > 0) result.pushed += await sendPush(request.clinicId, outgoing)
+
   return result
+}
+
+/**
+ * Sends the batch and records what happened to each device.
+ *
+ * A token the relay reports as `DeviceNotRegistered` is marked dead so the next batch skips it:
+ * an uninstalled app otherwise stays in every send forever, turning a push run into mostly
+ * failures and hiding the ones that matter.
+ */
+async function sendPush(
+  clinicId: string,
+  outgoing: Array<{ userId: string; notificationId: string; message: PushMessage }>,
+): Promise<number> {
+  const results = await push.send(outgoing.map((entry) => entry.message))
+  let delivered = 0
+
+  // Per notification rather than per device: one person with three phones has one notification,
+  // and it counts as delivered if it reached any of them.
+  const byNotification = new Map<string, { ok: boolean; error?: string }>()
+
+  for (const [index, entry] of outgoing.entries()) {
+    const outcome = results[index] ?? { ok: false, error: 'NO_RESULT' }
+    if (outcome.ok) delivered += 1
+    else if (outcome.unregistered) {
+      await deviceRepository.markFailed(clinicId, entry.message.to, outcome.error ?? 'UNREGISTERED')
+    }
+
+    const current = byNotification.get(entry.notificationId)
+    if (!current?.ok) {
+      byNotification.set(entry.notificationId, {
+        ok: outcome.ok,
+        ...(outcome.ok ? {} : { error: outcome.error ?? 'UNKNOWN' }),
+      })
+    }
+  }
+
+  for (const [notificationId, outcome] of byNotification) {
+    await notificationRepository.markChannel(
+      clinicId,
+      notificationId,
+      'PUSH',
+      outcome.ok ? 'SENT' : 'FAILED',
+      outcome.ok ? null : (outcome.error ?? 'UNKNOWN'),
+    )
+  }
+
+  return delivered
 }
 
 async function sendEmail(input: {

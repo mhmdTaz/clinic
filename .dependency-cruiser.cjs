@@ -79,6 +79,9 @@ module.exports = {
           '\\.d\\.ts$',
           '\\.(config|setup[^/]*)\\.(ts|js|mjs|cjs)$', // tool configs are entry points
           '^packages/db/migrations/', // migrate-mongo loads these by convention
+          // Resolved by a vitest alias, never imported by name. It exists to make a unit test
+          // fail loudly if pure logic ever picks up a React Native import.
+          '^apps/mobile/test/react-native-stub\.ts$',
           '^packages/[^/]+/src/index\\.ts$', // a package's public API, imported by name
         ],
       },

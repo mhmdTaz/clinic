@@ -11,10 +11,19 @@ export const ResponseMeta = z.object({
 })
 export type ResponseMeta = z.infer<typeof ResponseMeta>
 
+/**
+ * One field's problem: which field, and a stable code for what is wrong with it.
+ *
+ * Named rather than inlined because both the API client and every form consume it, and a shape
+ * two callers copy is a shape that drifts.
+ */
+export const ApiIssue = z.object({ field: z.string(), issue: z.string() })
+export type ApiIssue = z.infer<typeof ApiIssue>
+
 export const ApiErrorBody = z.object({
   code: z.string(),
   message: z.string(),
-  details: z.array(z.object({ field: z.string(), issue: z.string() })).optional(),
+  details: z.array(ApiIssue).optional(),
 })
 export type ApiErrorBody = z.infer<typeof ApiErrorBody>
 
