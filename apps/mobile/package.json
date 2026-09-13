@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "preview:web": "node scripts/web-preview.mjs",
     "lint": "eslint src app",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
@@ -15,19 +16,26 @@
   "dependencies": {
     "@clinic/api-client": "workspace:*",
     "@clinic/contracts": "workspace:*",
+    "@expo/metro-runtime": "~56.0.21",
+    "@expo/vector-icons": "^15.0.2",
     "@tanstack/react-query": "^5.62.7",
     "expo": "~56.0.21",
     "expo-constants": "~56.0.25",
+    "expo-crypto": "~56.0.5",
     "expo-device": "~56.0.4",
+    "expo-file-system": "~56.0.11",
     "expo-linking": "~56.0.17",
     "expo-notifications": "~56.0.25",
     "expo-router": "~56.2.20",
     "expo-secure-store": "~56.0.4",
     "expo-status-bar": "~56.0.4",
+    "expo-web-browser": "~56.0.6",
     "react": "^19.0.0",
+    "react-dom": "19.3.0",
     "react-native": "0.83.3",
     "react-native-safe-area-context": "^5.9.1",
-    "react-native-screens": "^4.27.0"
+    "react-native-screens": "^4.27.0",
+    "react-native-web": "~0.21.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.2",

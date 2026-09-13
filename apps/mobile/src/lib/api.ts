@@ -1,14 +1,14 @@
 import Constants from 'expo-constants'
-import * as SecureStore from 'expo-secure-store'
 import {
-  createClient,
   authResource,
+  createClient,
+  doctorPortal,
   patientPortal,
   secureTokenStore,
   type ApiClient,
-  type SecureStorage,
   type StoredTokens,
 } from '@clinic/api-client'
+import { keychain } from './device/keychain'
 
 /**
  * The app's one API client (§9.1).
@@ -19,26 +19,12 @@ import {
  * demonstrate rather than merely assert.
  */
 
-/**
- * The keychain, behind the interface `@clinic/api-client` asks for.
- *
- * The adapter exists so the client package never imports an Expo module: it is shared by a
- * Next.js server, a browser bundle and this app, and any one of those pulling in another's
- * native dependency is a build failure somewhere else entirely.
- *
- * SecureStore is the keychain on iOS and the Keystore-backed store on Android. A refresh token is
- * a long-lived credential; `AsyncStorage` would leave it in plain text on a rooted device.
+/*
+ * The keychain is `device/keychain.ts`, behind the interface `@clinic/api-client` asks for. The
+ * adapter exists so the client package never imports an Expo module: it is shared by a Next.js
+ * server, a browser bundle and this app, and any one of those pulling in another's native
+ * dependency is a build failure somewhere else entirely.
  */
-const keychain: SecureStorage = {
-  getItem: (key) => SecureStore.getItemAsync(key),
-  setItem: (key, value) =>
-    SecureStore.setItemAsync(key, value, {
-      // Available after the first unlock, but not while the device is locked: a background
-      // refresh should work, and a lost phone should not hand its keychain to anyone.
-      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-    }),
-  removeItem: (key) => SecureStore.deleteItemAsync(key),
-}
 
 /**
  * Where the clinic is.
@@ -82,3 +68,4 @@ export const client: ApiClient = createClient({
 
 export const auth = authResource(client)
 export const portal = patientPortal(client)
+export const doctor = doctorPortal(client)
