@@ -5,10 +5,12 @@ import { failureDetails, outcome, signedInActor } from '../../../../test/fixture
 import { flushAudit } from '../../audit'
 import {
   createBranch,
+  getBookingWindow,
   getClinicProfile,
   getClinicSettings,
   setBranchWorkingHours,
   setClinicHolidays,
+  updateBookingWindow,
   updateBranch,
   updateClinicProfile,
 } from '../index'
@@ -138,5 +140,39 @@ describe('holidays', () => {
     // 22:30 UTC on the 24th is already the 25th in Beirut.
     const profile = await getClinicProfile(admin, new Date('2026-12-24T22:30:00Z'))
     expect(profile.upcomingHolidays.map((holiday) => holiday.name)).toEqual(['Christmas'])
+  })
+})
+
+describe('the booking window (ADR-0022)', () => {
+  /**
+   * The people the window binds are patients, and the settings that hold it were admin-only over
+   * the API — so a patient's phone booked blind. The window is its own read now.
+   */
+  it('is readable by a patient, and says what an admin set', async () => {
+    const { actor: admin } = await signedInActor({ role: 'admin' })
+    const { actor: patient } = await signedInActor({ role: 'patient' })
+
+    await updateBookingWindow(admin, {
+      horizonDays: 45,
+      minimumNoticeHours: 4,
+      cancellationCutoffHours: 12,
+    })
+    expect(await getBookingWindow(patient)).toEqual({
+      horizonDays: 45,
+      minimumNoticeHours: 4,
+      cancellationCutoffHours: 12,
+    })
+
+    // Put back, so the rest of the suite books under the defaults it expects.
+    await updateBookingWindow(admin, {
+      horizonDays: 60,
+      minimumNoticeHours: 2,
+      cancellationCutoffHours: 24,
+    })
+  })
+
+  it('is refused to somebody with no clinic:read at all', async () => {
+    const { actor: nobody } = await signedInActor({ roleIds: [] })
+    expect(await outcome(getBookingWindow(nobody))).toBe('FORBIDDEN')
   })
 })

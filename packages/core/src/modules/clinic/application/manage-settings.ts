@@ -1,5 +1,6 @@
 import {
   overlappingHours,
+  type BookingWindow,
   type BranchInput,
   type ClinicProfileInput,
   type ClinicSettings,
@@ -27,6 +28,21 @@ async function settingsOf(clinicId: string): Promise<ClinicSettings> {
   if (!settings) throw new NotFoundError(`Clinic ${clinicId}`)
   // Anything the clinic has not set falls back to the defaults (ADR-0022).
   return { ...settings, booking: bookingWindowOf(booking) }
+}
+
+/**
+ * How far ahead, how close to the start, and how late to cancel — the rules a patient books by
+ * (ADR-0022).
+ *
+ * Its own read, rather than the settings, because the people bound by these rules are the ones
+ * who may not see the rest. A patient holds `clinic:read`, but the settings route sits behind
+ * `portal.admin:access`, so a patient's phone had no way to learn the horizon it was booking
+ * within (ARCHITECTURE §17, Phase 9). The web's booking page read it through the use case and
+ * never noticed.
+ */
+export async function getBookingWindow(actor: Actor): Promise<BookingWindow> {
+  await assertCan(actor, 'clinic:read')
+  return bookingWindowOf(await clinicRepository.findBookingWindow(actor.clinicId))
 }
 
 export async function getClinicSettings(actor: Actor): Promise<ClinicSettings> {

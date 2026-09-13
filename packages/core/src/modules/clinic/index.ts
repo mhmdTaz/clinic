@@ -8,6 +8,7 @@ export {
 } from './application/get-clinic-facts'
 export { getSchedulingFacts, type SchedulingFacts } from './application/get-scheduling-facts'
 export {
+  getBookingWindow,
   getClinicSettings,
   updateClinicProfile,
   createBranch,
