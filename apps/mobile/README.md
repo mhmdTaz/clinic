@@ -47,6 +47,18 @@ Links the server writes are **web paths** — a reminder says `/patient/appointm
 routes mirror the web's, and `src/lib/routes.ts` maps the rest. Anything the app has no screen for
 goes to the portal's home, never to "page not found" and never out of the app.
 
+## What it relies on the API for
+
+- **A retry is answered, not refused.** Booking and cancelling send an `Idempotency-Key` minted per
+  attempt and reused when the same attempt is retried, so a response lost to a weak signal comes
+  back as the appointment the first tap made (ADR-0034).
+- **The clinic's own booking horizon**, from `/api/v1/clinic/booking-window`. Until it loads, or if
+  it cannot, only this week is offered.
+- **Visits matched by appointment** (`appointmentIds`), so a note started the evening before still
+  shows on its appointment's day.
+- **Lists that page.** A list with a natural bound — the diary window, a day, the caseload, a chart —
+  is read whole up to a cap and says so when it stops; updates load a page at a time.
+
 ## What is not
 
 - **It has not run on a phone or a simulator.** Everything above has been driven by hand in the web

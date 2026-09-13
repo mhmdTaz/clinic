@@ -265,7 +265,7 @@ clinic/
 │  │  │  │  │  │  ├─ admin/         # clinic, users, roles, permissions, audit
 │  │  │  │  │  │  └─ me/            # session-scoped: profile, permissions, notifications
 │  │  │  │  │  ├─ auth/[...nextauth]/
-│  │  │  │  │  ├─ openapi/          # serves the generated OpenAPI document
+│  │  │  │  │  │  ├─ openapi.json/  # the OpenAPI document, built in lib/api/openapi (ADR-0032)
 │  │  │  │  │  └─ health/           # liveness + readiness for the load balancer
 │  │  │  │  └─ layout.tsx
 │  │  │  ├─ features/               # UI ONLY: components/hooks per feature, mirrors core modules
@@ -296,8 +296,8 @@ clinic/
 │  │     ├─ support/                # tickets and messages
 │  │     ├─ notifications/          # templates, dispatch, preferences
 │  │     └─ audit/                  # recorder, query API, tamper-evident chain
-│  ├─ contracts/                    # Zod request/response schemas + OpenAPI generation
-│  ├─ api-client/                   # typed fetch client generated from contracts (web + mobile)
+│  ├─ contracts/                    # Zod request/response schemas — Zod and nothing else
+│  ├─ api-client/                   # typed fetch client, typed from the contracts (web + mobile)
 │  ├─ db/                           # Mongoose connection, models, plugins, migrations, seeds
 │  │  ├─ models/                    #   one Mongoose schema per collection (section 8)
 │  │  ├─ plugins/                   #   tenant-guard, soft-delete, audit-capture, timestamps
@@ -1914,8 +1914,9 @@ The React Native app must not require a second backend. That is guaranteed by th
    same use cases — never as the only way to perform an operation. If a feature can only be done
    through a Server Action, it does not exist for mobile.
 2. **`packages/contracts` is the single source of truth.** Zod schemas define every request and
-   response; `zod-to-openapi` generates the OpenAPI document; `packages/api-client` is generated
-   from it. Web hooks and mobile hooks import the same client.
+   response; `zod-to-openapi` generates the OpenAPI document from them, served at
+   `/api/v1/openapi.json`; `packages/api-client` imports the contracts directly rather than being
+   generated from the document (ADR-0032). Web hooks and mobile hooks import the same client.
 3. **Auth is token-based underneath.** The web uses an httpOnly cookie holding the same JWT that
    mobile sends as `Authorization: Bearer`. One verification path, one session shape.
 
@@ -1923,8 +1924,8 @@ The React Native app must not require a second backend. That is guaranteed by th
 packages/contracts (Zod)
         │
         ├──▶ route handlers      — runtime request/response validation
-        ├──▶ OpenAPI document    — /api/openapi, published for any client
-        ├──▶ packages/api-client — typed fetch client
+        ├──▶ OpenAPI document    — /api/v1/openapi.json, published for any client
+        ├──▶ packages/api-client — typed fetch client, from the contracts directly (ADR-0032)
         │            ├──▶ apps/web    (TanStack Query hooks)
         │            └──▶ apps/mobile (the same hooks, same cache keys)
         └──▶ forms               — AutoForm validates against it client-side
@@ -1936,10 +1937,10 @@ packages/contracts (Zod)
 |---------|-----------|
 | Versioning | Path-based: `/api/v1/...`. `v2` may live beside `v1`; both call the same use cases with different serialisers. |
 | Naming | Plural nouns, HTTP verbs for CRUD. Non-CRUD transitions are explicit sub-resources: `POST /appointments/{id}/cancel`, not a `PATCH` that sets a status string. |
-| Pagination | Cursor-based, `?cursor=&limit=` with a max of 100. Cursors are opaque base64. Offset pagination degrades badly past a few thousand rows. |
+| Pagination | Cursor-based, `?cursor=&limit=` with a max of 100. Cursors are opaque base64. Offset pagination degrades badly past a few thousand rows. **Every collection pages**, except bounded reference data, named in `apps/web/src/lib/__tests__/openapi-catalogue.test.ts` so a new unpaged list fails until somebody decides: branches, roles, the permission catalogue, doctors, specialties, services, stock categories, suppliers, one person's devices and notification preferences, a doctor's open slots for a date range, one visit's stock use, and the audit filter's actor list. A screen that shows a bounded list whole reads every page up to a cap and says when it stops. Enforced since Phase 10; before it, most lists were silently capped. |
 | Filtering | Explicit whitelisted params only, never a raw query object from the client. |
 | Sparse fields | `?include=patient,doctor` — opt-in expansion, so the default response stays small. |
-| Idempotency | An `Idempotency-Key` header is honoured on every POST that moves money or creates a booking. **Not yet true for bookings**: payments are idempotent by a key in the body (ADR-0028), and a booking relies on the slot hold — found by the mobile app, see Phase 9 in §17. |
+| Idempotency | An `Idempotency-Key` header is honoured on every POST that moves money or creates or changes a booking: booking (staff, self-service, walk-in), rescheduling, cancelling, recording a payment and refunding one (ADR-0034). Optional. The same key and body within a day replays the first response, marked `idempotent-replayed: true`; the same key on a different body is `422 IDEMPOTENCY_KEY_REUSED`; a retry while the first runs is `409 IDEMPOTENCY_KEY_IN_USE`. Payments are also idempotent by a key in the body (ADR-0028). |
 | Errors | One envelope with a stable machine-readable `code`. |
 | Rate limits | Per user and per IP in Redis; stricter on auth routes and file presign. |
 | Time | All timestamps ISO-8601 UTC. The client localises. |
@@ -3129,25 +3130,28 @@ first used it:
   carries the push token and detaches in the same request, scoped to the person signing out so a
   request naming somebody else's token cannot silence their phone.
 
-**Findings recorded rather than fixed** — each is backend work, and each deserves its own decision:
+**Findings recorded rather than fixed** — each is backend work, and each deserves its own decision.
+All but the naming note were fixed in Phase 10:
 
 - **§9.2 promises an `Idempotency-Key` on every POST that creates a booking. It is not honoured.**
   Payments are idempotent, by a key in the body (ADR-0028); bookings rely on the slot hold. A
   booking whose response is lost is refused `SLOT_TAKEN` on the retry, so the app checks the
-  patient's own diary before telling them somebody else took their time.
+  patient's own diary before telling them somebody else took their time. *Fixed in Phase 10
+  (ADR-0034).*
 - **A patient cannot read the clinic's booking horizon over the API.** The web's booking page reads
   it through the use case with `clinic:read`; the only route returning it needs
   `portal.admin:access`. The app offers eight weeks and shows the server's refusal beyond the real
-  horizon.
+  horizon. *Fixed in Phase 10: `GET /api/v1/clinic/booking-window`.*
 - **The encounter list has no appointment filter, and filters by the day a visit started.** A visit
   opened the evening before its appointment is on another day, so the day view offered "Record the
   visit" for an appointment whose note was already signed. Both the app and the web agenda now
-  match against a week either side; an `appointmentId` filter would be the real fix.
+  match against a week either side; an `appointmentId` filter would be the real fix. *Fixed in
+  Phase 10: `appointmentIds` on the encounter list.*
 - **`/api/v1/me/patients` is a doctor's caseload**, not "my record". The client method is named
   `patientsITreat` so the mistake cannot be repeated.
 - **§9.2 states cursor pagination as the convention; only `patients` and `users` follow it.** The
   rest return arrays bounded by a date range or by one patient. Repaginating them would break the
-  web and is its own decision.
+  web and is its own decision. *Fixed in Phase 10 — and they were not bounded: see there.*
 
 **Running it found what types and unit tests could not.** The app was run as an Expo web build
 against the local API (`pnpm --filter @clinic/mobile preview:web`) and both portals were driven
@@ -3201,7 +3205,90 @@ encrypted; a web preview for exercising all of it without a simulator.
 - A doctor reads vitals and diagnoses but cannot edit them, and cannot prescribe, record stock used,
   or change their schedule: desk work, deliberately.
 - English only. The web's Arabic catalogue is not used by the app.
-- The OpenAPI document §9.1 draws does not exist (ADR-0032).
+- The OpenAPI document §9.1 draws does not exist (ADR-0032). *Published in Phase 10.*
+
+### Phase 10 — The API keeps its contract · after v1 · ✅
+
+Phase 9 was the first time anything but the web used `/api/v1` as a whole. It found places where
+§9.2 describes an API that was not quite built. None of them are features. Each one is a promise
+the contract makes and the implementation does not keep, and each forced a workaround into the
+mobile app — or, for the silent caps below, into nobody's awareness at all.
+
+- **Idempotency-Key, honoured.** §9.2 says the header is honoured on every POST that moves money
+  or creates a booking. Only payments were idempotent, by a key in the body (ADR-0028). The
+  `idempotencyKeys` collection §6 lists and §15 gives a TTL was never built. Now it is: a key is
+  claimed before the handler runs, and the response it produced is replayed to a retry. A key
+  reused with a different body is refused, and a key still in flight is refused as busy. It is
+  applied to booking (staff, self-service and walk-in), rescheduling, cancelling, recording a
+  payment and refunding one (ADR-0034).
+- **The booking window, readable.** A patient holds `clinic:read`, but the only route returning the
+  horizon, notice and cutoff required `portal.admin:access`. `GET /api/v1/clinic/booking-window`
+  returns it to anyone holding `clinic:read`.
+- **Visits by appointment.** The encounter list gains an `appointmentIds` filter, so the day views
+  match appointments to their visits exactly instead of searching a week either side.
+- **Every collection pages, or says why it does not.** §9.2 states cursor pagination as the
+  convention; only patients, users and the audit log followed it. Worse than unbounded, the others
+  were **silently capped**: invoices, payments, tickets, files, prescriptions and stock movements at
+  200, stock items at 300, visits at 500, appointments at 2,000, with nothing telling a client that
+  rows were missing. Clinic-history collections now page with a cursor. Small reference lists are
+  documented as unpaginated. A test inserts more rows than a page holds and checks nothing is lost.
+- **The OpenAPI document §9.1 draws**, generated from the same Zod contracts (ADR-0032), served at
+  `/api/v1/openapi.json`, with a test that fails when a route exists without an entry.
+
+**Exit criteria:**
+
+1. The mobile app's three workarounds are gone. A retried booking returns the same appointment
+   instead of `SLOT_TAKEN` — proven over HTTP in the parity suite. The booking screen offers exactly
+   the clinic's horizon. Both day views match visits by appointment.
+2. No list endpoint truncates without saying so. Every collection either returns a `nextCursor` or
+   is listed in §9.2 as bounded reference data.
+3. Every route in `apps/web/src/app/api/v1` is in the OpenAPI document, enforced by a test.
+
+**How it came out — all three met.**
+
+1. `isOwnBooking`, the diary read after `SLOT_TAKEN`, the eight-week guess and the fortnight of
+   visits either side of a day are deleted from the app. The parity suite books, retries with the
+   same key and gets the same appointment back as a `201` marked `idempotent-replayed`; reuses the
+   key on another booking and is refused `422`; tries a new key on the same time and meets the slot
+   hold; and retries a cancellation and is answered as the first. The booking screen's weeks end at
+   `today + horizonDays`, the web's own reckoning. Both day views ask by `appointmentIds`.
+2. Eleven collections now page that did not, and the notification feed carries a cursor. The rest are named, with a reason each, in the catalogue
+   test (§9.2), and a new list without a cursor fails it. Web pages that show a bounded list whole
+   read every page up to a cap and say "Only the first N are shown" when they stop; the same in the
+   app. The account statement keeps its totals over everything and says when its lines are only the
+   newest hundred.
+3. 150 operations across every `route.ts`, served at `/api/v1/openapi.json`. The test reads each
+   route's source and checks the entry's permission, body and query contracts, idempotency, status
+   codes and whether it pages. Writing the catalogue moved two schemas that lived inside route files
+   into the contracts.
+
+**What the silent caps had been hiding**, found while removing them:
+
+- **The stock alert banner looked at the first 300 active items.** A clinic with more would never be
+  warned that the rest were low or expiring. The regression test inserts 310 and fails against the
+  old cap.
+- **The reminder sweep read at most 2,000 appointments in its window**, so a reminder past that was
+  never sent, and nothing said so.
+- **Open slots were computed from at most 2,000 of a doctor's commitments.** Past that, a taken time
+  would have been offered as free — and refused at booking by the slot hold.
+- **A statement's invoice and payment lines stopped at 200** while its totals covered everything, so
+  a long account's lines did not add up to its own summary, with no sign why.
+
+**Not done, and stated plainly:**
+
+- **The document's response schemas are matched to the use cases by hand.** A handler returns a
+  use-case result, not a schema, so the catalogue test cannot read a response type from a route;
+  it checks everything else. The shapes the mobile client reads are also parsed at runtime against
+  the same contracts, which the parity suite exercises — the rest are not verified by a test.
+- **JSON Schema cannot carry every contract's rules.** Refinements such as a range whose end precedes
+  its start appear in the document as looser shapes; the server's `422` still names the field.
+- **Nothing renders a truncation notice under test.** The caps are far above what the seeded clinic
+  holds; paging itself is covered by the core integration suites and the parity suite.
+- **The notice is in English on every locale**, because it only appears on the clinical, billing,
+  inventory and scheduling screens, which the Arabic catalogue leaves untranslated by policy (Phase 8).
+- §9.2's `?include=` sparse fields remain unbuilt. No client has needed them, and they were not in
+  this phase's scope.
+- The app has still not run on a phone or a simulator (Phase 9).
 
 ### Sequencing rationale
 
@@ -3306,6 +3393,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0031 | The audit log is chained, and something walks the chain | **Accepted** | `docs/adr/0031` — each entry hashes the one before it, claimed in batches through a per-clinic head, and a scheduled job walks the chain incrementally with a full walk weekly. Entries from before the chain are counted, not walked |
 | 0032 | The API client is typed from the contracts, not generated from OpenAPI | **Accepted** | `docs/adr/0032` — the client imports the Zod contracts and validates responses against them, because a round trip through JSON Schema loses the refinements that make a request valid |
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
+| 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
 
 ### The ones to settle next
 
