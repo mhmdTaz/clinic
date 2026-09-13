@@ -12,10 +12,11 @@ export const GET = withApi(
 
 /**
  * Taking money. The request carries its own idempotency key, so a double-clicked button gets
- * the same payment back rather than taking the money twice (ADR-0028) — which is why a repeat
- * answers 200 with the existing payment rather than 201 with a new one.
+ * the same payment back — the same `201`, with the payment already recorded — rather than taking
+ * the money twice (ADR-0028). An `Idempotency-Key` header as well replays the first response
+ * whole (ADR-0034).
  */
 export const POST = withApi(
-  { permission: 'payment:record', body: RecordPaymentRequest },
+  { permission: 'payment:record', body: RecordPaymentRequest, idempotent: true },
   async ({ actor, body }) => ({ status: 201, data: await recordPayment(actor, body) }),
 )

@@ -16,6 +16,6 @@ export const GET = withApi(
 
 /** 409 SLOT_TAKEN when another booking claimed the time first (ADR-0013). */
 export const POST = withApi(
-  { permission: 'appointment:create', body: BookAppointmentRequest },
+  { permission: 'appointment:create', body: BookAppointmentRequest, idempotent: true },
   async ({ actor, body }) => ({ status: 201, data: await bookAppointment(actor, body) }),
 )

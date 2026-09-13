@@ -63,3 +63,8 @@ export {
 } from './outbox-event.model'
 export { NotificationModel, NotificationSchema, type NotificationDoc } from './notification.model'
 export { DeviceTokenModel, DeviceTokenSchema, type DeviceTokenDoc } from './device-token.model'
+export {
+  IdempotencyKeyModel,
+  IdempotencyKeySchema,
+  type IdempotencyKeyDoc,
+} from './idempotency-key.model'
