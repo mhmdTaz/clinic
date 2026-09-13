@@ -17,26 +17,16 @@ import {
   palette,
 } from '~/components/ui'
 import { messageFor } from '~/lib/errors'
-import { formatCalendarDate, formatTime, formatWhen, shiftDate } from '~/lib/format'
-import { useBookAppointment, useBookableDoctors, useOpenTimes } from '~/lib/queries'
+import { bookingWeek, formatCalendarDate, formatTime, formatWhen, shiftDate } from '~/lib/format'
+import {
+  useBookAppointment,
+  useBookableDoctors,
+  useBookingWindow,
+  useOpenTimes,
+} from '~/lib/queries'
 import { useIsOffline, useUser } from '~/lib/session'
 import { reminderProblemText, useReminders } from '~/lib/use-reminders'
 import { NoPatientRecord } from '~/screens/no-record'
-
-/** A week at a time: far enough to find something, short enough to read on a phone. */
-const WEEK = 7
-
-/**
- * How far ahead the app lets somebody look.
- *
- * **Not the clinic's booking horizon, because the app cannot read it.** The web's booking page
- * reads the horizon from the clinic's settings through the use case; over `/api/v1` those settings
- * sit behind `portal.admin:access`, so a patient's phone has no way to learn them. Recorded in
- * ARCHITECTURE §17 as a Phase 9 finding. Until an endpoint exposes the window, the app offers
- * eight weeks — the default horizon is sixty days — and a time beyond the clinic's real horizon is
- * refused by the server in its own words ("That is further ahead than booking opens").
- */
-const LOOK_AHEAD_DAYS = 56
 
 const doctorName = (doctor: Pick<DoctorSummary, 'title' | 'displayName'>): string =>
   [doctor.title, doctor.displayName].filter(Boolean).join(' ')
@@ -45,7 +35,8 @@ const doctorName = (doctor: Pick<DoctorSummary, 'title' | 'displayName'>): strin
  * A patient booking for themselves (P5).
  *
  * The server decides who the patient is from the session, so this screen never names one, and the
- * clinic's notice period is already applied to the times offered (ADR-0022).
+ * clinic's notice period is already applied to the times offered (ADR-0022). How far ahead the
+ * weeks go is the clinic's own horizon, read from `/api/v1/clinic/booking-window`.
  */
 export default function BookScreen() {
   const user = useUser()
@@ -63,22 +54,21 @@ export default function BookScreen() {
   const chosenDoctorId = doctorId ?? (bookable.length === 1 ? (bookable[0]?.id ?? null) : null)
   const chosenDoctor = bookable.find((doctor) => doctor.id === chosenDoctorId) ?? null
 
+  const bookingWindow = useBookingWindow()
+  const horizonDays = bookingWindow.data?.horizonDays ?? null
   const [weekOffset, setWeekOffset] = useState(0)
-  const from = shiftDate(today, weekOffset * WEEK)
-  const to = shiftDate(from, WEEK - 1)
-  const lastWeekOffset = Math.floor(LOOK_AHEAD_DAYS / WEEK) - 1
+  const { from, to, lastOffset } = bookingWeek(today, horizonDays, weekOffset)
+  const currentWeek = Math.min(weekOffset, lastOffset)
 
   const times = useOpenTimes(chosenDoctorId, from, to)
   const [startsAt, setStartsAt] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
-  const [booked, setBooked] = useState<{ startsAt: string; doctor: string; mine: boolean } | null>(
-    null,
-  )
+  const [booked, setBooked] = useState<{ startsAt: string; doctor: string } | null>(null)
 
   /**
-   * One key per attempt — per doctor and time chosen — reused if the person taps again. See
-   * `useBookAppointment` for why the app cannot yet rely on it.
+   * One key per attempt — per doctor and time chosen — reused if the person taps again, so the
+   * server answers a retry with the appointment the first tap booked (`useBookAppointment`).
    */
   const attemptKey = useRef<{ for: string; key: string } | null>(null)
   const keyFor = (attempt: string): string => {
@@ -88,7 +78,7 @@ export default function BookScreen() {
     return attemptKey.current.key
   }
 
-  const book = useBookAppointment(user.patientId, zone)
+  const book = useBookAppointment()
   const reminders = useReminders()
 
   if (!user.patientId) return <NoPatientRecord />
@@ -111,19 +101,31 @@ export default function BookScreen() {
         idempotencyKey: keyFor(`${chosenDoctor.id}|${startsAt}`),
       },
       {
-        onSuccess: (outcome) =>
-          setBooked({
-            startsAt,
-            doctor: doctorName(chosenDoctor),
-            mine: outcome.kind === 'alreadyYours',
-          }),
+        // A replay of a booking whose response was lost is a success like any other: it is the
+        // appointment the first tap made, and there is only one.
+        onSuccess: () => setBooked({ startsAt, doctor: doctorName(chosenDoctor) }),
         onError: (error) => {
-          if (error instanceof ApiError && error.code === 'SLOT_TAKEN') {
-            setNotice('That time was just taken by someone else. Please choose another.')
-          } else {
-            setNotice(messageFor(error))
+          const refusal = error instanceof ApiError ? error : null
+          if (refusal?.code === 'IDEMPOTENCY_KEY_IN_USE') {
+            // The first tap is still being booked. Same time, same key: confirming again in a
+            // moment gets its answer.
+            setNotice('Your booking is still going through. Give it a moment, then confirm again.')
+            return
           }
-          // Every refusal here is about the time chosen, so the choice goes and the list refreshes.
+          if (!refusal || refusal.status === 0 || refusal.status >= 500) {
+            // Not a refusal: the booking may or may not have been made. The choice and its key stay,
+            // so confirming again is answered as the first attempt was.
+            setNotice(messageFor(error))
+            return
+          }
+          // A refusal about the time chosen. The server keeps that answer against the key, so a
+          // later attempt at the same time — freed by a cancellation, say — needs a new one.
+          attemptKey.current = null
+          setNotice(
+            refusal.code === 'SLOT_TAKEN'
+              ? 'That time was just taken by someone else. Please choose another.'
+              : messageFor(error),
+          )
           setStartsAt(null)
           void times.refetch()
         },
@@ -135,11 +137,7 @@ export default function BookScreen() {
     return (
       <ScrollView>
         <Screen>
-          <Notice tone="success">
-            {booked.mine
-              ? 'You already have this appointment — the first attempt went through.'
-              : 'Your appointment is booked.'}
-          </Notice>
+          <Notice tone="success">Your appointment is booked.</Notice>
           <Card>
             <Text style={{ fontSize: 20, fontWeight: '600', color: palette.text }}>
               {formatWhen(booked.startsAt, zone)}
@@ -217,6 +215,18 @@ export default function BookScreen() {
           {chosenDoctor ? (
             <>
               <Heading>Open times</Heading>
+              {bookingWindow.data ? (
+                <Muted>
+                  {`Booking is open up to ${formatCalendarDate(shiftDate(today, bookingWindow.data.horizonDays))}.`}
+                </Muted>
+              ) : bookingWindow.error ? (
+                <Notice
+                  tone="warning"
+                  action={{ label: 'Try again', onPress: () => void bookingWindow.refetch() }}
+                >
+                  How far ahead you can book could not be loaded, so only this week is shown.
+                </Notice>
+              ) : null}
               <Text style={{ textAlign: 'center', color: palette.text, fontWeight: '600' }}>
                 {`${formatCalendarDate(from, 'short')} – ${formatCalendarDate(to, 'short')}`}
               </Text>
@@ -226,9 +236,9 @@ export default function BookScreen() {
                     label="‹ Earlier week"
                     tone="plain"
                     compact
-                    disabled={weekOffset === 0}
+                    disabled={currentWeek === 0}
                     onPress={() => {
-                      setWeekOffset((offset) => Math.max(0, offset - 1))
+                      setWeekOffset(Math.max(0, currentWeek - 1))
                       setStartsAt(null)
                     }}
                   />
@@ -238,9 +248,9 @@ export default function BookScreen() {
                     label="Later week ›"
                     tone="plain"
                     compact
-                    disabled={weekOffset >= lastWeekOffset}
+                    disabled={currentWeek >= lastOffset}
                     onPress={() => {
-                      setWeekOffset((offset) => Math.min(lastWeekOffset, offset + 1))
+                      setWeekOffset(Math.min(lastOffset, currentWeek + 1))
                       setStartsAt(null)
                     }}
                   />
@@ -251,7 +261,7 @@ export default function BookScreen() {
                 query={times}
                 isEmpty={(days) => days.every((day) => day.slots.length === 0)}
                 emptyText={
-                  weekOffset >= lastWeekOffset
+                  currentWeek >= lastOffset
                     ? 'No open times this week.'
                     : 'No open times this week. Try the next one.'
                 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import {
   IdParam,
   LocalDate,
@@ -147,7 +148,7 @@ export const InvoiceDetail = InvoiceSummary.extend({
 })
 export type InvoiceDetail = z.infer<typeof InvoiceDetail>
 
-export const InvoiceListQuery = z.object({
+export const InvoiceListQuery = PaginationQuery.extend({
   patientId: z.string().max(64).optional(),
   encounterId: z.string().max(64).optional(),
   status: InvoiceStatus.optional(),
@@ -210,7 +211,7 @@ export const Payment = z.object({
 })
 export type Payment = z.infer<typeof Payment>
 
-export const PaymentListQuery = z.object({
+export const PaymentListQuery = PaginationQuery.extend({
   patientId: z.string().max(64).optional(),
   invoiceId: z.string().max(64).optional(),
   method: PaymentMethod.optional(),
@@ -246,13 +247,29 @@ export const DailyReconciliation = z.object({
 })
 export type DailyReconciliation = z.infer<typeof DailyReconciliation>
 
+/**
+ * Whose statement. A patient always gets their own, whatever is sent; a doctor must name a patient
+ * they have treated; the clinic names one, or omits it for totals across every patient.
+ */
+export const AccountStatementQuery = z.object({ patientId: z.string().max(64).optional() })
+export type AccountStatementQuery = z.infer<typeof AccountStatementQuery>
+
 /** A patient's statement of account (P8): what they have been billed, and what they have paid. */
 export const AccountStatement = z.object({
   currency: z.string(),
   invoiced: z.string(),
   paid: z.string(),
   outstanding: z.string(),
+  /** The most recent invoices. The totals above always cover all of them. */
   invoices: z.array(InvoiceSummary),
   payments: z.array(Payment),
+  /**
+   * Whether there are older invoices or payments than the ones listed. Before Phase 10 the lines
+   * stopped at 200 with nothing to say so, while the totals counted everything — a statement whose
+   * lines did not add up to its own balance. The full lists page at `/billing/invoices` and
+   * `/billing/payments`.
+   */
+  hasMoreInvoices: z.boolean(),
+  hasMorePayments: z.boolean(),
 })
 export type AccountStatement = z.infer<typeof AccountStatement>

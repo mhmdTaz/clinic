@@ -60,3 +60,13 @@ export const SessionSummary = z.object({
 })
 export type SessionSummary = z.infer<typeof SessionSummary>
 export const MeSessionsResponse = successResponse(z.object({ sessions: z.array(SessionSummary) }))
+
+/**
+ * Choosing the interface language. Any string up to 16 characters is accepted as a request; the
+ * server answers whether it is a language on offer, rather than refusing a tag it does not know.
+ */
+export const SetLocaleRequest = z.object({ locale: z.string().max(16) }).strict()
+export type SetLocaleRequest = z.infer<typeof SetLocaleRequest>
+
+export const SetLocaleResult = z.object({ locale: z.string().nullable(), accepted: z.boolean() })
+export type SetLocaleResult = z.infer<typeof SetLocaleResult>

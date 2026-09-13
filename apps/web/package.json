@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@clinic/config": "workspace:*",
     "@clinic/contracts": "workspace:*",
     "@clinic/core": "workspace:*",

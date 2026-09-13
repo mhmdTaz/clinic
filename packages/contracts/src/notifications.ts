@@ -41,6 +41,8 @@ export type Notification = z.infer<typeof Notification>
 export const NotificationListQuery = z.object({
   unreadOnly: z.coerce.boolean().default(false),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  /** Older notifications, from the `nextCursor` of the page before. */
+  cursor: z.string().optional(),
 })
 export type NotificationListQuery = z.infer<typeof NotificationListQuery>
 

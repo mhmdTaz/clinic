@@ -7,6 +7,7 @@ import type {
   InventoryListQuery,
 } from '@clinic/contracts'
 import { ConflictError, NotFoundError, ValidationError } from '../../../errors'
+import { pageInMemory, pageLimit, type Page } from '../../../pagination'
 import { recordAudit } from '../../audit'
 import { assertCan, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
@@ -117,23 +118,29 @@ function validated(input: InventoryItemInput, currency: string): InventoryItemIn
 
 export async function listItems(
   actor: Actor,
-  query: InventoryListQuery,
+  query: Partial<InventoryListQuery>,
   now: Date = new Date(),
-): Promise<InventoryItemSummary[]> {
+): Promise<Page<InventoryItemSummary>> {
   await assertCan(actor, 'inventory:read')
   const context = await itemContext(actor, now)
-  const items = await itemRepository.list(actor.clinicId, {
-    q: query.q,
-    categoryId: query.categoryId,
-    status: query.status,
-  })
+  const filter = { q: query.q, categoryId: query.categoryId, status: query.status ?? 'active' }
+  const page = { cursor: query.cursor, limit: pageLimit(query.limit) }
 
-  const summaries = items.map((item) => toItemSummary(item, context))
-  if (query.view === 'low') return summaries.filter((item) => item.isLow)
-  if (query.view === 'expiring') {
-    return summaries.filter((item) => item.isExpiringSoon || item.hasExpired)
+  const view = query.view ?? 'all'
+  if (view === 'all') {
+    const found = await itemRepository.list(actor.clinicId, filter, page)
+    return {
+      items: found.items.map((item) => toItemSummary(item, context)),
+      nextCursor: found.nextCursor,
+    }
   }
-  return summaries
+
+  // "Low" and "expiring" are worked out from the shelf as it is now, not stored, so the database
+  // cannot page them: the whole matching catalogue is read and the result paged in memory.
+  const summaries = (await itemRepository.listAll(actor.clinicId, filter))
+    .map((item) => toItemSummary(item, context))
+    .filter((item) => (view === 'low' ? item.isLow : item.isExpiringSoon || item.hasExpired))
+  return pageInMemory(summaries, (item) => [item.name.toLocaleLowerCase('en'), item.id], page)
 }
 
 export async function getItem(

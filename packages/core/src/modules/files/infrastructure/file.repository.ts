@@ -1,4 +1,12 @@
 import { FileModel, newId } from '@clinic/db'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { FileCategory, FileOwnerType, FileStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 
@@ -67,7 +75,11 @@ function toFile(doc: FileRecord): StoredFileRecord {
 }
 
 /** A vault page is bounded: a patient's documents are counted in dozens, not thousands. */
-const LIST_LIMIT = 200
+/** Newest first; `createdAt` is set on every row by the schema's timestamps. */
+const LIST_ORDER: readonly SortKey[] = [
+  { field: 'createdAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
 
 export const fileRepository = {
   newId(): string {
@@ -156,7 +168,8 @@ export const fileRepository = {
       category?: FileCategory
       patientVisibleOnly?: boolean
     },
-  ): Promise<StoredFileRecord[]> {
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredFileRecord>> {
     const where: Record<string, unknown> = { clinicId }
     if (filter.ownerType) where['owner.type'] = filter.ownerType
     if (filter.ownerId) where['owner.id'] = filter.ownerId
@@ -166,8 +179,16 @@ export const fileRepository = {
     // A file nobody confirmed is an abandoned upload, and an infected one is quarantined.
     where.status = { $ne: 'PENDING' }
 
-    const docs = await FileModel().find(where).sort({ createdAt: -1 }).limit(LIST_LIMIT).lean()
-    return (docs as unknown as FileRecord[]).map(toFile)
+    if (page.cursor)
+      where.$and = [keysetAfter(LIST_ORDER, decodeCursor(page.cursor, LIST_ORDER.length))]
+
+    const docs = (await FileModel()
+      .find(where)
+      .sort(sortFor(LIST_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<FileRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, LIST_ORDER)
+    return { items: rows.map(toFile), nextCursor }
   },
 
   /** Confirming is the one transition that may only happen once, so PENDING is in the filter. */

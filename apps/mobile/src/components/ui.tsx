@@ -66,6 +66,17 @@ export function Muted({ children }: { children: ReactNode }) {
   return <Text style={styles.muted}>{children}</Text>
 }
 
+/**
+ * Said under a list that was read whole up to a cap and was longer than it.
+ *
+ * The web's words (`common.truncated`). Before Phase 10 the server cut these lists off without
+ * saying so; a list that stops early now says so where the list is.
+ */
+export function Truncated({ listed }: { listed: { items: unknown[]; truncated: boolean } }) {
+  if (!listed.truncated) return null
+  return <Muted>{`Only the first ${listed.items.length} are shown.`}</Muted>
+}
+
 export function Body({ children }: { children: ReactNode }) {
   return <Text style={styles.body}>{children}</Text>
 }

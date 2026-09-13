@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import { AuditLogModel, DoctorModel, PatientModel, newId } from '@clinic/db'
-import { TEST_PASSWORD, createUser, meta, signedInActor } from '../../../../test/fixtures'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  signedInActor,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { openEncounter } from '../../clinical'
 import { registerPatient } from '../../patients'
@@ -203,7 +209,7 @@ describe('who can see a document', () => {
       fileName: 'blood-panel.pdf',
     })
 
-    const vault = await listFiles(patientActor, {})
+    const vault = await everyPage((page) => listFiles(patientActor, page))
     expect(vault.map((file) => file.id)).toEqual([shared.id])
 
     // Named directly, an unshared document is still out of reach.
@@ -223,7 +229,7 @@ describe('who can see a document', () => {
     await expect(getDownloadLink(patientActor, theirs.id)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    expect(await listFiles(patientActor, {})).toEqual([])
+    expect(await listFiles(patientActor, {})).toEqual({ items: [], nextCursor: null })
   })
 
   it('records who downloaded what, and who shared it', async () => {
@@ -250,7 +256,10 @@ describe('who can see a document', () => {
     const file = await uploadedFile(admin, patient.id)
 
     await deleteFile(admin, file.id)
-    expect(await listFiles(admin, { patientId: patient.id })).toEqual([])
+    expect(await listFiles(admin, { patientId: patient.id })).toEqual({
+      items: [],
+      nextCursor: null,
+    })
   })
 })
 
@@ -286,7 +295,9 @@ describe('a doctor reaching documents', () => {
     expect(await uploadTo(presigned.uploadUrl, presigned.headers)).toBe(200)
     await confirmUpload(mine, presigned.fileId, { checksumSha256: null })
 
-    const attached = await listFiles(mine, { ownerType: 'ENCOUNTER', ownerId: encounter.id })
+    const attached = await everyPage((page) =>
+      listFiles(mine, { ownerType: 'ENCOUNTER', ownerId: encounter.id, ...page }),
+    )
     expect(attached.map((file) => file.id)).toEqual([presigned.fileId])
 
     await expect(

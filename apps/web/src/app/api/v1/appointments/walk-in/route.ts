@@ -11,6 +11,6 @@ export const dynamic = 'force-dynamic'
  * because they are already at the desk. 422 NO_SLOT_TODAY when the doctor's day is full.
  */
 export const POST = withApi(
-  { permission: 'appointment:create', body: RegisterWalkInRequest },
+  { permission: 'appointment:create', body: RegisterWalkInRequest, idempotent: true },
   async ({ actor, body }) => ({ status: 201, data: await registerWalkIn(actor, body) }),
 )

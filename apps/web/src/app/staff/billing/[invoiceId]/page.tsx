@@ -17,6 +17,7 @@ import { VoidInvoiceDialog } from '@/components/billing/void-invoice-dialog'
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { requirePortal } from '@/lib/auth/server-session'
+import { collectPages } from '@/lib/server/pages'
 import { formatCalendarDate, formatInstant } from '@/lib/format/dates'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 
@@ -45,7 +46,11 @@ export default async function InvoicePage({ params }: { params: RouteParams<'inv
   const invoice = await orNotFound(getInvoice(actor, invoiceId))
   const [clinic, payments, services, t, tStatus, tPayment, tMethod, locale] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
-    holds(actor, 'payment:read') ? listPayments(actor, { invoiceId }) : [],
+    holds(actor, 'payment:read')
+      ? collectPages((page) => listPayments(actor, { invoiceId, ...page }), 500).then(
+          (result) => result.items,
+        )
+      : [],
     invoice.status === 'DRAFT' && holds(actor, 'service:read')
       ? listServices(actor, { status: 'active' })
       : [],

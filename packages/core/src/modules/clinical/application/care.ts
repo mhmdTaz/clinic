@@ -1,6 +1,7 @@
 import type { PatientSummary } from '@clinic/contracts'
 import { assertCan, type Actor, type CareRelationship } from '../../access'
 import { listPatientsByIds } from '../../patients'
+import { pageLimit, type Page } from '../../../pagination'
 import { encounterRepository } from '../infrastructure/encounter.repository'
 
 /**
@@ -18,11 +19,14 @@ export const careRelationshipFromEncounters: CareRelationship = {
 }
 
 /** How many patients "my patients" reaches back over. A clinic's doctor, not a hospital's. */
-const MY_PATIENTS_LIMIT = 500
 
 /** The ids behind D3, newest visit first; the patients module turns them into records. */
-export function patientIdsTreatedBy(clinicId: string, doctorId: string): Promise<string[]> {
-  return encounterRepository.patientIdsTreatedBy(clinicId, doctorId, MY_PATIENTS_LIMIT)
+export function patientIdsTreatedBy(
+  clinicId: string,
+  doctorId: string,
+  page: { cursor?: string; limit: number },
+): Promise<Page<string>> {
+  return encounterRepository.patientIdsTreatedBy(clinicId, doctorId, page)
 }
 
 /**
@@ -47,9 +51,15 @@ export async function findEncounterOwner(
  * question actually is. A doctor holding `patient:read` at ASSIGNED is refused the clinic's
  * directory and given this instead — the same rule, asked the right way round.
  */
-export async function listMyPatients(actor: Actor): Promise<PatientSummary[]> {
+export async function listMyPatients(
+  actor: Actor,
+  query: { cursor?: string; limit?: number } = {},
+): Promise<Page<PatientSummary>> {
   await assertCan(actor, 'patient:read')
-  if (!actor.doctorId) return []
-  const ids = await patientIdsTreatedBy(actor.clinicId, actor.doctorId)
-  return listPatientsByIds(actor, ids)
+  if (!actor.doctorId) return { items: [], nextCursor: null }
+  const ids = await patientIdsTreatedBy(actor.clinicId, actor.doctorId, {
+    cursor: query.cursor,
+    limit: pageLimit(query.limit),
+  })
+  return { items: await listPatientsByIds(actor, ids.items), nextCursor: ids.nextCursor }
 }

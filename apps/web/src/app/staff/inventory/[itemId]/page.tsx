@@ -18,6 +18,8 @@ import { AdjustStockDialog, ReceiveStockDialog } from '@/components/inventory/st
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 import { formatCalendarDate, formatInstant } from '@/lib/format/dates'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 
@@ -39,6 +41,9 @@ export async function generateMetadata({
  * the movements, so summing the ledger must give the same answer — and this page says out loud
  * whether it does, rather than asking anybody to take it on trust (section 8.11).
  */
+/** The newest part of an item's ledger. Past it, the page says it stopped short. */
+const LEDGER_MAX = 500
+
 export default async function InventoryItemPage({ params }: { params: RouteParams<'itemId'> }) {
   const actor = await requirePortal('staff')
   const { itemId } = await params
@@ -48,7 +53,7 @@ export default async function InventoryItemPage({ params }: { params: RouteParam
   const [clinic, movements, reconciliation, categories, suppliers, t, tType, locale] =
     await Promise.all([
       getClinicSessionInfo(actor.clinicId),
-      listMovements(actor, { itemId }),
+      collectPages((page) => listMovements(actor, { itemId, ...page }), LEDGER_MAX),
       reconcileItem(actor, itemId),
       canManage ? listCategories(actor) : [],
       canManage ? listSuppliers(actor) : [],
@@ -205,11 +210,11 @@ export default async function InventoryItemPage({ params }: { params: RouteParam
           <CardDescription>{tType('hint')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {movements.length === 0 ? (
+          {movements.items.length === 0 ? (
             <EmptyState title={tType('none')} />
           ) : (
             <ul className="divide-border flex flex-col divide-y">
-              {movements.map((movement) => (
+              {movements.items.map((movement) => (
                 <li
                   key={movement.id}
                   className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0"
@@ -254,6 +259,7 @@ export default async function InventoryItemPage({ params }: { params: RouteParam
               ))}
             </ul>
           )}
+          <TruncatedNotice shown={movements.items.length} truncated={movements.truncated} />
         </CardContent>
       </Card>
     </>

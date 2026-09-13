@@ -2,6 +2,14 @@ import { NotificationModel, UserModel, newId } from '@clinic/db'
 import { NOTIFICATION_RETENTION_DAYS } from '@clinic/config'
 import type { NotificationChannel, NotificationStatus, NotificationType } from '@clinic/config'
 import type { StoredPreference } from '../domain/preferences'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 
 export interface StoredNotification {
   id: string
@@ -48,6 +56,11 @@ const toNotification = (doc: NotificationRecord): StoredNotification => ({
 /** A MongoDB duplicate-key error, whatever wrapper it arrives in. */
 const isDuplicateKey = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { code?: number }).code === 11000
+
+const FEED_ORDER: readonly SortKey[] = [
+  { field: 'createdAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
 
 export const notificationRepository = {
   /**
@@ -103,19 +116,24 @@ export const notificationRepository = {
     )
   },
 
+  /** A page of the bell, newest first. Before Phase 10 there was only ever the first page. */
   async listFor(
     clinicId: string,
     userId: string,
-    options: { unreadOnly: boolean; limit: number },
-  ): Promise<StoredNotification[]> {
+    options: { unreadOnly: boolean; limit: number; cursor?: string },
+  ): Promise<Page<StoredNotification>> {
     const filter: Record<string, unknown> = { clinicId, userId }
     if (options.unreadOnly) filter.isRead = false
+    if (options.cursor) {
+      filter.$and = [keysetAfter(FEED_ORDER, decodeCursor(options.cursor, FEED_ORDER.length))]
+    }
     const docs = (await NotificationModel()
       .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(options.limit)
-      .lean()) as NotificationRecord[]
-    return docs.map(toNotification)
+      .sort(sortFor(FEED_ORDER))
+      .limit(options.limit + 1)
+      .lean()) as unknown as Array<NotificationRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, options.limit, FEED_ORDER)
+    return { items: rows.map(toNotification), nextCursor }
   },
 
   async countUnread(clinicId: string, userId: string): Promise<number> {

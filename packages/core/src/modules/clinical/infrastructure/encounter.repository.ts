@@ -1,4 +1,12 @@
 import { EncounterModel, newId, nextFormatted } from '@clinic/db'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { CodeSystem, EncounterStatus, EncounterType, NoteStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 
@@ -173,8 +181,14 @@ function toEncounter(doc: EncounterRecord): StoredEncounter {
   }
 }
 
-/** A chart is read a page at a time; a clinic-wide list is a report, not a screen. */
-const LIST_LIMIT = 500
+/**
+ * Newest visit first, the id breaking ties. `startedAt` is always set, which keyset paging needs:
+ * a null in a sort field is compared by type, not value, and rows beyond it would be skipped.
+ */
+const LIST_ORDER: readonly SortKey[] = [
+  { field: 'startedAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
 
 /**
  * Section 7.5: hidden clinical content is never loaded into application memory and then
@@ -268,22 +282,28 @@ export const encounterRepository = {
     return doc ? toEncounter(doc) : null
   },
 
+  /**
+   * A page of visits. Before Phase 10 this read at most 500 and said nothing about the rest.
+   */
   async list(
     clinicId: string,
     filter: {
       patientId?: string
       doctorId?: string
+      appointmentIds?: readonly string[]
       status?: EncounterStatus
       from?: Date
       to?: Date
       signedOnly?: boolean
       patientVisibleOnly?: boolean
     },
+    page: { cursor?: string; limit: number },
     options: { omitNoteContent?: boolean } = {},
-  ): Promise<StoredEncounter[]> {
+  ): Promise<Page<StoredEncounter>> {
     const where: Record<string, unknown> = { clinicId }
     if (filter.patientId) where.patientId = filter.patientId
     if (filter.doctorId) where.doctorId = filter.doctorId
+    if (filter.appointmentIds) where.appointmentId = { $in: [...filter.appointmentIds] }
     if (filter.status) where.status = filter.status
     if (filter.signedOnly) where['note.status'] = 'SIGNED'
     if (filter.patientVisibleOnly) where['note.isPatientVisible'] = true
@@ -294,10 +314,17 @@ export const encounterRepository = {
       }
     }
 
-    const query = EncounterModel().find(where).sort({ startedAt: -1 }).limit(LIST_LIMIT)
+    if (page.cursor)
+      where.$and = [keysetAfter(LIST_ORDER, decodeCursor(page.cursor, LIST_ORDER.length))]
+
+    const query = EncounterModel()
+      .find(where)
+      .sort(sortFor(LIST_ORDER))
+      .limit(page.limit + 1)
     if (options.omitNoteContent) query.select(WITHOUT_NOTE_CONTENT)
-    const docs = await query.lean()
-    return (docs as unknown as EncounterRecord[]).map(toEncounter)
+    const docs = (await query.lean()) as unknown as Array<EncounterRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, LIST_ORDER)
+    return { items: rows.map(toEncounter), nextCursor }
   },
 
   /** An access fact, not a chart read: has this doctor ever seen this patient (ADR-0004)? */
@@ -308,17 +335,32 @@ export const encounterRepository = {
     return found !== null
   },
 
-  /** "My patients" (D3), newest visit first, as ids the patients module then reads. */
-  async patientIdsTreatedBy(clinicId: string, doctorId: string, limit: number): Promise<string[]> {
+  /**
+   * "My patients" (D3), newest visit first, a page of ids the patients module then reads. Before
+   * Phase 10: the most recent 500, and a doctor's 501st patient simply was not on their list.
+   */
+  async patientIdsTreatedBy(
+    clinicId: string,
+    doctorId: string,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<string>> {
+    const order: readonly SortKey[] = [
+      { field: 'lastSeen', direction: -1, kind: 'date' },
+      { field: '_id', direction: -1, kind: 'string' },
+    ]
     const rows = await EncounterModel()
-      .aggregate<{ _id: string; lastSeen: Date }>([
+      .aggregate<{ _id: string; lastSeen: Date } & Record<string, unknown>>([
         { $match: { clinicId, doctorId, deletedAt: null } },
         { $group: { _id: '$patientId', lastSeen: { $max: '$startedAt' } } },
-        { $sort: { lastSeen: -1 } },
-        { $limit: limit },
+        ...(page.cursor
+          ? [{ $match: keysetAfter(order, decodeCursor(page.cursor, order.length)) }]
+          : []),
+        { $sort: sortFor(order) },
+        { $limit: page.limit + 1 },
       ])
       .option({ skipAudit: true })
-    return rows.map((row) => row._id)
+    const { docs, nextCursor } = pageFrom(rows, page.limit, order)
+    return { items: docs.map((row) => row._id), nextCursor }
   },
 
   /**

@@ -12,9 +12,11 @@ export const dynamic = 'force-dynamic'
  * these read is the caller's own. There is no parameter through which somebody could ask for
  * another person's, so there is nothing for a permission to gate.
  */
-export const GET = withApi({ query: NotificationListQuery }, async ({ actor, query }) => ({
-  data: await notificationFeed(actor, query),
-}))
+/** The bell: a page of notifications and the unread count, with the way to older ones in `meta`. */
+export const GET = withApi({ query: NotificationListQuery }, async ({ actor, query }) => {
+  const { nextCursor, ...feed } = await notificationFeed(actor, query)
+  return { data: feed, meta: { nextCursor, hasMore: nextCursor !== null } }
+})
 
 export const POST = withApi({ body: MarkNotificationsReadRequest }, async ({ actor, body }) => ({
   data: await markNotificationsRead(actor, body),

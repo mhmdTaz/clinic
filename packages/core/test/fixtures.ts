@@ -153,3 +153,25 @@ export async function failureDetails(
     return (error as { details?: Array<{ field: string; issue: string }> }).details ?? []
   }
 }
+
+/**
+ * Every row of a paged list, following cursors to the end.
+ *
+ * For assertions about a whole list in a database the suite shares: "the new row is in there"
+ * must not fail because the new row is on page two.
+ */
+export async function everyPage<T>(
+  fetchPage: (page: {
+    cursor?: string
+    limit: number
+  }) => Promise<{ items: T[]; nextCursor: string | null }>,
+): Promise<T[]> {
+  const items: T[] = []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await fetchPage({ cursor, limit: 100 })
+    items.push(...page.items)
+    if (!page.nextCursor) return items
+    cursor = page.nextCursor
+  }
+}

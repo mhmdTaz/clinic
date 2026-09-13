@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
+import type { InventoryItemSummary, Prescription, StoredFile } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { getEncounter } from '@clinic/core/clinical'
@@ -22,6 +23,8 @@ import { RecordConsumptionDialog } from '@/components/inventory/record-consumpti
 import { SignNoteDialog } from '@/components/clinical/sign-note-dialog'
 import { VitalsForm } from '@/components/clinical/vitals-form'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages, noItems } from '@/lib/server/pages'
 import { formatInstant } from '@/lib/format/dates'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 
@@ -39,6 +42,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * After signing, the only thing that can be added is an addendum beneath it (ADR-0024), and the
  * page says so rather than showing a form that the server would refuse.
  */
+/** One visit's prescriptions or attachments: far more than a visit ever has. */
+const LIST_MAX = 500
+/** The shelf. A clinic whose catalogue passes this is told the list stopped short. */
+const PICK_LIST_MAX = 2000
+
 export default async function EncounterWorkspacePage({
   params,
 }: {
@@ -53,14 +61,26 @@ export default async function EncounterWorkspacePage({
       getClinicSessionInfo(actor.clinicId),
       getPatient(actor, encounter.patient.id).catch(() => null),
       holds(actor, 'prescription:read')
-        ? listPrescriptions(actor, { encounterId: encounter.id })
-        : [],
+        ? collectPages(
+            (page) => listPrescriptions(actor, { encounterId: encounter.id, ...page }),
+            LIST_MAX,
+          )
+        : noItems<Prescription>(),
       holds(actor, 'file:read')
-        ? listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounter.id })
-        : [],
+        ? collectPages(
+            (page) => listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounter.id, ...page }),
+            LIST_MAX,
+          )
+        : noItems<StoredFile>(),
       holds(actor, 'inventory:read') ? listConsumption(actor, encounter.id) : [],
-      // The pick-list for the dialog: what is actually on the shelf right now.
-      holds(actor, 'inventory:consume') ? listItems(actor, { status: 'active', view: 'all' }) : [],
+      // The pick-list for the dialog: what is actually on the shelf right now — all of it, since a
+      // pick-list that stopped at a page would hide the item somebody is looking for.
+      holds(actor, 'inventory:consume')
+        ? collectPages(
+            (page) => listItems(actor, { status: 'active', view: 'all', ...page }),
+            PICK_LIST_MAX,
+          )
+        : noItems<InventoryItemSummary>(),
       getLocale(),
       getTranslations('doctor.encounter'),
       getTranslations('common'),
@@ -205,7 +225,7 @@ export default async function EncounterWorkspacePage({
         </div>
 
         <PrescriptionsCard
-          prescriptions={prescriptions}
+          prescriptions={prescriptions.items}
           timeZone={clinic.timezone}
           emptyBody={t('noPrescriptionsBody')}
           action={
@@ -214,16 +234,17 @@ export default async function EncounterWorkspacePage({
             ) : null
           }
         />
+        <TruncatedNotice shown={prescriptions.items.length} truncated={prescriptions.truncated} />
 
         {holds(actor, 'inventory:read') ? (
           <ConsumptionCard
             movements={consumed}
             timeZone={clinic.timezone}
             action={
-              holds(actor, 'inventory:consume') && mine && stock.length > 0 ? (
+              holds(actor, 'inventory:consume') && mine && stock.items.length > 0 ? (
                 <RecordConsumptionDialog
                   encounterId={encounter.id}
-                  items={stock}
+                  items={stock.items}
                   label={tStock('action')}
                 />
               ) : null
@@ -231,8 +252,10 @@ export default async function EncounterWorkspacePage({
           />
         ) : null}
 
+        <TruncatedNotice shown={stock.items.length} truncated={stock.truncated} />
+
         <DocumentsCard
-          files={files}
+          files={files.items}
           timeZone={clinic.timezone}
           title={t('attachments')}
           upload={
@@ -243,6 +266,7 @@ export default async function EncounterWorkspacePage({
           canShare={holds(actor, 'file:upload')}
           canDelete={holds(actor, 'file:delete')}
         />
+        <TruncatedNotice shown={files.items.length} truncated={files.truncated} />
 
         <p className="text-muted-foreground text-sm">
           <Link href={`/doctor/patients/${encounter.patient.id}`} className="hover:underline">

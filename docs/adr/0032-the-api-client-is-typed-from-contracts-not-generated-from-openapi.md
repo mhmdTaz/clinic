@@ -56,8 +56,13 @@ together.
 **A third-party integrator still deserves an OpenAPI document.** That is the reason to publish
 one, and it is a different reason from generating our own client: an outside consumer has no
 access to `packages/contracts`, and "read our TypeScript" is not an integration story. Generating
-the document _from_ the contracts (with `zod-to-openapi`) remains the right way to produce it, and
-remains outstanding.
+the document _from_ the contracts (with `zod-to-openapi`) remains the right way to produce it.
+
+_Phase 10:_ published at `/api/v1/openapi.json`. It is generated in `apps/web`
+(`src/lib/api/openapi`) rather than in `packages/contracts`, because the paths, permissions and
+status codes it adds to the contracts belong to the delivery layer, and the contracts package stays
+Zod only. A test reads every `route.ts` and fails when the catalogue the document is built from
+misses a route or disagrees with it.
 
 ## Alternatives considered
 

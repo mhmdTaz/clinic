@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getLocale, getTranslations } from 'next-intl/server'
+import type { Prescription, StoredFile } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { getEncounter } from '@clinic/core/clinical'
@@ -10,6 +11,7 @@ import { PageHeader } from '@/components/portal/page-header'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { PrescriptionsCard } from '@/components/clinical/prescriptions-card'
 import { requirePortal } from '@/lib/auth/server-session'
+import { collectPages, noItems } from '@/lib/server/pages'
 import { formatInstant } from '@/lib/format/dates'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 
@@ -34,10 +36,15 @@ export default async function PatientVisitPage({ params }: { params: RouteParams
   const encounter = await orNotFound(getEncounter(actor, encounterId))
   const [clinic, prescriptions, files, locale, t] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
-    holds(actor, 'prescription:read') ? listPrescriptions(actor, { encounterId }) : [],
+    holds(actor, 'prescription:read')
+      ? collectPages((page) => listPrescriptions(actor, { encounterId, ...page }), 500)
+      : noItems<Prescription>(),
     holds(actor, 'file:read')
-      ? listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounterId })
-      : [],
+      ? collectPages(
+          (page) => listFiles(actor, { ownerType: 'ENCOUNTER', ownerId: encounterId, ...page }),
+          500,
+        )
+      : noItems<StoredFile>(),
     getLocale(),
     getTranslations('patient.records'),
   ])
@@ -100,13 +107,13 @@ export default async function PatientVisitPage({ params }: { params: RouteParams
           </CardContent>
         </Card>
 
-        {prescriptions.length > 0 ? (
-          <PrescriptionsCard prescriptions={prescriptions} timeZone={clinic.timezone} />
+        {prescriptions.items.length > 0 ? (
+          <PrescriptionsCard prescriptions={prescriptions.items} timeZone={clinic.timezone} />
         ) : null}
 
-        {files.length > 0 ? (
+        {files.items.length > 0 ? (
           <DocumentsCard
-            files={files}
+            files={files.items}
             timeZone={clinic.timezone}
             canShare={false}
             canDelete={false}

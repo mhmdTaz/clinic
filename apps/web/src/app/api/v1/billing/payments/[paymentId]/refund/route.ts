@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 /** Unwinds the invoices the payment settled, last one first, in a single transaction. */
 export const POST = withApi(
-  { permission: 'payment:refund', body: RefundPaymentRequest },
+  { permission: 'payment:refund', body: RefundPaymentRequest, idempotent: true },
   async ({ actor, body, params }) => ({
     data: await refundPayment(actor, params.paymentId ?? '', body),
   }),

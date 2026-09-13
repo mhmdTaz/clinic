@@ -33,12 +33,14 @@ export default async function SupportInboxPage({ searchParams }: { searchParams:
   const values = await searchParams
   const view = param(values, 'view')
 
-  const query: TicketListQuery = {
+  const query: Partial<TicketListQuery> & { view: NonNullable<TicketListQuery['view']> } = {
     view: isView(view) ? view : 'open',
     q: param(values, 'q')?.slice(0, 80),
+    cursor: param(values, 'cursor'),
+    limit: 50,
   }
 
-  const [tickets, clinic, t, tStatus, tPriority, tCategory, locale] = await Promise.all([
+  const [page, clinic, t, tStatus, tPriority, tCategory, locale] = await Promise.all([
     listTickets(actor, query),
     getClinicSessionInfo(actor.clinicId),
     getTranslations('staff.support'),
@@ -77,7 +79,8 @@ export default async function SupportInboxPage({ searchParams }: { searchParams:
             ],
           },
         ]}
-        rows={tickets.map((ticket) => ({
+        nextCursor={page.nextCursor}
+        rows={page.items.map((ticket) => ({
           id: ticket.id,
           href: `/staff/support/${ticket.id}`,
           cells: {

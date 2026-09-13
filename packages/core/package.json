@@ -29,7 +29,8 @@
     "./outbox": "./src/modules/outbox/index.ts",
     "./notifications": "./src/modules/notifications/index.ts",
     "./support": "./src/modules/support/index.ts",
-    "./analytics": "./src/modules/analytics/index.ts"
+    "./analytics": "./src/modules/analytics/index.ts",
+    "./idempotency": "./src/modules/idempotency/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

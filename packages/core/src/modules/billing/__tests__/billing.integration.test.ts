@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import { DoctorModel, PatientModel, newId } from '@clinic/db'
-import { TEST_PASSWORD, createUser, meta, outcome, signedInActor } from '../../../../test/fixtures'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  outcome,
+  signedInActor,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { openEncounter } from '../../clinical'
 import { registerPatient } from '../../patients'
@@ -348,7 +355,9 @@ describe('taking money', () => {
     expect(second.id).toBe(first.id)
     expect(second.number).toBe(first.number)
 
-    const payments = await listPayments(staff, { invoiceId: invoice.id })
+    const payments = await everyPage((page) =>
+      listPayments(staff, { invoiceId: invoice.id, ...page }),
+    )
     expect(payments).toHaveLength(1)
 
     const settled = await getInvoice(staff, invoice.id)
@@ -581,7 +590,7 @@ describe('who may look', () => {
     const narrowed = await accountStatement(mine.actor, theirs.patient.id)
     expect(narrowed.invoices.every((row) => row.patient.id === mine.patient.id)).toBe(true)
 
-    const visible = await listInvoices(mine.actor, {})
+    const visible = await everyPage((page) => listInvoices(mine.actor, page))
     expect(visible.map((row) => row.id)).toEqual([invoice.id])
   })
 

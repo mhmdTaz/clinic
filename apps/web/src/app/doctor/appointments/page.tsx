@@ -16,6 +16,8 @@ import { Board, type BoardColumn } from '@/components/scheduling/board'
 import { CalendarToolbar } from '@/components/scheduling/calendar-toolbar'
 import { StartEncounterButton } from '@/components/clinical/start-encounter-button'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectByIds, collectPages } from '@/lib/server/pages'
 import {
   datesBetween,
   formatCalendarDate,
@@ -31,6 +33,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('doctor.appointments')
   return { title: t('title') }
 }
+
+/** More appointments than any doctor's week holds; a board past it says it stopped short. */
+const CALENDAR_MAX = 2000
 
 export default async function DoctorAgendaPage({ searchParams }: { searchParams: SearchParams }) {
   const actor = await requirePortal('doctor')
@@ -61,26 +66,33 @@ export default async function DoctorAgendaPage({ searchParams }: { searchParams:
 
   const from = view === 'week' ? startOfWeek(date) : date
   const to = view === 'week' ? shiftDate(from, 6) : date
-  const appointments = await listAppointments(actor, {
-    from,
-    to,
-    status: APPOINTMENT_STATUSES.includes(status as AppointmentStatus)
-      ? (status as AppointmentStatus)
-      : undefined,
-  })
+  const { items: appointments, truncated } = await collectPages(
+    (page) =>
+      listAppointments(actor, {
+        from,
+        to,
+        status: APPOINTMENT_STATUSES.includes(status as AppointmentStatus)
+          ? (status as AppointmentStatus)
+          : undefined,
+        ...page,
+      }),
+    CALENDAR_MAX,
+  )
 
   /**
-   * The visits already recorded for this range, so each appointment offers the right next step:
-   * open the note that exists, or start the one that does not. One query for the range rather
-   * than one per card.
+   * The visits already recorded against these appointments, so each offers the right next step:
+   * open the note that exists, or start the one that does not.
    *
-   * A week wider on each side, because the list filters by the day a visit *started*: a visit
-   * opened the evening before its appointment, or written up the morning after, is on another day,
-   * and matching on the range alone offered "Record the visit" for an appointment whose note was
-   * already signed — which the server then refused. Found by the mobile app (Phase 9).
+   * By appointment, not by date. The list's date filter is the day a visit *started*, so a visit
+   * opened the evening before its appointment was missed, and the agenda offered "Record the visit"
+   * for a note that was already signed. Phase 9 worked around that with a week either side; Phase 10
+   * gave the encounter list an `appointmentIds` filter, which is the actual question.
    */
   const encounters = holds(actor, 'encounter:read')
-    ? await listEncounters(actor, { from: shiftDate(from, -7), to: shiftDate(to, 7) })
+    ? await collectByIds(
+        appointments.map((appointment) => appointment.id),
+        (appointmentIds) => listEncounters(actor, { appointmentIds, limit: appointmentIds.length }),
+      )
     : []
   const noteFor = new Map(
     encounters
@@ -167,6 +179,7 @@ export default async function DoctorAgendaPage({ searchParams }: { searchParams:
             },
           ]}
         />
+        <TruncatedNotice shown={appointments.length} truncated={truncated} />
         <Board columns={columns} label={t('title')} />
       </div>
     </>

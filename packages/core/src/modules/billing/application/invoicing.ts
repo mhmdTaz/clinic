@@ -17,6 +17,7 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import type { Transaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
 import { emitEvent } from '../../outbox'
@@ -138,11 +139,12 @@ export async function createInvoice(
     // Two people billing the same visit at once is the failure this refuses. A second invoice
     // against an already-issued one is legitimate — a lab result that arrives later is its own
     // bill — so only an open draft blocks.
-    const drafts = await invoiceRepository.list(actor.clinicId, {
-      encounterId: input.encounterId,
-      status: 'DRAFT',
-    })
-    const existing = drafts[0]
+    const drafts = await invoiceRepository.list(
+      actor.clinicId,
+      { encounterId: input.encounterId, status: 'DRAFT' },
+      { limit: 1 },
+    )
+    const existing = drafts.items[0]
     if (existing) {
       throw new ConflictError(
         'INVOICE_DRAFT_EXISTS',
@@ -350,14 +352,20 @@ export async function voidInvoice(
 
 export async function listInvoices(
   actor: Actor,
-  query: InvoiceListQuery,
+  query: Partial<InvoiceListQuery>,
   now: Date = new Date(),
-): Promise<InvoiceSummary[]> {
+): Promise<Page<InvoiceSummary>> {
   const clinic = await getClinicFacts(actor.clinicId)
   const filter = await invoiceFilterFor(actor, query, clinic.timezone)
-  const invoices = await invoiceRepository.list(actor.clinicId, filter)
+  const page = await invoiceRepository.list(actor.clinicId, filter, {
+    cursor: query.cursor,
+    limit: pageLimit(query.limit),
+  })
   const today = localDateIn(clinic.timezone, now)
-  return invoices.map((invoice) => toInvoiceSummary(invoice, today))
+  return {
+    items: page.items.map((invoice) => toInvoiceSummary(invoice, today)),
+    nextCursor: page.nextCursor,
+  }
 }
 
 export async function getInvoice(
@@ -385,7 +393,7 @@ export async function getInvoice(
  */
 export async function invoiceFilterFor(
   actor: Actor,
-  query: InvoiceListQuery,
+  query: Partial<InvoiceListQuery>,
   timezone: string,
 ): Promise<InvoiceFilter> {
   await assertCan(actor, 'invoice:read')
@@ -455,10 +463,13 @@ export async function billToEncounter(
 
   const totals = validateLines(lines, clinic.currency)
 
-  const [draft] = await invoiceRepository.list(actor.clinicId, {
-    encounterId: encounter.id,
-    status: 'DRAFT',
-  })
+  const {
+    items: [draft],
+  } = await invoiceRepository.list(
+    actor.clinicId,
+    { encounterId: encounter.id, status: 'DRAFT' },
+    { limit: 1 },
+  )
 
   if (draft) {
     const updated = await invoiceRepository.appendLines(

@@ -2,6 +2,14 @@ import { PaymentModel, RefundModel, decimal128, newId, nextFormatted } from '@cl
 import type { PaymentMethod, PaymentStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { Allocation } from '../domain/allocation'
 
 /** Mongoose hands back a Decimal128; money leaves this file as the decimal string it is. */
@@ -150,6 +158,12 @@ function filterFor(clinicId: string, filter: PaymentFilter): Record<string, unkn
   return query
 }
 
+/** `receivedAt` defaults to the moment of recording, so every payment has one. */
+const PAYMENT_ORDER: readonly SortKey[] = [
+  { field: 'receivedAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
+
 export const paymentRepository = {
   nextNumber(clinicId: string, year: number): Promise<string> {
     return nextFormatted(`payment:${clinicId}:${year}`, `PAY-${year}`, 6)
@@ -252,13 +266,23 @@ export const paymentRepository = {
     }
   },
 
-  async list(clinicId: string, filter: PaymentFilter, limit = 200): Promise<StoredPayment[]> {
+  /** A page of payments, most recently received first. Before Phase 10: at most 200, silently. */
+  async list(
+    clinicId: string,
+    filter: PaymentFilter,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredPayment>> {
+    const where = filterFor(clinicId, filter)
+    if (page.cursor) {
+      where.$and = [keysetAfter(PAYMENT_ORDER, decodeCursor(page.cursor, PAYMENT_ORDER.length))]
+    }
     const docs = (await PaymentModel()
-      .find(filterFor(clinicId, filter))
-      .sort({ receivedAt: -1 })
-      .limit(limit)
-      .lean()) as PaymentRecord[]
-    return docs.map(toPayment)
+      .find(where)
+      .sort(sortFor(PAYMENT_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<PaymentRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, PAYMENT_ORDER)
+    return { items: rows.map(toPayment), nextCursor }
   },
 
   /**

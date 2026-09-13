@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { localDateIn } from '@clinic/contracts'
+import { localDateIn, type Prescription, type StoredFile } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { listEncounters } from '@clinic/core/clinical'
@@ -15,6 +15,8 @@ import { EncounterList } from '@/components/clinical/encounter-list'
 import { PrescriptionsCard } from '@/components/clinical/prescriptions-card'
 import { StartEncounterButton } from '@/components/clinical/start-encounter-button'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages, noItems } from '@/lib/server/pages'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
 import { orNotFound, type RouteParams } from '@/lib/server/page-helpers'
 
@@ -30,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * it stays strict per row — a colleague's note is still out of reach — which is the line ADR-0004
  * draws and the reason chart-wide scope was rejected.
  */
+/** A chart shows a patient's history whole, and says so on the day it cannot. */
+const CHART_MAX = 500
+
 export default async function PatientChartPage({ params }: { params: RouteParams<'patientId'> }) {
   const actor = await requirePortal('doctor')
   const { patientId } = await params
@@ -37,9 +42,13 @@ export default async function PatientChartPage({ params }: { params: RouteParams
   const patient = await orNotFound(getPatient(actor, patientId))
   const [clinic, encounters, prescriptions, files, locale, t, tCommon] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
-    listEncounters(actor, { patientId }),
-    holds(actor, 'prescription:read') ? listPrescriptions(actor, { patientId }) : [],
-    holds(actor, 'file:read') ? listFiles(actor, { patientId }) : [],
+    collectPages((page) => listEncounters(actor, { patientId, ...page }), CHART_MAX),
+    holds(actor, 'prescription:read')
+      ? collectPages((page) => listPrescriptions(actor, { patientId, ...page }), CHART_MAX)
+      : noItems<Prescription>(),
+    holds(actor, 'file:read')
+      ? collectPages((page) => listFiles(actor, { patientId, ...page }), CHART_MAX)
+      : noItems<StoredFile>(),
     getLocale(),
     getTranslations('doctor.chart'),
     getTranslations('common'),
@@ -102,20 +111,22 @@ export default async function PatientChartPage({ params }: { params: RouteParams
           </CardHeader>
           <CardContent>
             <EncounterList
-              encounters={encounters}
+              encounters={encounters.items}
               timeZone={clinic.timezone}
               hrefFor={(encounter) => `/doctor/encounters/${encounter.id}`}
               show={{ doctor: true }}
               emptyTitle={t('noVisits')}
               emptyBody={t('noVisitsBody')}
             />
+            <TruncatedNotice shown={encounters.items.length} truncated={encounters.truncated} />
           </CardContent>
         </Card>
 
-        <PrescriptionsCard prescriptions={prescriptions} timeZone={clinic.timezone} />
+        <PrescriptionsCard prescriptions={prescriptions.items} timeZone={clinic.timezone} />
+        <TruncatedNotice shown={prescriptions.items.length} truncated={prescriptions.truncated} />
 
         <DocumentsCard
-          files={files}
+          files={files.items}
           timeZone={clinic.timezone}
           upload={
             holds(actor, 'file:upload') ? { ownerType: 'PATIENT', ownerId: patient.id } : undefined

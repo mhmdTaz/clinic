@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import { IdParam, PersonRef, nullableText, requiredText } from './common'
 
 /**
@@ -90,7 +91,7 @@ export const StoredFile = z.object({
 })
 export type StoredFile = z.infer<typeof StoredFile>
 
-export const FileListQuery = z.object({
+export const FileListQuery = PaginationQuery.extend({
   ownerType: FileOwnerType.optional(),
   ownerId: z.string().max(64).optional(),
   /** The vault reads by patient, whatever each document happens to hang off (P6). */

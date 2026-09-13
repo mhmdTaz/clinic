@@ -10,13 +10,14 @@ import {
   Notice,
   QueryState,
   Screen,
+  Truncated,
   inform,
   palette,
 } from '~/components/ui'
 import { agenda, agendaAction, holds, type AgendaEntry } from '~/lib/clinical'
 import { messageFor } from '~/lib/errors'
 import { appointmentStatusLabel, formatCalendarDate, formatTime, shiftDate } from '~/lib/format'
-import { useDoctorDay, useGrants, useOpenVisit, useVisitsAround } from '~/lib/queries'
+import { useDoctorDay, useGrants, useOpenVisit, useVisitsFor } from '~/lib/queries'
 import { useIsOffline, useUser } from '~/lib/session'
 import { NoDoctorProfile } from '~/screens/no-record'
 
@@ -35,7 +36,10 @@ export default function DoctorDay() {
   const [date, setDate] = useState(today)
 
   const day = useDoctorDay(date)
-  const visits = useVisitsAround(date)
+  const visits = useVisitsFor(
+    date,
+    day.data?.items.map((appointment) => appointment.id),
+  )
   const { grants } = useGrants()
   const openVisit = useOpenVisit()
   const [starting, setStarting] = useState<string | null>(null)
@@ -115,17 +119,18 @@ export default function DoctorDay() {
 
         <QueryState
           query={day}
-          isEmpty={(appointments) => appointments.length === 0}
+          isEmpty={(appointments) => appointments.items.length === 0}
           emptyText="Nothing booked."
         >
           {(appointments) => {
-            const entries = agenda(appointments, visits.data ?? [])
+            const entries = agenda(appointments.items, visits.data ?? [])
             const visitsKnown = visits.data !== undefined && !offline
             return (
               <View style={{ gap: 12 }}>
                 <Muted>
                   {entries.length === 1 ? '1 appointment' : `${entries.length} appointments`}
                 </Muted>
+                <Truncated listed={appointments} />
                 {visits.error && visits.data === undefined ? (
                   <Notice
                     tone="warning"

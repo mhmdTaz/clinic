@@ -53,7 +53,7 @@ export async function appointmentsStartingBetween(
   from: Date,
   to: Date,
 ): Promise<AppointmentNotificationFacts[]> {
-  const appointments = await appointmentRepository.list(clinicId, { from, to })
+  const appointments = await appointmentRepository.listAll(clinicId, { from, to })
   return appointments
     .filter(
       (appointment) => appointment.status === 'SCHEDULED' || appointment.status === 'CHECKED_IN',

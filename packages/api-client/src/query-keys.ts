@@ -25,6 +25,8 @@ export const queryKeys = {
   slots: (doctorId: string, from: string, to: string) =>
     ['doctors', doctorId, 'slots', from, to] as const,
   doctors: () => ['doctors'] as const,
+  /** Clinic-wide rules, not the person's: changed by an administrator, so read rarely. */
+  bookingWindow: () => ['clinic', 'booking-window'] as const,
 
   files: (filter: Record<string, unknown> = {}) => ['files', filter] as const,
   prescriptions: (filter: Record<string, unknown> = {}) => ['prescriptions', filter] as const,

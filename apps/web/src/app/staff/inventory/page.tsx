@@ -34,14 +34,16 @@ export default async function InventoryPage({ searchParams }: { searchParams: Se
   const values = await searchParams
   const view = param(values, 'view')
 
-  const query: InventoryListQuery = {
+  const query: Partial<InventoryListQuery> & { view: 'all' | 'low' | 'expiring' } = {
     q: param(values, 'q')?.slice(0, 80),
     status: 'active',
     view: isView(view) ? view : 'all',
+    cursor: param(values, 'cursor'),
+    limit: 50,
   }
 
   const canManage = holds(actor, 'inventory:manage')
-  const [items, alerts, categories, suppliers, t, tItem, locale] = await Promise.all([
+  const [page, alerts, categories, suppliers, t, tItem, locale] = await Promise.all([
     listItems(actor, query),
     stockAlerts(actor),
     canManage ? listCategories(actor) : [],
@@ -51,6 +53,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Se
     getLocale(),
   ])
 
+  const items = page.items
   const currency = items[0]?.currency ?? alerts.low[0]?.currency ?? 'USD'
   const attention = alerts.low.length + alerts.expiring.length + alerts.expired.length
 
@@ -111,6 +114,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Se
             ],
           },
         ]}
+        nextCursor={page.nextCursor}
         rows={items.map((item) => ({
           id: item.id,
           href: `/staff/inventory/${item.id}`,

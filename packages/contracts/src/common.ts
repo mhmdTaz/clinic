@@ -164,3 +164,22 @@ export const SlotMinutes = z.preprocess(
 
 export const PersonRef = z.object({ id: z.string().nullable(), name: z.string() })
 export type PersonRef = z.infer<typeof PersonRef>
+
+/**
+ * Ids in a query string, comma-separated: `?appointmentIds=a1,a2,a3`.
+ *
+ * Comma-separated rather than a repeated parameter because the API reads a query into one object
+ * (`Object.fromEntries`), where a repeated key keeps only its last value — a filter that silently
+ * dropped all but one id would be worse than none.
+ */
+export const idList = (max: number) =>
+  z.preprocess(
+    (value) =>
+      typeof value === 'string'
+        ? value
+            .split(',')
+            .map((part) => part.trim())
+            .filter((part) => part !== '')
+        : value,
+    z.array(z.string().max(64)).min(1).max(max),
+  )

@@ -36,16 +36,17 @@ const toNotification = (row: StoredNotification): Notification => ({
  */
 export async function notificationFeed(
   actor: Actor,
-  query: NotificationListQuery,
-): Promise<NotificationFeed> {
-  const [items, unreadCount] = await Promise.all([
+  query: Partial<NotificationListQuery>,
+): Promise<NotificationFeed & { nextCursor: string | null }> {
+  const [page, unreadCount] = await Promise.all([
     notificationRepository.listFor(actor.clinicId, actor.userId, {
-      unreadOnly: query.unreadOnly,
-      limit: query.limit,
+      unreadOnly: query.unreadOnly ?? false,
+      limit: Math.min(50, Math.max(1, query.limit ?? 20)),
+      cursor: query.cursor,
     }),
     notificationRepository.countUnread(actor.clinicId, actor.userId),
   ])
-  return { items: items.map(toNotification), unreadCount }
+  return { items: page.items.map(toNotification), unreadCount, nextCursor: page.nextCursor }
 }
 
 export async function markNotificationsRead(

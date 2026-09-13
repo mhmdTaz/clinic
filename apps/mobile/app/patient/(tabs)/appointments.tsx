@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { RefreshControl, ScrollView, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
+import * as Crypto from 'expo-crypto'
+import { ApiError } from '@clinic/api-client'
 import type { AppointmentSummary } from '@clinic/contracts'
 import {
   Badge,
@@ -10,6 +12,7 @@ import {
   Muted,
   QueryState,
   Screen,
+  Truncated,
   confirm,
   inform,
 } from '~/components/ui'
@@ -42,6 +45,12 @@ export default function PatientAppointments() {
   const query = useMyAppointments(user.patientId, user.clinic.timezone)
   const cancel = useCancelAppointment()
   const [cancelling, setCancelling] = useState<string | null>(null)
+  /**
+   * One key per appointment being cancelled, kept until the server has answered. A retry after a
+   * lost response then gets the first answer rather than "already cancelled" for a cancellation
+   * that worked.
+   */
+  const cancelKeys = useRef(new Map<string, string>())
 
   if (!user.patientId) return <NoPatientRecord />
 
@@ -56,12 +65,26 @@ export default function PatientAppointments() {
       destructive: true,
       onConfirm: () => {
         setCancelling(appointment.id)
+        const keys = cancelKeys.current
+        const idempotencyKey = keys.get(appointment.id) ?? Crypto.randomUUID()
+        keys.set(appointment.id, idempotencyKey)
         cancel.mutate(
-          { appointmentId: appointment.id, reason: null },
+          { appointmentId: appointment.id, reason: null, idempotencyKey },
           {
+            onSuccess: () => keys.delete(appointment.id),
             // The server owns the cancellation window (ADR-0022). Rather than guess at it here and
             // drift, the refusal is shown as the clinic worded it.
-            onError: (error) => inform('That could not be cancelled', messageFor(error)),
+            onError: (error) => {
+              // A definite refusal is settled; a failure that may not have reached the server keeps
+              // its key for the retry.
+              const answered =
+                error instanceof ApiError &&
+                error.status >= 400 &&
+                error.status < 500 &&
+                error.code !== 'IDEMPOTENCY_KEY_IN_USE'
+              if (answered) keys.delete(appointment.id)
+              inform('That could not be cancelled', messageFor(error))
+            },
             onSettled: () => setCancelling(null),
           },
         )
@@ -85,12 +108,12 @@ export default function PatientAppointments() {
 
         <QueryState
           query={query}
-          isEmpty={(list) => list.length === 0}
+          isEmpty={(diary) => diary.items.length === 0}
           emptyText="Nothing booked yet."
         >
-          {(list) => {
-            const upcoming = upcomingAppointments(list)
-            const past = pastAppointments(list).slice(0, PAST_SHOWN)
+          {(diary) => {
+            const upcoming = upcomingAppointments(diary.items)
+            const past = pastAppointments(diary.items).slice(0, PAST_SHOWN)
             return (
               <View style={{ gap: 12 }}>
                 <Heading>Upcoming</Heading>
@@ -145,6 +168,7 @@ export default function PatientAppointments() {
                     ))}
                   </>
                 ) : null}
+                <Truncated listed={diary} />
               </View>
             )
           }}

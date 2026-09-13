@@ -1,6 +1,14 @@
 import { InventoryItemModel, decimal128, newId } from '@clinic/db'
 import { addQuantities, negateQuantity } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { BatchAllocation, BatchLike } from '../domain/stock'
 
 /** Mongoose hands back a Decimal128; stock leaves this file as the decimal string it is. */
@@ -117,6 +125,24 @@ export interface ItemFilter {
   status?: 'active' | 'inactive' | 'all'
 }
 
+/** By the folded name, the id breaking ties between two items of the same name. */
+const ITEM_ORDER: readonly SortKey[] = [
+  { field: 'search.name', direction: 1, kind: 'string' },
+  { field: '_id', direction: 1, kind: 'string' },
+]
+
+function itemFilter(clinicId: string, filter: ItemFilter): Record<string, unknown> {
+  const query: Record<string, unknown> = { clinicId }
+  if (filter.categoryId) query.categoryId = filter.categoryId
+  if (filter.status && filter.status !== 'all') query.isActive = filter.status === 'active'
+  if (filter.q) {
+    // The folded keys, so "x-ray" finds "X-Ray" and a SKU search needs no separate box.
+    const pattern = new RegExp(escapeRegExp(filter.q), 'i')
+    query.$or = [{ 'search.name': pattern }, { 'search.sku': pattern }]
+  }
+  return query
+}
+
 export const itemRepository = {
   async create(clinicId: string, input: ItemWrite): Promise<StoredItem> {
     const doc = await InventoryItemModel().create({
@@ -156,19 +182,34 @@ export const itemRepository = {
     return docs.map(toItem)
   },
 
-  async list(clinicId: string, filter: ItemFilter, limit = 300): Promise<StoredItem[]> {
-    const query: Record<string, unknown> = { clinicId }
-    if (filter.categoryId) query.categoryId = filter.categoryId
-    if (filter.status && filter.status !== 'all') query.isActive = filter.status === 'active'
-    if (filter.q) {
-      // The folded keys, so "x-ray" finds "X-Ray" and a SKU search needs no separate box.
-      const pattern = new RegExp(escapeRegExp(filter.q), 'i')
-      query.$or = [{ 'search.name': pattern }, { 'search.sku': pattern }]
+  /** A page of the catalogue, by name. Before Phase 10: the first 300 names, and nothing said. */
+  async list(
+    clinicId: string,
+    filter: ItemFilter,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredItem>> {
+    const query = itemFilter(clinicId, filter)
+    if (page.cursor) {
+      query.$and = [keysetAfter(ITEM_ORDER, decodeCursor(page.cursor, ITEM_ORDER.length))]
     }
     const docs = (await InventoryItemModel()
       .find(query)
-      .sort({ 'search.name': 1 })
-      .limit(limit)
+      .sort(sortFor(ITEM_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<ItemRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, ITEM_ORDER)
+    return { items: rows.map(toItem), nextCursor }
+  },
+
+  /**
+   * The whole catalogue matching a filter, for a question that has to see all of it: which items
+   * are running low, which are about to expire. The first version read these through the same
+   * 300-row cap as the screen — so the 301st item by name could run out without an alert.
+   */
+  async listAll(clinicId: string, filter: ItemFilter): Promise<StoredItem[]> {
+    const docs = (await InventoryItemModel()
+      .find(itemFilter(clinicId, filter))
+      .sort(sortFor(ITEM_ORDER))
       .lean()) as ItemRecord[]
     return docs.map(toItem)
   },

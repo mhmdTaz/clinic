@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { localDateIn } from '@clinic/contracts'
+import {
+  localDateIn,
+  type EncounterSummary,
+  type InvoiceSummary,
+  type StoredFile,
+} from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { getClinicSessionInfo } from '@clinic/core/clinic'
 import { listInvoices } from '@clinic/core/billing'
@@ -18,6 +23,8 @@ import { ChartBanner } from '@/components/clinical/chart-banner'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { EncounterList } from '@/components/clinical/encounter-list'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages, noItems } from '@/lib/server/pages'
 import { formatInstant } from '@/lib/format/dates'
 import { countryOptions } from '@/lib/format/regions'
 import { orNotFound, param, type RouteParams, type SearchParams } from '@/lib/server/page-helpers'
@@ -34,6 +41,9 @@ export async function generateMetadata({
   const t = await getTranslations('staff.patients')
   return { title: patient ? `${patient.firstName} ${patient.lastName}` : t('title') }
 }
+
+/** A patient's whole history on one page. Past it, each list says it stopped short. */
+const RECORD_MAX = 500
 
 export default async function PatientPage({
   params,
@@ -65,9 +75,15 @@ export default async function PatientPage({
     canBook ? listDoctors(actor, { status: 'active' }) : [],
     // The front desk sees that visits happened and what they were coded as; the note's text is
     // never read for this page, whoever is looking (ADR-0025).
-    holds(actor, 'encounter:read') ? listEncounters(actor, { patientId }) : [],
-    holds(actor, 'file:read') ? listFiles(actor, { patientId }) : [],
-    holds(actor, 'invoice:read') ? listInvoices(actor, { patientId }) : [],
+    holds(actor, 'encounter:read')
+      ? collectPages((page) => listEncounters(actor, { patientId, ...page }), RECORD_MAX)
+      : noItems<EncounterSummary>(),
+    holds(actor, 'file:read')
+      ? collectPages((page) => listFiles(actor, { patientId, ...page }), RECORD_MAX)
+      : noItems<StoredFile>(),
+    holds(actor, 'invoice:read')
+      ? collectPages((page) => listInvoices(actor, { patientId, ...page }), RECORD_MAX)
+      : noItems<InvoiceSummary>(),
     getTranslations('staff.patients.detail'),
     getTranslations('scheduling'),
     getTranslations('clinical.encounters'),
@@ -222,49 +238,56 @@ export default async function PatientPage({
             </CardHeader>
             <CardContent>
               <EncounterList
-                encounters={encounters}
+                encounters={encounters.items}
                 timeZone={clinic.timezone}
                 show={{ doctor: true }}
                 emptyTitle={tClinical('noneForPatient')}
               />
+              <TruncatedNotice shown={encounters.items.length} truncated={encounters.truncated} />
             </CardContent>
           </Card>
         ) : null}
 
         {holds(actor, 'invoice:read') ? (
-          <PatientInvoicesCard
-            invoices={invoices}
-            action={
-              holds(actor, 'invoice:create') && patient.isActive ? (
-                <CreateInvoiceButton
-                  patientId={patient.id}
-                  visits={encounters.map((encounter) => ({
-                    id: encounter.id,
-                    label: `${encounter.number} · ${formatInstant(
-                      encounter.startedAt,
-                      locale,
-                      clinic.timezone,
-                    )}`,
-                  }))}
-                  label={tBilling('create.action')}
-                />
-              ) : null
-            }
-          />
+          <>
+            <PatientInvoicesCard
+              invoices={invoices.items}
+              action={
+                holds(actor, 'invoice:create') && patient.isActive ? (
+                  <CreateInvoiceButton
+                    patientId={patient.id}
+                    visits={encounters.items.map((encounter) => ({
+                      id: encounter.id,
+                      label: `${encounter.number} · ${formatInstant(
+                        encounter.startedAt,
+                        locale,
+                        clinic.timezone,
+                      )}`,
+                    }))}
+                    label={tBilling('create.action')}
+                  />
+                ) : null
+              }
+            />
+            <TruncatedNotice shown={invoices.items.length} truncated={invoices.truncated} />
+          </>
         ) : null}
 
         {holds(actor, 'file:read') ? (
-          <DocumentsCard
-            files={files}
-            timeZone={clinic.timezone}
-            upload={
-              holds(actor, 'file:upload') && patient.isActive
-                ? { ownerType: 'PATIENT', ownerId: patient.id }
-                : undefined
-            }
-            canShare={holds(actor, 'file:upload')}
-            canDelete={holds(actor, 'file:delete')}
-          />
+          <>
+            <DocumentsCard
+              files={files.items}
+              timeZone={clinic.timezone}
+              upload={
+                holds(actor, 'file:upload') && patient.isActive
+                  ? { ownerType: 'PATIENT', ownerId: patient.id }
+                  : undefined
+              }
+              canShare={holds(actor, 'file:upload')}
+              canDelete={holds(actor, 'file:delete')}
+            />
+            <TruncatedNotice shown={files.items.length} truncated={files.truncated} />
+          </>
         ) : null}
       </div>
     </>

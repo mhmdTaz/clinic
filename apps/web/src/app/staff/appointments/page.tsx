@@ -15,6 +15,8 @@ import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-
 import { CalendarToolbar } from '@/components/scheduling/calendar-toolbar'
 import { WalkInDialog } from '@/components/scheduling/walk-in-dialog'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 import {
   datesBetween,
   formatCalendarDate,
@@ -30,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('staff.appointments')
   return { title: t('title') }
 }
+
+/** The whole clinic's week on one board. Past it, the board says it stopped short. */
+const CALENDAR_MAX = 2000
 
 export default async function StaffCalendarPage({ searchParams }: { searchParams: SearchParams }) {
   const actor = await requirePortal('staff')
@@ -48,7 +53,7 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
 
   const from = view === 'week' ? startOfWeek(date) : date
   const to = view === 'week' ? shiftDate(from, 6) : date
-  const query: AppointmentListQuery = {
+  const query: Omit<AppointmentListQuery, 'limit'> = {
     from,
     to,
     doctorId,
@@ -59,15 +64,27 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
 
   // The waiting room is asked for separately so a status filter on the calendar cannot empty
   // it: who is sitting in the clinic right now is not a view of the diary.
-  const [appointments, waiting, doctors, t, tScheduling] = await Promise.all([
-    listAppointments(actor, query),
+  const [calendar, waiting, doctors, t, tScheduling] = await Promise.all([
+    collectPages((page) => listAppointments(actor, { ...query, ...page }), CALENDAR_MAX),
     view === 'day'
-      ? listAppointments(actor, { from: date, to: date, status: 'CHECKED_IN', doctorId })
+      ? collectPages(
+          (page) =>
+            listAppointments(actor, {
+              from: date,
+              to: date,
+              status: 'CHECKED_IN',
+              doctorId,
+              ...page,
+            }),
+          CALENDAR_MAX,
+        ).then((result) => result.items)
       : [],
     holds(actor, 'doctor:read') ? listDoctors(actor, { status: 'active' }) : [],
     getTranslations('staff.appointments'),
     getTranslations('scheduling'),
   ])
+
+  const appointments = calendar.items
 
   const doctorOptions = doctors.map((doctor) => ({
     id: doctor.id,
@@ -207,7 +224,10 @@ export default async function StaffCalendarPage({ searchParams }: { searchParams
         {columns.length === 0 ? (
           <EmptyState title={t('emptyTitle')} body={t('emptyBody')} action={book} />
         ) : (
-          <Board columns={columns} label={t('title')} />
+          <>
+            <TruncatedNotice shown={appointments.length} truncated={calendar.truncated} />
+            <Board columns={columns} label={t('title')} />
+          </>
         )}
       </div>
     </>

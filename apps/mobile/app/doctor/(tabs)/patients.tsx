@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { localDateIn } from '@clinic/contracts'
-import { Field, Muted, QueryState, Row, Screen } from '~/components/ui'
+import { Field, Muted, QueryState, Row, Screen, Truncated } from '~/components/ui'
 import { ageOn } from '~/lib/format'
 import { useCaseload } from '~/lib/queries'
 import { useUser } from '~/lib/session'
@@ -25,7 +25,7 @@ export default function DoctorPatients() {
   const term = search.trim().toLowerCase()
   const matches = useMemo(
     () =>
-      (query.data ?? []).filter(
+      (query.data?.items ?? []).filter(
         (patient) =>
           term === '' ||
           `${patient.firstName} ${patient.lastName}`.toLowerCase().includes(term) ||
@@ -58,12 +58,16 @@ export default function DoctorPatients() {
 
         <QueryState
           query={query}
-          isEmpty={(patients) => patients.length === 0}
+          isEmpty={(caseload) => caseload.items.length === 0}
           emptyText="No patients yet. A patient appears here once you have recorded a visit with them."
         >
-          {() =>
+          {(caseload) =>
             matches.length === 0 ? (
-              <Muted>{`Nobody on your list matches “${search.trim()}”.`}</Muted>
+              <>
+                <Muted>{`Nobody on your list matches “${search.trim()}”.`}</Muted>
+                {/* A search over a caseload cut short may be missing the person, and says so. */}
+                <Truncated listed={caseload} />
+              </>
             ) : (
               <View style={{ gap: 8 }}>
                 {matches.map((patient) => {
@@ -87,6 +91,7 @@ export default function DoctorPatients() {
                     />
                   )
                 })}
+                <Truncated listed={caseload} />
               </View>
             )
           }

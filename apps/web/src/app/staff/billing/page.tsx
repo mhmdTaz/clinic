@@ -32,12 +32,14 @@ export default async function StaffBillingPage({ searchParams }: { searchParams:
   const status = param(values, 'status')
   const view = status ?? 'outstanding'
 
-  const query: InvoiceListQuery = {
+  const query: Partial<InvoiceListQuery> = {
     outstanding: view === 'outstanding' ? true : undefined,
     status: isStatus(status) ? status : undefined,
+    cursor: param(values, 'cursor'),
+    limit: 50,
   }
 
-  const [invoices, t, tStatus, locale] = await Promise.all([
+  const [page, t, tStatus, locale] = await Promise.all([
     listInvoices(actor, query),
     getTranslations('staff.billing'),
     getTranslations('billing.statuses'),
@@ -80,7 +82,8 @@ export default async function StaffBillingPage({ searchParams }: { searchParams:
             ],
           },
         ]}
-        rows={invoices.map((invoice) => ({
+        nextCursor={page.nextCursor}
+        rows={page.items.map((invoice) => ({
           id: invoice.id,
           href: `/staff/billing/${invoice.id}`,
           cells: {

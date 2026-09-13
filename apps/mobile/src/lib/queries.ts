@@ -1,5 +1,18 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { ApiError, invalidatedBy, queryKeys } from '@clinic/api-client'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
+import {
+  ApiError,
+  PAGE_LIMIT_MAX,
+  collectByIds,
+  collectPages,
+  invalidatedBy,
+  queryKeys,
+} from '@clinic/api-client'
 import {
   localDateIn,
   type AddendumRequest,
@@ -11,7 +24,7 @@ import {
 } from '@clinic/contracts'
 import { auth, doctor, portal } from './api'
 import { grantsOf } from './clinical'
-import { isOwnBooking, shiftDate } from './format'
+import { shiftDate } from './format'
 
 /**
  * The app's data layer, built on the **shared** keys (§9.4).
@@ -20,6 +33,13 @@ import { isOwnBooking, shiftDate } from './format'
  * point: when a booking succeeds something has to invalidate the appointments list, and if web and
  * mobile each spelled that key their own way one of them would stop refreshing. Nobody notices
  * until a patient swears they cancelled an appointment that is still on the screen.
+ *
+ * ## Lists page, and a screen that shows one whole says when it stopped
+ *
+ * Every collection pages with a cursor (§9.2). A list with a natural bound — a diary window, one
+ * day, one patient's chart — is read whole with `collectPages`, up to a cap named below, and comes
+ * back as `{ items, truncated }` so the screen can say it stopped short. The feed of updates grows
+ * without bound, so it is read a page at a time as somebody scrolls back through it.
  */
 
 const invalidate = (queryClient: QueryClient, keys: ReadonlyArray<readonly unknown[]>) =>
@@ -45,6 +65,9 @@ export function useGrants() {
 /** A window wide enough to be useful on one screen, narrow enough to load on a phone. */
 export const APPOINTMENT_WINDOW_DAYS = 60
 
+/** One person's diary over the window. Far past anything a patient books; said if it is reached. */
+const DIARY_MAX = 500
+
 /**
  * The patient's appointments, either side of today at the clinic.
  *
@@ -59,13 +82,33 @@ export function useMyAppointments(patientId: string | null, timeZone: string) {
     queryKey: queryKeys.appointments({ patientId, aroundToday: APPOINTMENT_WINDOW_DAYS }),
     queryFn: () => {
       const today = localDateIn(timeZone)
-      return portal.appointments({
-        patientId: patientId ?? '',
-        from: shiftDate(today, -APPOINTMENT_WINDOW_DAYS),
-        to: shiftDate(today, APPOINTMENT_WINDOW_DAYS),
-      })
+      return collectPages(
+        (page) =>
+          portal.appointments({
+            patientId: patientId ?? '',
+            from: shiftDate(today, -APPOINTMENT_WINDOW_DAYS),
+            to: shiftDate(today, APPOINTMENT_WINDOW_DAYS),
+            ...page,
+          }),
+        DIARY_MAX,
+      )
     },
     enabled: patientId !== null,
+  })
+}
+
+/**
+ * How far ahead this clinic lets somebody book, and with how much notice (ADR-0022).
+ *
+ * Read from the server rather than assumed. Until Phase 10 a phone could not read it — the
+ * settings sat behind the admin portal — and the booking screen offered eight weeks whatever the
+ * clinic had set.
+ */
+export function useBookingWindow() {
+  return useQuery({
+    queryKey: queryKeys.bookingWindow(),
+    queryFn: () => portal.bookingWindow(),
+    staleTime: 10 * 60_000,
   })
 }
 
@@ -86,40 +129,21 @@ export function useOpenTimes(doctorId: string | null, from: string, to: string) 
   })
 }
 
-export type BookingOutcome =
-  | { kind: 'booked'; appointmentId: string }
-  /** The retry of a booking that had in fact gone through. See `isOwnBooking`. */
-  | { kind: 'alreadyYours'; appointmentId: string }
-
 /**
- * Booking, and telling a patient's own lost-response booking apart from a slot somebody else took.
+ * Booking for oneself.
  *
  * The key is minted by the screen **once per attempt** and reused if the person taps again, which
- * is the only arrangement in which it could ever help. The server does not honour it yet (see
- * `bookForMyself`), so `SLOT_TAKEN` is checked against the patient's own diary before it is
- * believed.
+ * is the only arrangement in which it can help: the server answers a repeat with the appointment
+ * the first attempt booked (§9.2), so a response lost to a weak signal costs a retry, never a
+ * second appointment and never a "somebody else took it" about the patient's own slot.
  */
-export function useBookAppointment(patientId: string | null, timeZone: string) {
+export function useBookAppointment() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (
-      input: BookOwnAppointmentRequest & { idempotencyKey: string },
-    ): Promise<BookingOutcome> => {
+    mutationFn: async (input: BookOwnAppointmentRequest & { idempotencyKey: string }) => {
       const { idempotencyKey, ...booking } = input
-      try {
-        const booked = await portal.bookForMyself(booking, idempotencyKey)
-        return { kind: 'booked', appointmentId: booked.id }
-      } catch (caught) {
-        if (!(caught instanceof ApiError) || caught.code !== 'SLOT_TAKEN' || !patientId)
-          throw caught
-        // Just the day of the attempt: that is the only day the appointment could be on.
-        const day = localDateIn(timeZone, new Date(booking.startsAt))
-        const diary = await portal.appointments({ patientId, from: day, to: day }).catch(() => [])
-        const mine = isOwnBooking(diary, booking)
-        if (!mine) throw caught
-        return { kind: 'alreadyYours', appointmentId: mine.id }
-      }
+      return portal.bookForMyself(booking, idempotencyKey)
     },
     onSettled: () => invalidate(queryClient, invalidatedBy.booking()),
   })
@@ -128,25 +152,41 @@ export function useBookAppointment(patientId: string | null, timeZone: string) {
 export function useCancelAppointment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { appointmentId: string; reason: string | null }) =>
-      portal.cancelAppointment(input.appointmentId, { reason: input.reason }),
-    onSuccess: () => invalidate(queryClient, invalidatedBy.cancellation()),
+    mutationFn: (input: { appointmentId: string; reason: string | null; idempotencyKey: string }) =>
+      portal.cancelAppointment(input.appointmentId, { reason: input.reason }, input.idempotencyKey),
+    onSettled: () => invalidate(queryClient, invalidatedBy.cancellation()),
   })
 }
+
+/** Everything shared with one patient over the years. Past it, the screen says it stopped. */
+const DOCUMENTS_MAX = 500
 
 /** The patient's document vault. The server's scope decides what is shared (ADR-0025). */
 export function useMyDocuments(patientId: string | null) {
   return useQuery({
     queryKey: queryKeys.files({ patientId }),
-    queryFn: () => portal.files({}),
+    queryFn: () => collectPages((page) => portal.files(page), DOCUMENTS_MAX),
     enabled: patientId !== null,
   })
 }
 
+/** One page of the feed. The home screen reads only the first; the updates screen scrolls on. */
+export const NOTIFICATIONS_PAGE = 30
+
+/**
+ * The feed of updates, newest first, a page at a time.
+ *
+ * An infinite query rather than a collected list, because a feed has no natural end: every
+ * reminder adds to it. The unread count travels on every page; the first page's is the current
+ * one, because a refetch reloads the pages in order.
+ */
 export function useNotifications() {
-  return useQuery({
-    queryKey: queryKeys.notifications({ limit: 30 }),
-    queryFn: () => portal.notifications({ limit: 30 }),
+  return useInfiniteQuery({
+    queryKey: queryKeys.notifications({ limit: NOTIFICATIONS_PAGE }),
+    queryFn: ({ pageParam }) =>
+      portal.notifications({ limit: NOTIFICATIONS_PAGE, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
 }
 
@@ -160,11 +200,14 @@ export function useMarkNotificationsRead() {
 
 // ── Support ──────────────────────────────────────────────────────────────────
 
+/** A person's own questions to the clinic, ever. The web's help page reads the same amount. */
+const TICKETS_MAX = 500
+
 /** Everything the person has asked, open or not — their own history, not a queue. */
 export function useMyTickets() {
   return useQuery({
     queryKey: queryKeys.tickets({ view: 'all' }),
-    queryFn: () => portal.tickets({ view: 'all' }),
+    queryFn: () => collectPages((page) => portal.tickets({ view: 'all', ...page }), TICKETS_MAX),
   })
 }
 
@@ -201,39 +244,52 @@ export function useReplyToTicket(ticketId: string) {
 
 // ── Doctor ───────────────────────────────────────────────────────────────────
 
+/** One doctor's day. No clinic books this many; if one ever does, the day says so. */
+const DAY_MAX = 500
+
 /** One day of the doctor's diary, a calendar date at the clinic. */
 export function useDoctorDay(date: string) {
   return useQuery({
     queryKey: queryKeys.appointments({ day: date }),
-    queryFn: () => doctor.appointments({ from: date, to: date }),
+    queryFn: () =>
+      collectPages((page) => doctor.appointments({ from: date, to: date, ...page }), DAY_MAX),
   })
 }
 
 /**
- * How far either side of a day to look for the visits recorded against its appointments.
+ * The visits recorded against a day's appointments — whether each offers "open the note" or
+ * "record the visit".
  *
- * The encounter list filters by the day a visit **started**, not by its appointment's day, and
- * the API has no appointment filter. A visit opened the evening before — or written up the morning
- * after — is on a different day from its appointment, and a list for the appointment's day alone
- * misses it: the day then offered "Record the visit" for an appointment whose note was already
- * signed. Found by running the app; the web agenda had the same gap (ARCHITECTURE §17).
+ * Asked **by appointment**, not by date. The date filter is the day a visit *started*, and a visit
+ * opened the evening before or written up the morning after is on a different day from its
+ * appointment. Phase 9 worked around that by reading a fortnight of visits either side of the day;
+ * the API now answers the actual question. Disabled until the day is known, since the question is
+ * about its appointments.
  */
-export const VISIT_MATCH_DAYS = 7
-
-/** The visits near a day — whether each of its appointments offers "open the note" or "start". */
-export function useVisitsAround(date: string) {
+export function useVisitsFor(date: string, appointmentIds: readonly string[] | undefined) {
+  const ids = appointmentIds ? [...new Set(appointmentIds)].sort() : []
   return useQuery({
-    queryKey: queryKeys.encounters({ around: date, days: VISIT_MATCH_DAYS }),
+    queryKey: queryKeys.encounters({ day: date, appointmentIds: ids }),
     queryFn: () =>
-      doctor.encounters({
-        from: shiftDate(date, -VISIT_MATCH_DAYS),
-        to: shiftDate(date, VISIT_MATCH_DAYS),
-      }),
+      collectByIds(ids, (slice) =>
+        doctor.encounters({ appointmentIds: slice, limit: PAGE_LIMIT_MAX }),
+      ),
+    enabled: appointmentIds !== undefined,
   })
 }
 
+/**
+ * Everyone one doctor has treated. Read whole because the search box filters on the phone — a
+ * search that waited on the network between letters is unusable on a weak signal — and a caseload
+ * this long is said to be cut short rather than searched incompletely without a word.
+ */
+const CASELOAD_MAX = 2000
+
 export function useCaseload() {
-  return useQuery({ queryKey: queryKeys.patientsITreat(), queryFn: () => doctor.patientsITreat() })
+  return useQuery({
+    queryKey: queryKeys.patientsITreat(),
+    queryFn: () => collectPages((page) => doctor.patientsITreat(page), CASELOAD_MAX),
+  })
 }
 
 export function useChart(patientId: string, options: { enabled?: boolean } = {}) {
@@ -244,24 +300,27 @@ export function useChart(patientId: string, options: { enabled?: boolean } = {})
   })
 }
 
+/** Each section of a chart on a phone. Past it, the section says it stopped short. */
+const CHART_MAX = 200
+
 export function usePatientVisits(patientId: string) {
   return useQuery({
     queryKey: queryKeys.encounters({ patientId }),
-    queryFn: () => doctor.encounters({ patientId }),
+    queryFn: () => collectPages((page) => doctor.encounters({ patientId, ...page }), CHART_MAX),
   })
 }
 
 export function usePatientPrescriptions(patientId: string) {
   return useQuery({
     queryKey: queryKeys.prescriptions({ patientId }),
-    queryFn: () => doctor.prescriptions({ patientId }),
+    queryFn: () => collectPages((page) => doctor.prescriptions({ patientId, ...page }), CHART_MAX),
   })
 }
 
 export function usePatientFiles(patientId: string) {
   return useQuery({
     queryKey: queryKeys.files({ patientId }),
-    queryFn: () => doctor.files({ patientId }),
+    queryFn: () => collectPages((page) => doctor.files({ patientId, ...page }), CHART_MAX),
   })
 }
 
@@ -276,7 +335,8 @@ export function useEncounter(encounterId: string) {
  * Opening the visit for an appointment — or finding the one that already exists.
  *
  * `ENCOUNTER_EXISTS` is not an error to show. It is what a second tap, or a retry after a lost
- * response, returns; the doctor wants the note, and the note is there.
+ * response, returns; the doctor wants the note, and the note is there. Found by its appointment,
+ * which is exact whatever day the visit was started on.
  */
 export function useOpenVisit() {
   const queryClient = useQueryClient()
@@ -285,10 +345,15 @@ export function useOpenVisit() {
       try {
         return (await doctor.openEncounter(request)).id
       } catch (caught) {
-        if (!(caught instanceof ApiError) || caught.code !== 'ENCOUNTER_EXISTS') throw caught
-        // By patient, never by date: the visit may have been started on another day entirely.
-        const visits = await doctor.encounters({ patientId: request.patientId })
-        const existing = visits.find((visit) => visit.appointmentId === request.appointmentId)
+        if (
+          !(caught instanceof ApiError) ||
+          caught.code !== 'ENCOUNTER_EXISTS' ||
+          !request.appointmentId
+        ) {
+          throw caught
+        }
+        const visits = await doctor.encounters({ appointmentIds: [request.appointmentId] })
+        const existing = visits.items.find((visit) => visit.appointmentId === request.appointmentId)
         if (!existing) throw caught
         return existing.id
       }

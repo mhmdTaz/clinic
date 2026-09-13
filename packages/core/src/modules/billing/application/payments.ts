@@ -18,6 +18,7 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { runInTransaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
 import { emitEvent } from '../../outbox'
@@ -327,11 +328,17 @@ export async function refundPayment(
   return toPayment(payment)
 }
 
-export async function listPayments(actor: Actor, query: PaymentListQuery): Promise<Payment[]> {
+export async function listPayments(
+  actor: Actor,
+  query: Partial<PaymentListQuery>,
+): Promise<Page<Payment>> {
   const clinic = await getClinicFacts(actor.clinicId)
   const filter = await paymentFilterFor(actor, query, clinic.timezone)
-  const payments = await paymentRepository.list(actor.clinicId, filter)
-  return payments.map(toPayment)
+  const page = await paymentRepository.list(actor.clinicId, filter, {
+    cursor: query.cursor,
+    limit: pageLimit(query.limit),
+  })
+  return { items: page.items.map(toPayment), nextCursor: page.nextCursor }
 }
 
 export async function getPayment(actor: Actor, paymentId: string): Promise<Payment> {
@@ -347,7 +354,7 @@ export async function getPayment(actor: Actor, paymentId: string): Promise<Payme
 /** The same narrowing the invoice list does, over payments (section 7.3). */
 export async function paymentFilterFor(
   actor: Actor,
-  query: PaymentListQuery,
+  query: Partial<PaymentListQuery>,
   timezone: string,
 ): Promise<PaymentFilter> {
   await assertCan(actor, 'payment:read')

@@ -10,7 +10,6 @@ import {
 } from '@clinic/contracts'
 import type {
   AddendumRequest,
-  AppointmentListQuery,
   EncounterListQuery,
   FileListQuery,
   OpenEncounterRequest,
@@ -18,8 +17,9 @@ import type {
   SignNoteRequest,
   UpdateEncounterRequest,
 } from '@clinic/contracts'
-import { z } from 'zod'
 import type { ApiClient } from '../client'
+import type { PageRequest } from '../pages'
+import type { AppointmentsRequest } from './patient-portal'
 
 /**
  * What the doctor portal does on a phone: the day, the chart, and the note (D2–D9).
@@ -40,10 +40,10 @@ export function doctorPortal(client: ApiClient) {
      * The doctor's appointments over a window. The server scopes the list to the doctor's own
      * diary (ADR-0004); a `doctorId` here would only ever narrow it, never widen it.
      */
-    appointments(query: AppointmentListQuery) {
-      return client.request('/api/v1/appointments', {
+    appointments(query: AppointmentsRequest) {
+      return client.paged('/api/v1/appointments', {
         query: { ...query },
-        schema: z.array(AppointmentSummary),
+        schema: AppointmentSummary,
       })
     },
 
@@ -56,8 +56,8 @@ export function doctorPortal(client: ApiClient) {
      * here, and an empty array satisfies any array schema, so the patient parity suite could not
      * have noticed. The doctor's suite did, on its first run.
      */
-    patientsITreat() {
-      return client.request('/api/v1/me/patients', { schema: z.array(PatientSummary) })
+    patientsITreat(page: PageRequest = {}) {
+      return client.paged('/api/v1/me/patients', { query: { ...page }, schema: PatientSummary })
     },
 
     /** The chart. The banner — allergies and chronic conditions — is embedded on the record. */
@@ -66,10 +66,16 @@ export function doctorPortal(client: ApiClient) {
     },
 
     // ── Visits and the note (D6–D9) ──────────────────────────────────────────
+    /**
+     * Visits, newest first. `appointmentIds` (at most 100) finds the visits recorded against a
+     * day's appointments whatever day each visit started on — which the date filter cannot.
+     */
     encounters(query: Partial<EncounterListQuery> = {}) {
-      return client.request('/api/v1/encounters', {
-        query: { ...query },
-        schema: z.array(EncounterSummary),
+      const { appointmentIds, ...rest } = query
+      return client.paged('/api/v1/encounters', {
+        // Comma-separated, which is how the contract reads a list from a query string.
+        query: { ...rest, appointmentIds: appointmentIds?.join(',') },
+        schema: EncounterSummary,
       })
     },
 
@@ -126,14 +132,11 @@ export function doctorPortal(client: ApiClient) {
 
     // ── What else the chart shows ────────────────────────────────────────────
     prescriptions(query: Partial<PrescriptionListQuery> = {}) {
-      return client.request('/api/v1/prescriptions', {
-        query: { ...query },
-        schema: z.array(Prescription),
-      })
+      return client.paged('/api/v1/prescriptions', { query: { ...query }, schema: Prescription })
     },
 
     files(query: Partial<FileListQuery> = {}) {
-      return client.request('/api/v1/files', { query: { ...query }, schema: z.array(StoredFile) })
+      return client.paged('/api/v1/files', { query: { ...query }, schema: StoredFile })
     },
 
     downloadLink(fileId: string) {

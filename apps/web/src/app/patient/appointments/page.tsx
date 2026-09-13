@@ -11,6 +11,8 @@ import { PageHeader } from '@/components/portal/page-header'
 import { AppointmentActions } from '@/components/scheduling/appointment-actions'
 import { AppointmentCard } from '@/components/scheduling/appointment-card'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 import { formatCalendarDate, shiftDate } from '@/lib/format/dates'
 
 /** How far back and forward a patient's own list reaches. */
@@ -42,10 +44,16 @@ export default async function PatientAppointmentsPage() {
   }
 
   const today = localDateIn(clinic.timezone)
-  const appointments = await listAppointments(actor, {
-    from: shiftDate(today, -HISTORY_DAYS),
-    to: shiftDate(today, AHEAD_DAYS),
-  })
+  // One patient's diary over a bounded window: read whole, and said so on the day it cannot be.
+  const { items: appointments, truncated } = await collectPages(
+    (page) =>
+      listAppointments(actor, {
+        from: shiftDate(today, -HISTORY_DAYS),
+        to: shiftDate(today, AHEAD_DAYS),
+        ...page,
+      }),
+    500,
+  )
 
   const now = Date.now()
   const upcoming = appointments.filter((a) => new Date(a.endsAt).getTime() >= now)
@@ -105,6 +113,7 @@ export default async function PatientAppointmentsPage() {
             <div className="flex flex-col gap-3">
               {past.map((appointment) => card(appointment, false))}
             </div>
+            <TruncatedNotice shown={appointments.length} truncated={truncated} />
           </section>
         ) : null}
       </div>

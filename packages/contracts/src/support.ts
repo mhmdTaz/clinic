@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import { PersonRef, requiredText } from './common'
 
 /**
@@ -91,7 +92,7 @@ export const TicketDetail = TicketSummary.extend({
 })
 export type TicketDetail = z.infer<typeof TicketDetail>
 
-export const TicketListQuery = z.object({
+export const TicketListQuery = PaginationQuery.extend({
   status: TicketStatus.optional(),
   priority: TicketPriority.optional(),
   category: TicketCategory.optional(),

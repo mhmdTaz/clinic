@@ -11,6 +11,11 @@ import {
 } from '@clinic/core'
 import { assertCan, type Actor, type PermissionKey } from '@clinic/core/access'
 import {
+  claimIdempotencyKey,
+  settleIdempotencyKey,
+  type IdempotencyOutcome,
+} from '@clinic/core/idempotency'
+import {
   authenticateAccessToken,
   type IssuedAccessToken,
   type RequestMeta,
@@ -31,7 +36,8 @@ import { CrossSiteRequestError, PayloadTooLargeError } from './errors'
  *   3. opens the request context that audit capture reads (11.2)
  *   4. applies the coarse permission gate, which audits a denial (7.6)
  *   5. validates the body and query against the shared contracts
- *   6. shapes the envelope and maps domain errors to status codes (9.2, 13.2)
+ *   6. honours an `Idempotency-Key` on the routes that must not run twice (9.2)
+ *   7. shapes the envelope and maps domain errors to status codes (9.2, 13.2)
  *
  * Route handlers stay thin enough to be obviously correct, and the mobile app gets
  * identical behaviour because it goes through exactly the same wrapper.
@@ -69,7 +75,19 @@ interface Options<B extends Schema | undefined, Q extends Schema | undefined> {
   permission?: PermissionKey
   body?: B
   query?: Q
+  /**
+   * Honours an `Idempotency-Key` header (§9.2): a retry with the same key and body gets the first
+   * request's response back instead of running again. For every POST that creates or changes a
+   * booking, or moves money. The header stays optional — a client that sends none gets today's
+   * behaviour — but a client that sends one is never charged or booked twice by its own retry.
+   */
+  idempotent?: boolean
 }
+
+/** What the handler produced, or the earlier response to a request with the same key. */
+type Handled =
+  | { kind: 'handled'; result: ApiResult<unknown> }
+  | { kind: 'replayed'; status: number; body: unknown }
 
 type RouteHandler = (
   request: NextRequest,
@@ -100,6 +118,57 @@ export function withApi(
   handler: (context: never) => Promise<ApiResult<unknown>>,
 ): RouteHandler {
   const auth = options.auth ?? 'required'
+  const idempotent = options.idempotent ?? false
+
+  /**
+   * Runs the handler once per key.
+   *
+   * After authentication, the permission check and body validation, on purpose: a request refused
+   * at the door is not an attempt at the work, and must not use up the key the corrected request
+   * will be sent with.
+   */
+  async function runIdempotently(
+    request: NextRequest,
+    actor: Actor | null,
+    body: unknown,
+    run: () => Promise<ApiResult<unknown>>,
+  ): Promise<Handled> {
+    const key = idempotent ? request.headers.get('idempotency-key') : null
+    if (key === null || !actor) return { kind: 'handled', result: await run() }
+
+    const outcome: IdempotencyOutcome = await claimIdempotencyKey({
+      clinicId: actor.clinicId,
+      // A key means something only to the person who sent it, on the resource it was sent to.
+      scope: `user:${actor.userId} ${request.method} ${request.nextUrl.pathname}`,
+      key: key.trim(),
+      body: body ?? null,
+    })
+    if (outcome.kind === 'replay') {
+      return { kind: 'replayed', status: outcome.status, body: outcome.body }
+    }
+
+    let result: ApiResult<unknown>
+    try {
+      result = await run()
+    } catch (error) {
+      await settleIdempotencyKey(
+        outcome.claim,
+        isDomainError(error)
+          ? { status: error.status, body: { error: errorBody(error) } }
+          : { status: 500, body: null },
+      ).catch((settleError: unknown) => console.error('[idempotency] release failed', settleError))
+      throw error
+    }
+
+    // The work is done. Failing to record the answer must not turn it into an error response: the
+    // client would retry, and after the lease the retry would run the work a second time. So the
+    // failure is logged and the response goes out regardless.
+    await settleIdempotencyKey(outcome.claim, {
+      status: result.status ?? 200,
+      body: { data: result.data, meta: result.meta ?? {} },
+    }).catch((settleError: unknown) => console.error('[idempotency] record failed', settleError))
+    return { kind: 'handled', result }
+  }
 
   return async (request, routeContext) => {
     const requestId = request.headers.get('x-request-id') ?? crypto.randomUUID()
@@ -153,16 +222,18 @@ export function withApi(
           query: options.query ? readQuery(request, options.query) : undefined,
           params: (await routeContext?.params) ?? {},
         }
-        return handler(context as never)
+        return runIdempotently(request, actor, context.body, () => handler(context as never))
       })
 
+      if (result.kind === 'replayed') return replayResponse(result, requestId, headers)
+
       const response = NextResponse.json(
-        { data: result.data, meta: { requestId, ...result.meta } },
-        { status: result.status ?? 200, headers },
+        { data: result.result.data, meta: { requestId, ...result.result.meta } },
+        { status: result.result.status ?? 200, headers },
       )
       // Grants changed mid-session: the replacement token goes back in this response (7.7).
       if (reissued && transport === 'cookie') setAccessCookie(response, reissued)
-      result.respond?.(response)
+      result.result.respond?.(response)
       return response
     } catch (error) {
       return errorResponse(error, requestId, headers, hadSessionCookie)
@@ -235,6 +306,26 @@ function parse<S extends Schema>(schema: S, raw: unknown): z.output<S> {
   return parsed.data
 }
 
+function errorBody(error: { code: string; message: string; details?: unknown }) {
+  return { code: error.code, message: error.message, details: error.details }
+}
+
+/**
+ * The earlier response to a request with the same key, as it was sent — status, data and all —
+ * with this request's own id, and a header saying it is a replay so a client can tell.
+ */
+function replayResponse(
+  replayed: { status: number; body: unknown },
+  requestId: string,
+  headers: Record<string, string>,
+): NextResponse {
+  const body = (replayed.body ?? {}) as { meta?: Record<string, unknown> }
+  return NextResponse.json(
+    { ...body, meta: { ...body.meta, requestId } },
+    { status: replayed.status, headers: { ...headers, 'idempotent-replayed': 'true' } },
+  )
+}
+
 function errorResponse(
   error: unknown,
   requestId: string,
@@ -243,10 +334,7 @@ function errorResponse(
 ): NextResponse {
   if (isDomainError(error)) {
     const response = NextResponse.json(
-      {
-        error: { code: error.code, message: error.message, details: error.details },
-        meta: { requestId },
-      },
+      { error: errorBody(error), meta: { requestId } },
       { status: error.status, headers },
     )
     const retryAfter = (error as { retryAfterSeconds?: unknown }).retryAfterSeconds

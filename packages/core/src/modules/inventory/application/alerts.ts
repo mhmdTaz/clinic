@@ -16,7 +16,9 @@ import { itemContext, toItemSummary } from './catalogue'
 export async function stockAlerts(actor: Actor, now: Date = new Date()): Promise<StockAlerts> {
   await assertCan(actor, 'inventory:read')
   const [items, context] = await Promise.all([
-    itemRepository.list(actor.clinicId, { status: 'active' }),
+    // Every active item. An alert that only looked at the first page would stay quiet about the
+    // rest, which is the one failure a stock alert must not have.
+    itemRepository.listAll(actor.clinicId, { status: 'active' }),
     itemContext(actor, now),
   ])
   const summaries = items.map((item) => toItemSummary(item, context))

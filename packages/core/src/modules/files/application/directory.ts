@@ -1,6 +1,7 @@
 import { DOWNLOAD_URL_SECONDS } from '@clinic/config'
 import type { DownloadLink, FileListQuery, StoredFile, UpdateFileRequest } from '@clinic/contracts'
 import { BusinessRuleError, ForbiddenError, NotFoundError, ValidationError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { recordAudit } from '../../audit'
 import { assertCan, careRelationship, type Actor } from '../../access'
 import { findEncounterOwner } from '../../clinical'
@@ -15,7 +16,10 @@ import { toStoredFile } from './upload'
  * A patient reaches their own documents, and only those someone chose to share. A doctor reaches
  * the documents of patients they have treated. The clinic reaches all of them.
  */
-export async function listFiles(actor: Actor, query: FileListQuery): Promise<StoredFile[]> {
+export async function listFiles(
+  actor: Actor,
+  query: Partial<FileListQuery>,
+): Promise<Page<StoredFile>> {
   await assertCan(actor, 'file:read')
   const scope = fileListScope(actor)
   if (!scope) throw new ForbiddenError('file:read')
@@ -47,14 +51,18 @@ export async function listFiles(actor: Actor, query: FileListQuery): Promise<Sto
     }
   }
 
-  const files = await fileRepository.list(actor.clinicId, {
-    ownerType: query.ownerType,
-    ownerId: query.ownerId,
-    patientId: scope.patientId ?? query.patientId,
-    category: query.category,
-    patientVisibleOnly: scope.patientVisibleOnly,
-  })
-  return files.map(toStoredFile)
+  const page = await fileRepository.list(
+    actor.clinicId,
+    {
+      ownerType: query.ownerType,
+      ownerId: query.ownerId,
+      patientId: scope.patientId ?? query.patientId,
+      category: query.category,
+      patientVisibleOnly: scope.patientVisibleOnly,
+    },
+    { cursor: query.cursor, limit: pageLimit(query.limit) },
+  )
+  return { items: page.items.map(toStoredFile), nextCursor: page.nextCursor }
 }
 
 export async function getFile(actor: Actor, fileId: string): Promise<StoredFile> {

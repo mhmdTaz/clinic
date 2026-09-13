@@ -17,6 +17,9 @@ export function messageFor(error: unknown): string {
       return 'The clinic could not be reached. Check your connection and try again.'
     case 'CONTRACT_MISMATCH':
       return 'This version of the app is out of date. Please update it to carry on.'
+    // The server's words name a header nobody using the app has heard of.
+    case 'IDEMPOTENCY_KEY_IN_USE':
+      return 'Your last request is still going through. Give it a moment and try again.'
     // The server's code, not a guess at one: the first sign-in screen checked for 'RATE_LIMITED',
     // which no endpoint sends, so its "try again in N minutes" could never appear.
     case 'TOO_MANY_ATTEMPTS': {
