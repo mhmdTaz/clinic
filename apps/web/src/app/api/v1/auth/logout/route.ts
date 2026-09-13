@@ -13,6 +13,7 @@ export const POST = withApi(
     await logout({
       actor,
       refreshToken: body.refreshToken ?? request.cookies.get(REFRESH_COOKIE)?.value ?? null,
+      pushToken: body.pushToken ?? null,
     })
     return { data: { signedOut: true }, respond: (response) => clearSessionCookies(response) }
   },

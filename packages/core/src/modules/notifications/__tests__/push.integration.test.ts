@@ -7,7 +7,7 @@ import { runWithContext } from '../../../context/request-context'
 import type { Actor } from '../../access'
 import { flushAudit } from '../../audit'
 import { deliver } from '../application/deliver'
-import { listMyDevices, registerDevice, removeDevice } from '../application/devices'
+import { detachDevice, listMyDevices, registerDevice, removeDevice } from '../application/devices'
 
 const clinicId = () => env().CLINIC_ID
 
@@ -143,6 +143,23 @@ describe('registering a device', () => {
     })
     await removeDevice(mine.actor, device.id)
     expect(await listMyDevices(mine.actor)).toHaveLength(0)
+  })
+
+  /**
+   * Sign-out runs without a live access token, so the push token is the only thing naming the
+   * device. It must not also be enough to silence somebody else's phone.
+   */
+  it('detaches on sign-out only a device that belongs to the person signing out', async () => {
+    const mine = await signedInActor({ role: 'patient' })
+    const theirs = await signedInActor({ role: 'patient' })
+    const theirToken = token()
+    await registerDevice(theirs.actor, { token: theirToken, platform: 'android' })
+
+    expect(await detachDevice(clinicId(), mine.actor.userId, theirToken)).toBe(false)
+    expect(await listMyDevices(theirs.actor)).toHaveLength(1)
+
+    expect(await detachDevice(clinicId(), theirs.actor.userId, theirToken)).toBe(true)
+    expect(await listMyDevices(theirs.actor)).toHaveLength(0)
   })
 })
 

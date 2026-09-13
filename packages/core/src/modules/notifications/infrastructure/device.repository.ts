@@ -82,9 +82,14 @@ export const deviceRepository = {
     return result.deletedCount > 0
   },
 
-  /** Signing out of a device should stop it receiving, which is one call rather than a screen. */
-  async removeByToken(clinicId: string, token: string): Promise<boolean> {
-    const result = await DeviceTokenModel().deleteOne({ clinicId, token })
+  /**
+   * Signing out of a device should stop it receiving, which is one call rather than a screen.
+   *
+   * Scoped to the person signing out, in the filter. Sign-out runs without a live access token,
+   * and a request naming somebody else's push token must not be able to silence their phone.
+   */
+  async removeByToken(clinicId: string, userId: string, token: string): Promise<boolean> {
+    const result = await DeviceTokenModel().deleteOne({ clinicId, userId, token })
     return result.deletedCount > 0
   },
 
