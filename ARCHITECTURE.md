@@ -1939,7 +1939,7 @@ packages/contracts (Zod)
 | Pagination | Cursor-based, `?cursor=&limit=` with a max of 100. Cursors are opaque base64. Offset pagination degrades badly past a few thousand rows. |
 | Filtering | Explicit whitelisted params only, never a raw query object from the client. |
 | Sparse fields | `?include=patient,doctor` — opt-in expansion, so the default response stays small. |
-| Idempotency | An `Idempotency-Key` header is honoured on every POST that moves money or creates a booking. |
+| Idempotency | An `Idempotency-Key` header is honoured on every POST that moves money or creates a booking. **Not yet true for bookings**: payments are idempotent by a key in the body (ADR-0028), and a booking relies on the slot hold — found by the mobile app, see Phase 9 in §17. |
 | Errors | One envelope with a stable machine-readable `code`. |
 | Rate limits | Per user and per IP in Redis; stricter on auth routes and file presign. |
 | Time | All timestamps ISO-8601 UTC. The client localises. |
@@ -2839,6 +2839,7 @@ these controls is far more expensive than building with them.
 | Backups | Continuous oplog-based point-in-time recovery (Atlas Backup, or `mongodump` plus oplog capture self-hosted); **restores rehearsed quarterly into a scratch cluster** — an untested backup is a hope, not a backup. The rehearsal explicitly verifies that CSFLE-encrypted fields decrypt with the restored key material, since a backup you cannot read is not a restore |
 | Database access | Least-privilege MongoDB users, one per role: the app user has no privileges on `auditLogs`; the audit writer has `insert`+`find` there and nothing else; migrations run as a separate user; no user has `dropDatabase` outside break-glass |
 | Sessions | Short access tokens, revocable refresh tokens, visible device list, logout-everywhere |
+| Devices | What the mobile app keeps for offline reading is an allowlist, never older than a day, owned by one person, and sealed with AES-256-GCM under a key in the keychain that never leaves the device; sign-out destroys the key first (ADR-0033). A signed-out phone is detached from push in the same request |
 
 ### 16.2 Data subject rights
 
@@ -3100,43 +3101,107 @@ One decision was recorded on the way through:
    recomputed over the restored documents — which is what proves the rows came back
    byte-identical rather than merely in the right quantity.
 
-### Phase 9 — React Native app · after v1 · 🔸 in progress
+### Phase 9 — React Native app · after v1 · 🔸 built, not yet run on a device
 
 Expo app consuming `@clinic/api-client`. Patient portal first (appointments, documents,
 reminders, support), then the doctor portal (my day, chart read, note capture). No backend work
 should be required beyond push registration — that is the test of whether sections 6 and 9 were
 implemented honestly.
 
-**How the test came out.** `tests/e2e/specs/mobile-api-parity.spec.ts` drives the whole patient
-portal through the client over HTTP with a Bearer token and no cookie, using no browser at all.
-It passes — but building it needed **one backend change beyond push**:
+**How the test came out.** `tests/e2e/specs/mobile-api-parity.spec.ts` drives both portals through
+the client over HTTP with a Bearer token and no cookie, using no browser at all — thirteen
+journeys, from sign-in to a signed note with an addendum. The doctor half is the stronger test:
+the web's doctor pages call the use cases directly, so nothing had exercised those endpoints
+together before. **The doctor portal needed no backend change.** The patient portal needed one:
 
-- `SessionUser` carried no `patientId` or `doctorId`. The web reads them off the server-side
-  actor and never needed them in a payload; a device has no actor, so a patient's app had no way
-  to find its own record, and every patient screen starts from that record. Now returned by the
+- `SessionUser` carried no `patientId` or `doctorId`. The web reads them off the server-side actor;
+  a device has no actor, so a patient's app had no way to find its own record. Now returned by the
   session. Small, but the promise was "no backend work beyond push registration", and this was
   backend work beyond push registration.
 
-Two further findings, recorded rather than quietly fixed:
+Push registration itself — the work the phase does allow — turned out to be unfinished when the app
+first used it:
 
-- **`/api/v1/me/patients` is a doctor's caseload**, not "my record". It returns an empty array
-  for a patient rather than an error — the kind of silent wrong answer a mobile client ships. The
-  client method is named `patientsITreat` so the mistake cannot be repeated.
-- **§9.2 states cursor pagination as the convention; only `patients` and `users` follow it.**
-  The rest return filtered arrays bounded by a date range or by one patient. Bounded in practice,
-  unbounded in the contract, and a real limit for a device. Not changed here: repaginating six
-  endpoints is an API change that would break the web, and it deserves its own decision.
+- **`POST` and `GET /api/v1/me/devices` were never written.** Only the `DELETE` beside them existed.
+  The core tests call the use case directly and the parity suite never registered a device, so
+  nothing noticed. Both routes exist now, and the suite registers, recognises and detaches one.
+- **Sign-out did not stop a phone receiving.** `detachDevice` existed with no caller. Sign-out now
+  carries the push token and detaches in the same request, scoped to the person signing out so a
+  request naming somebody else's token cannot silence their phone.
 
-**Done:** `packages/api-client` (one client, two transports, single-flight refresh, contract
-validation); push registration end to end (`deviceTokens`, the `PUSH` channel, Expo's relay
-behind the same seam as the mailer); the Expo app's foundations — session gate, query layer on
-the shared cache keys, offline reads, notification routing — and the patient screens for home,
-appointments, updates and account.
+**Findings recorded rather than fixed** — each is backend work, and each deserves its own decision:
 
-**Not done, and stated plainly:** the app has been typechecked, linted and unit-tested, but
-**never run on a device or a simulator** — there is none in the environment it was built in. The
-booking flow, the documents screen and the whole doctor portal are not written. Neither is the
-CSFLE work §16.1 anticipates for a device holding PHI at rest.
+- **§9.2 promises an `Idempotency-Key` on every POST that creates a booking. It is not honoured.**
+  Payments are idempotent, by a key in the body (ADR-0028); bookings rely on the slot hold. A
+  booking whose response is lost is refused `SLOT_TAKEN` on the retry, so the app checks the
+  patient's own diary before telling them somebody else took their time.
+- **A patient cannot read the clinic's booking horizon over the API.** The web's booking page reads
+  it through the use case with `clinic:read`; the only route returning it needs
+  `portal.admin:access`. The app offers eight weeks and shows the server's refusal beyond the real
+  horizon.
+- **The encounter list has no appointment filter, and filters by the day a visit started.** A visit
+  opened the evening before its appointment is on another day, so the day view offered "Record the
+  visit" for an appointment whose note was already signed. Both the app and the web agenda now
+  match against a week either side; an `appointmentId` filter would be the real fix.
+- **`/api/v1/me/patients` is a doctor's caseload**, not "my record". The client method is named
+  `patientsITreat` so the mistake cannot be repeated.
+- **§9.2 states cursor pagination as the convention; only `patients` and `users` follow it.** The
+  rest return arrays bounded by a date range or by one patient. Repaginating them would break the
+  web and is its own decision.
+
+**Running it found what types and unit tests could not.** The app was run as an Expo web build
+against the local API (`pnpm --filter @clinic/mobile preview:web`) and both portals were driven
+by hand: sign-in, booking, cancelling, documents, a support thread, updates, sign-out; the day, a
+visit opened, a note written, saved, shared, signed and amended, the chart, the caseload, and the
+server going away and coming back. It found:
+
+- **Every sign-out crashed the app.** The gate redirected from an effect, after a render in which
+  the still-mounted screen asked for a user who was gone. Routes are now guarded by
+  `Stack.Protected`, so the router removes them before they can render signed out.
+- The day view offering to record a visit that already had a signed note (above).
+- No tab icons — React Navigation's placeholder triangle on every tab — and week controls whose
+  labels wrapped onto two lines.
+
+**Building the rest found the first commit's foundations had not worked**, and they were rebuilt:
+
+- **Offline reads were never attached to anything**, and the store could not have held them —
+  SecureStore rejects JSON keys and warns past 2 KB. Now an encrypted vault (ADR-0033).
+- **Launching with no signal showed the sign-in screen**, which cannot be completed with no signal,
+  while the code's own comment said the opposite. Now the app opens on what it kept, or says the
+  clinic cannot be reached — still signed in.
+- **A failed refresh replaced a loaded list with an error**, which defeats reading offline. Now the
+  list stays and says how old it is.
+- **Notification taps routed to paths that exist only in the app**, while every notification the
+  server sends names a web path; a real reminder would have opened "page not found". The app's
+  routes now mirror the web's, and a test reads every `href` out of the worker's source and checks
+  each lands on a screen file that exists.
+- **Sign-out on a phone left the session alive for thirty days** once the access token had lapsed:
+  the client sent no refresh token, so the server could not tell which session to end. The parity
+  suite now signs out with a lapsed token and proves the old refresh token is refused.
+- **A sign-out with no signal left the screen signed in** with the tokens already gone.
+- Smaller, all tested now: a caseload parsed against the wrong contract (every doctor with patients
+  would have hit a contract error); push never renewed on launch, and "this device" never known;
+  "in 1 days" for something two days off; a lockout message keyed to an error code no endpoint sends.
+
+**Done:** the API client for both portals; push registration end to end, including detaching on
+sign-out; the patient app — home, appointments with cancelling, booking, documents, support threads,
+updates, account and reminders; the doctor app — my day, the caseload, the chart (banner, visits,
+prescriptions, documents) and note capture (write, share, sign, addendum, an unsaved-changes guard,
+and a draft that takes a colleague's saved sections rather than overwriting them); offline reads,
+encrypted; a web preview for exercising all of it without a simulator.
+
+**Not done, and stated plainly:**
+
+- **The app has not run on a phone or a simulator.** The web preview exercises the screens, the
+  routing and the API calls behind them; it cannot exercise the keychain, the encrypted vault (both are memory
+  stand-ins on web), push permission, tokens and delivery, the OS opening a notification, the in-app
+  browser, the keyboard, or Android's back button. Those are untested.
+- On a phone, a patient has no visit records, prescriptions or bills screen — the links go home —
+  and a support message cannot carry an attachment.
+- A doctor reads vitals and diagnoses but cannot edit them, and cannot prescribe, record stock used,
+  or change their schedule: desk work, deliberately.
+- English only. The web's Arabic catalogue is not used by the app.
+- The OpenAPI document §9.1 draws does not exist (ADR-0032).
 
 ### Sequencing rationale
 
@@ -3238,6 +3303,9 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0028 | A payment is idempotent at the index | **Accepted** | `docs/adr/0028` — unique `(clinicId, idempotencyKey)`, the insert and every balance it moves in one transaction, and each balance moved by a conditional pipeline update. A read before the insert has a window exactly wide enough for the second request |
 | 0029 | Stock leaves by one conditional document write | **Accepted** | `docs/adr/0029` — embedded batches make the precondition and the decrement inseparable, so two clinicians cannot both take the last vial. FEFO, with expired stock refused under its own error code because "order more" and "write it off" are different jobs |
 | 0030 | At-least-once delivery is made safe by dedupe keys | **Accepted** | `docs/adr/0030` — a unique key built from facts rather than from the attempt, so a retried job loses on the index. Reminders sweep the diary instead of scheduling jobs, so a moved appointment needs nothing kept in step |
+| 0031 | The audit log is chained, and something walks the chain | **Accepted** | `docs/adr/0031` — each entry hashes the one before it, claimed in batches through a per-clinic head, and a scheduled job walks the chain incrementally with a full walk weekly. Entries from before the chain are counted, not walked |
+| 0032 | The API client is typed from the contracts, not generated from OpenAPI | **Accepted** | `docs/adr/0032` — the client imports the Zod contracts and validates responses against them, because a round trip through JSON Schema loses the refinements that make a request valid |
+| 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 
 ### The ones to settle next
 
