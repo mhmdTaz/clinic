@@ -1,5 +1,5 @@
-import { SessionResult, SessionUser } from '@clinic/contracts'
-import type { LoginRequest } from '@clinic/contracts'
+import { MePermissions, SessionResult, SessionUser } from '@clinic/contracts'
+import type { LoginRequest, UpdateMeRequest } from '@clinic/contracts'
 import type { ApiClient } from '../client'
 import { tokensFromSession } from '../tokens'
 
@@ -41,10 +41,26 @@ export function authResource(client: ApiClient) {
      * Clearing first would leave a live refresh token on the server with nothing able to revoke
      * it. If the call fails the local tokens are still cleared: somebody who pressed "sign out"
      * on a phone they are about to hand over must be signed out of *this* device regardless.
+     *
+     * **A device sends its refresh token.** The first version sent an empty body and relied on the
+     * access token to name the session — which works for fifteen minutes. After that the server
+     * sees a lapsed token, signs the request out anonymously, and the refresh token lives on for
+     * thirty days after the person believed they had signed out. The parity suite now signs out
+     * with a lapsed token and then tries the old refresh token, which is the only test that can
+     * tell the difference: the local tokens are gone either way.
      */
-    async signOut() {
+    async signOut(options: { pushToken?: string | null } = {}) {
+      const held = bearer ? await client.tokens.read() : null
       try {
-        await client.request('/api/v1/auth/logout', { method: 'POST', body: {}, skipRefresh: true })
+        await client.request('/api/v1/auth/logout', {
+          method: 'POST',
+          body: {
+            ...(held?.refreshToken ? { refreshToken: held.refreshToken } : {}),
+            // This phone stops receiving the person's notifications in the same request (§9.4).
+            ...(options.pushToken ? { pushToken: options.pushToken } : {}),
+          },
+          skipRefresh: true,
+        })
       } finally {
         await client.tokens.clear()
       }
@@ -69,6 +85,23 @@ export function authResource(client: ApiClient) {
     /** Who is signed in. The first call an app makes on launch, to decide what to show. */
     me() {
       return client.request('/api/v1/me', { schema: SessionUser })
+    },
+
+    /**
+     * Changes the person's own details — on a phone, the portal they last chose, so the next launch
+     * opens where they left off (§10.1). A device keeps using its token; the reissued one the
+     * server sets as a cookie is for browsers.
+     */
+    updateMe(input: UpdateMeRequest) {
+      return client.request('/api/v1/me', { method: 'PATCH', body: input, schema: SessionUser })
+    },
+
+    /**
+     * What this person may do, with the scope of each grant. A screen uses it to decide what is
+     * worth offering; the server checks again regardless (§7).
+     */
+    permissions() {
+      return client.request('/api/v1/me/permissions', { schema: MePermissions })
     },
   }
 }

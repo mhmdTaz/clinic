@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createClient } from '../client'
+import { authResource } from '../resources/auth'
 import { ApiError, ContractMismatchError } from '../errors'
 import { isNearlyExpired, memoryTokenStore, secureTokenStore, type StoredTokens } from '../tokens'
 
@@ -302,6 +303,42 @@ describe('refreshing', () => {
     ).rejects.toBeInstanceOf(ApiError)
 
     expect(calls.filter((call) => call.url.includes('/auth/refresh'))).toHaveLength(0)
+  })
+})
+
+describe('signing out', () => {
+  it('sends a device’s refresh token, so a lapsed access token still ends the session', async () => {
+    const { fetchStub, calls } = stubFetch([{ body: envelope({ signedOut: true }) }])
+    const client = createClient({
+      baseUrl: 'https://clinic.test',
+      tokens: memoryTokenStore(tokens({ accessToken: 'lapsed' })),
+      fetch: fetchStub,
+    })
+
+    await authResource(client).signOut()
+
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ refreshToken: 'refresh-1' })
+    expect(await client.tokens.read()).toBeNull()
+  })
+
+  it('sends nothing from a browser, whose refresh token is a cookie it cannot read', async () => {
+    const { fetchStub, calls } = stubFetch([{ body: envelope({ signedOut: true }) }])
+    await authResource(createClient({ fetch: fetchStub })).signOut()
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({})
+  })
+
+  it('clears the phone even when the server cannot be reached', async () => {
+    const fetchStub = vi.fn(async () => {
+      throw new TypeError('Network request failed')
+    }) as unknown as typeof fetch
+    const client = createClient({
+      baseUrl: 'https://clinic.test',
+      tokens: memoryTokenStore(tokens()),
+      fetch: fetchStub,
+    })
+
+    await expect(authResource(client).signOut()).rejects.toBeInstanceOf(ApiError)
+    expect(await client.tokens.read()).toBeNull()
   })
 })
 
