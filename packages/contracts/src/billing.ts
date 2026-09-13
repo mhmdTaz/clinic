@@ -247,6 +247,13 @@ export const DailyReconciliation = z.object({
 })
 export type DailyReconciliation = z.infer<typeof DailyReconciliation>
 
+/**
+ * Whose statement. A patient always gets their own, whatever is sent; a doctor must name a patient
+ * they have treated; the clinic names one, or omits it for totals across every patient.
+ */
+export const AccountStatementQuery = z.object({ patientId: z.string().max(64).optional() })
+export type AccountStatementQuery = z.infer<typeof AccountStatementQuery>
+
 /** A patient's statement of account (P8): what they have been billed, and what they have paid. */
 export const AccountStatement = z.object({
   currency: z.string(),

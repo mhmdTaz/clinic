@@ -1,11 +1,9 @@
-import { z } from 'zod'
+import { SetLocaleRequest } from '@clinic/contracts'
 import { withApi } from '@/lib/api/with-api'
 import { LOCALE_COOKIE, isKnownLocale, selectableLocales } from '@/i18n/locales'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const SetLocaleRequest = z.object({ locale: z.string().max(16) }).strict()
 
 /**
  * A person's own interface language (section 13.6).

@@ -1,6 +1,7 @@
 import { localDateIn } from '@clinic/contracts'
 import type {
   AuditActorOption,
+  AuditExport,
   AuditEntryDetail,
   AuditEntrySummary,
   AuditListQuery,
@@ -114,7 +115,7 @@ export async function exportAuditCsv(
   actor: Actor,
   query: AuditListQuery,
   now: Date = new Date(),
-): Promise<{ filename: string; csv: string; rows: number; truncated: boolean }> {
+): Promise<AuditExport> {
   await assertCan(actor, 'audit:export')
   const clinic = await getClinicFacts(actor.clinicId)
   const page = await searchAuditEntries(actor.clinicId, {

@@ -119,3 +119,12 @@ export type ChainStatus = z.infer<typeof ChainStatus>
  */
 export const AuditActorOption = z.object({ id: z.string(), name: z.string() })
 export type AuditActorOption = z.infer<typeof AuditActorOption>
+
+/** The filtered log as a CSV file, capped — `truncated` says when the filter matched more rows. */
+export const AuditExport = z.object({
+  filename: z.string(),
+  csv: z.string(),
+  rows: z.number().int(),
+  truncated: z.boolean(),
+})
+export type AuditExport = z.infer<typeof AuditExport>
