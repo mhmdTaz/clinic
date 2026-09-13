@@ -8,6 +8,7 @@ import { InvoiceStatusBadge, PaymentStatusBadge } from '@/components/billing/inv
 import { Money } from '@/components/billing/money'
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
 import { requirePortal } from '@/lib/auth/server-session'
 import { formatCalendarDate, formatInstant } from '@/lib/format/dates'
 
@@ -142,6 +143,10 @@ export default async function PatientBillingPage() {
                 ))}
               </ul>
             )}
+            <TruncatedNotice
+              shown={statement.invoices.length}
+              truncated={statement.hasMoreInvoices}
+            />
           </CardContent>
         </Card>
 
@@ -187,6 +192,10 @@ export default async function PatientBillingPage() {
                 ))}
               </ul>
             )}
+            <TruncatedNotice
+              shown={statement.payments.length}
+              truncated={statement.hasMorePayments}
+            />
           </CardContent>
         </Card>
       </div>

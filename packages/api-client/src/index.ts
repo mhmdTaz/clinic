@@ -18,6 +18,7 @@ export {
   type TokenStore,
 } from './tokens'
 export { authResource } from './resources/auth'
-export { patientPortal } from './resources/patient-portal'
+export { collectByIds, collectPages, PAGE_LIMIT_MAX, type Listed, type PageRequest } from './pages'
+export { patientPortal, type AppointmentsRequest } from './resources/patient-portal'
 export { doctorPortal } from './resources/doctor-portal'
 export { queryKeys, invalidatedBy } from './query-keys'

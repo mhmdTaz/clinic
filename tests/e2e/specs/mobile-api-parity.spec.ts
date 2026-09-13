@@ -1,5 +1,6 @@
 import {
   authResource,
+  collectPages,
   createClient,
   doctorPortal,
   memoryTokenStore,
@@ -108,29 +109,43 @@ test.describe('the mobile client, over HTTP with no cookies', () => {
     const today = new Date().toISOString().slice(0, 10)
     const inAMonth = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
     const appointments = await portal.appointments({ patientId, from: today, to: inAMonth })
-    expect(Array.isArray(appointments)).toBe(true)
+    expect(Array.isArray(appointments.items)).toBe(true)
+
+    // Every collection is a cursor page (§9.2, Phase 10): the envelope says whether there is more.
+    const pageShape = (page: { items: unknown[]; nextCursor: string | null; hasMore: boolean }) => {
+      expect(Array.isArray(page.items)).toBe(true)
+      expect(page.hasMore).toBe(page.nextCursor !== null)
+    }
+    pageShape(appointments)
+
+    // The rules a patient books by, which a phone could not read before Phase 10.
+    const window = await portal.bookingWindow()
+    expect(window.horizonDays).toBeGreaterThan(0)
+    expect(window.minimumNoticeHours).toBeGreaterThanOrEqual(0)
+    expect(window.cancellationCutoffHours).toBeGreaterThanOrEqual(0)
 
     // P7 — my prescriptions.
-    const prescriptions = await portal.prescriptions({ patientId })
-    expect(Array.isArray(prescriptions)).toBe(true)
+    pageShape(await portal.prescriptions({ patientId }))
 
     // P8 — my documents.
-    const files = await portal.files({ patientId })
-    expect(Array.isArray(files)).toBe(true)
+    pageShape(await portal.files({ patientId }))
 
     // P9 — what I owe. Money arrives as exact decimal strings, never as floats (money.ts).
     const statement = await portal.statement(patientId)
     expect(statement.outstanding).toMatch(/^-?\d+(\.\d+)?$/)
     expect(statement.currency).toBeTruthy()
+    // The lines are capped; the statement says when there are older ones rather than dropping them.
+    expect(typeof statement.hasMoreInvoices).toBe('boolean')
+    expect(typeof statement.hasMorePayments).toBe('boolean')
 
     // P12 — my support threads.
-    const tickets = await portal.tickets()
-    expect(Array.isArray(tickets)).toBe(true)
+    pageShape(await portal.tickets())
 
     // The bell.
     const feed = await portal.notifications({ limit: 20 })
     expect(feed.unreadCount).toBeGreaterThanOrEqual(0)
     expect(Array.isArray(feed.items)).toBe(true)
+    expect(feed.nextCursor === null || typeof feed.nextCursor === 'string').toBe(true)
 
     // And clearing it, which every bell offers.
     const cleared = await portal.markNotificationsRead()
@@ -138,7 +153,7 @@ test.describe('the mobile client, over HTTP with no cookies', () => {
   })
 
   test('books and cancels an appointment for itself, idempotently', async () => {
-    const { portal, session } = await signedInPatient()
+    const { portal, session, client } = await signedInPatient()
     const patientId = session.user.patientId!
 
     const doctors = await portal.doctors()
@@ -174,16 +189,60 @@ test.describe('the mobile client, over HTTP with no cookies', () => {
     // resolves the patient from the actor, which is what makes the OWN scope meaningful.
     expect(booked.patient.id).toBe(patientId)
 
-    // The same slot again must not produce a second appointment — the slot is already held, so
-    // the server refuses rather than double-booking a patient who tapped twice.
-    await expect(portal.bookForMyself(booking, key)).rejects.toMatchObject({
-      code: expect.stringMatching(/SLOT_TAKEN|CONFLICT|VALIDATION_FAILED|BOOKING_REFUSED/),
+    // **Phase 10's exit criterion.** The same attempt again — a retry after a response lost to a
+    // weak signal — gets the appointment the first one booked. Before Phase 10 it was refused
+    // SLOT_TAKEN, and the app had to check the diary to tell the patient it was their own.
+    const retried = await portal.bookForMyself(booking, key)
+    expect(retried.id).toBe(booked.id)
+    expect(retried.status).toBe('SCHEDULED')
+
+    // As sent the first time: the status and a header saying it is a replay.
+    const tokens = await client.tokens.read()
+    const raw = await fetch(`${E2E.appUrl}/api/v1/me/appointments`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${tokens!.accessToken}`,
+        'content-type': 'application/json',
+        'idempotency-key': key,
+      },
+      body: JSON.stringify(booking),
+    })
+    expect(raw.status).toBe(201)
+    expect(raw.headers.get('idempotent-replayed')).toBe('true')
+    expect(((await raw.json()) as { data: { id: string } }).data.id).toBe(booked.id)
+
+    // The same key on a different booking is a client bug, and is said to be one.
+    await expect(
+      portal.bookForMyself({ ...booking, reason: 'A different booking' }, key),
+    ).rejects.toMatchObject({ status: 422, code: 'IDEMPOTENCY_KEY_REUSED' })
+
+    // A new attempt at the same time is a new request, and the slot hold still protects it.
+    await expect(portal.bookForMyself(booking, `${key}-second-tap`)).rejects.toMatchObject({
+      code: 'SLOT_TAKEN',
     })
 
-    const cancelled = await portal.cancelAppointment(booked.id, {
-      reason: 'Parity suite tidying up',
-    })
+    // Exactly one appointment at that time, whatever was retried.
+    const day = chosen!.startsAt.slice(0, 10)
+    const diary = await collectPages(
+      (page) => portal.appointments({ patientId, from: day, to: day, ...page }),
+      500,
+    )
+    expect(diary.items.filter((entry) => entry.startsAt === booked.startsAt)).toHaveLength(1)
+
+    const cancelKey = `${key}-cancel`
+    const cancelled = await portal.cancelAppointment(
+      booked.id,
+      { reason: 'Parity suite tidying up' },
+      cancelKey,
+    )
     expect(cancelled.status).toBe('CANCELLED')
+    // A retried cancellation answers as the first did, not "that appointment is already cancelled".
+    const cancelledAgain = await portal.cancelAppointment(
+      booked.id,
+      { reason: 'Parity suite tidying up' },
+      cancelKey,
+    )
+    expect(cancelledAgain).toMatchObject({ id: booked.id, status: 'CANCELLED' })
   })
 
   test('opens a support thread and replies to it', async () => {
@@ -337,14 +396,15 @@ test.describe('the doctor’s client, over HTTP with no cookies', () => {
     const { portal, session } = doctor
 
     // My day — the appointments in a window, scoped by the server to this doctor's diary.
-    const day = await portal.appointments({ from, to })
-    const listed = day.find((entry) => entry.id === appointment.id)
+    const day = await collectPages((page) => portal.appointments({ from, to, ...page }), 2000)
+    const listed = day.items.find((entry) => entry.id === appointment.id)
     expect(listed, 'the doctor sees the appointment booked with them').toBeTruthy()
-    expect(day.every((entry) => entry.doctor.id === session.user.doctorId)).toBe(true)
+    expect(day.items.every((entry) => entry.doctor.id === session.user.doctorId)).toBe(true)
 
-    // Which appointments already have a visit — how the day decides "open note" or "start".
-    const before = await portal.encounters({ from, to })
-    expect(before.some((encounter) => encounter.appointmentId === appointment.id)).toBe(false)
+    // Which appointments already have a visit — how the day decides "open note" or "start". Asked
+    // by appointment, not by date: the date filter is the day a visit started (Phase 10).
+    const before = await portal.encounters({ appointmentIds: [appointment.id] })
+    expect(before.items).toHaveLength(0)
 
     const opened = await portal.openEncounter({
       patientId: appointment.patient.id,
@@ -365,8 +425,21 @@ test.describe('the doctor’s client, over HTTP with no cookies', () => {
         chiefComplaint: null,
       }),
     ).rejects.toMatchObject({ code: 'ENCOUNTER_EXISTS' })
-    const after = await portal.encounters({ from, to })
-    expect(after.filter((encounter) => encounter.appointmentId === appointment.id)).toHaveLength(1)
+    const after = await portal.encounters({ appointmentIds: [appointment.id] })
+    expect(after.items.map((encounter) => encounter.id)).toEqual([opened.id])
+
+    // The filter matches the ids asked for and nothing else, however many visits the doctor has.
+    const everything = await collectPages((page) => portal.encounters(page), 5000)
+    const others = everything.items
+      .map((encounter) => encounter.appointmentId)
+      .filter((id): id is string => id !== null && id !== appointment.id)
+    const several = await portal.encounters({
+      appointmentIds: [appointment.id, ...others.slice(0, 3)],
+      limit: 100,
+    })
+    expect(several.items.map((encounter) => encounter.appointmentId).sort()).toEqual(
+      [appointment.id, ...others.slice(0, 3)].sort(),
+    )
 
     // Note capture. Sections are written in the order a doctor thinks, not all at once.
     const drafted = await portal.updateEncounter(opened.id, {
@@ -415,8 +488,8 @@ test.describe('the doctor’s client, over HTTP with no cookies', () => {
 
     // The caseload — summaries, which is what the endpoint returns. This is the call that failed
     // contract validation before the client was corrected.
-    const caseload = await portal.patientsITreat()
-    const mine = caseload.find((patient) => patient.id === appointment.patient.id)
+    const caseload = await collectPages((page) => portal.patientsITreat(page), 2000)
+    const mine = caseload.items.find((patient) => patient.id === appointment.patient.id)
     expect(mine, 'a patient the doctor has seen is on their list').toBeTruthy()
 
     const chart = await portal.patient(appointment.patient.id)
@@ -426,11 +499,52 @@ test.describe('the doctor’s client, over HTTP with no cookies', () => {
     expect(Array.isArray(chart.chronicConditions)).toBe(true)
 
     const visits = await portal.encounters({ patientId: chart.id })
-    expect(visits.length).toBeGreaterThan(0)
-    expect(visits.every((visit) => visit.patient.id === chart.id)).toBe(true)
+    expect(visits.items.length).toBeGreaterThan(0)
+    expect(visits.items.every((visit) => visit.patient.id === chart.id)).toBe(true)
 
-    expect(Array.isArray(await portal.prescriptions({ patientId: chart.id }))).toBe(true)
-    expect(Array.isArray(await portal.files({ patientId: chart.id }))).toBe(true)
+    expect(Array.isArray((await portal.prescriptions({ patientId: chart.id })).items)).toBe(true)
+    expect(Array.isArray((await portal.files({ patientId: chart.id })).items)).toBe(true)
+  })
+
+  /**
+   * Phase 10: a list read a page at a time loses nothing and repeats nothing. Before, these lists
+   * were cut off in the repositories without a word — so this reads the same collections one row
+   * a page and a hundred a page, and checks they agree.
+   */
+  test('pages through the caseload and the visits without losing or repeating a row', async () => {
+    await bookedWithTheDoctor('Parity: paging').then(({ doctor, appointment }) =>
+      doctor.portal.openEncounter({
+        patientId: appointment.patient.id,
+        appointmentId: appointment.id,
+        encounterType: 'CONSULTATION',
+        chiefComplaint: 'Parity: paging',
+      }),
+    )
+    const { portal } = await signedInDoctor()
+
+    const visitsOneByOne = await collectPages(
+      (page) => portal.encounters({ ...page, limit: 1 }),
+      5000,
+    )
+    const visitsInBulk = await collectPages((page) => portal.encounters(page), 5000)
+    expect(visitsOneByOne.items.length).toBeGreaterThan(1)
+    const ids = visitsOneByOne.items.map((visit) => visit.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toEqual(visitsInBulk.items.map((visit) => visit.id))
+
+    const first = await portal.patientsITreat({ limit: 1 })
+    expect(first.items).toHaveLength(1)
+    const caseloadOneByOne = await collectPages(
+      (page) => portal.patientsITreat({ ...page, limit: 1 }),
+      2000,
+    )
+    const patientIds = caseloadOneByOne.items.map((patient) => patient.id)
+    expect(new Set(patientIds).size).toBe(patientIds.length)
+    expect(patientIds).toEqual(
+      (await collectPages((page) => portal.patientsITreat(page), 2000)).items.map(
+        (patient) => patient.id,
+      ),
+    )
   })
 
   test('refuses a note written by anyone but the doctor, whatever the transport', async () => {

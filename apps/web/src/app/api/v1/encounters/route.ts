@@ -1,5 +1,6 @@
 import { EncounterListQuery, OpenEncounterRequest } from '@clinic/contracts'
 import { listEncounters, openEncounter } from '@clinic/core/clinical'
+import { paged } from '@/lib/api/paged'
 import { withApi } from '@/lib/api/with-api'
 
 export const runtime = 'nodejs'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
  */
 export const GET = withApi(
   { permission: 'encounter:read', query: EncounterListQuery },
-  async ({ actor, query }) => ({ data: await listEncounters(actor, query) }),
+  async ({ actor, query }) => paged(await listEncounters(actor, query)),
 )
 
 /** Opening a visit (D6). One per appointment, so the record of it cannot end up in two halves. */

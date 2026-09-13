@@ -6,6 +6,7 @@ import type {
   PrescriptionListQuery,
 } from '@clinic/contracts'
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { recordAudit } from '../../audit'
 import { assertCan, careRelationship, type Actor } from '../../access'
 import { getClinicLetterhead } from '../../clinic'
@@ -113,9 +114,9 @@ export async function issuePrescription(
 
 export async function listPrescriptions(
   actor: Actor,
-  query: PrescriptionListQuery,
+  query: Partial<PrescriptionListQuery>,
   now: Date = new Date(),
-): Promise<Prescription[]> {
+): Promise<Page<Prescription>> {
   await assertCan(actor, 'prescription:read')
   const scope = actor.permissions.get('prescription:read')
 
@@ -149,8 +150,11 @@ export async function listPrescriptions(
     filter.activeOn = localDateIn(clinic.timezone, now)
   }
 
-  const prescriptions = await prescriptionRepository.list(actor.clinicId, filter)
-  return prescriptions.map(toPrescription)
+  const page = await prescriptionRepository.list(actor.clinicId, filter, {
+    cursor: query.cursor,
+    limit: pageLimit(query.limit),
+  })
+  return { items: page.items.map(toPrescription), nextCursor: page.nextCursor }
 }
 
 export async function getPrescription(actor: Actor, prescriptionId: string): Promise<Prescription> {

@@ -14,6 +14,7 @@ import type {
 } from '@clinic/contracts'
 import { STOCK_MOVEMENT_DIRECTION } from '@clinic/config'
 import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { recordAudit } from '../../audit'
 import { assertCan, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
@@ -260,19 +261,23 @@ export async function adjustStock(
 /** The ledger (S10). What it says, in order, is what explains the number on the shelf. */
 export async function listMovements(
   actor: Actor,
-  query: MovementListQuery,
-): Promise<StockMovement[]> {
+  query: Partial<MovementListQuery>,
+): Promise<Page<StockMovement>> {
   await assertCan(actor, 'inventory:read')
   const clinic = await getClinicFacts(actor.clinicId)
 
-  const movements = await movementRepository.list(actor.clinicId, {
-    itemId: query.itemId,
-    encounterId: query.encounterId,
-    type: query.type,
-    from: query.from ? instantOf(query.from, '00:00', clinic.timezone) : undefined,
-    to: query.to ? instantOf(nextDate(query.to), '00:00', clinic.timezone) : undefined,
-  })
-  return movements.map(toMovement)
+  const page = await movementRepository.list(
+    actor.clinicId,
+    {
+      itemId: query.itemId,
+      encounterId: query.encounterId,
+      type: query.type,
+      from: query.from ? instantOf(query.from, '00:00', clinic.timezone) : undefined,
+      to: query.to ? instantOf(nextDate(query.to), '00:00', clinic.timezone) : undefined,
+    },
+    { cursor: query.cursor, limit: pageLimit(query.limit) },
+  )
+  return { items: page.items.map(toMovement), nextCursor: page.nextCursor }
 }
 
 /**

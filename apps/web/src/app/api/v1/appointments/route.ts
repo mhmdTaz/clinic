@@ -1,5 +1,6 @@
 import { AppointmentListQuery, BookAppointmentRequest } from '@clinic/contracts'
 import { bookAppointment, listAppointments } from '@clinic/core/appointments'
+import { paged } from '@/lib/api/paged'
 import { withApi } from '@/lib/api/with-api'
 
 export const runtime = 'nodejs'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
  */
 export const GET = withApi(
   { permission: 'appointment:read', query: AppointmentListQuery },
-  async ({ actor, query }) => ({ data: await listAppointments(actor, query) }),
+  async ({ actor, query }) => paged(await listAppointments(actor, query)),
 )
 
 /** 409 SLOT_TAKEN when another booking claimed the time first (ADR-0013). */

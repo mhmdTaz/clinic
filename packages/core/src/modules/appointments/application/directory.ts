@@ -1,5 +1,6 @@
 import type { AppointmentDetail, AppointmentListQuery, AppointmentSummary } from '@clinic/contracts'
 import { NotFoundError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { assertCan, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
 import { instantOf, nextDate } from '../../scheduling'
@@ -64,23 +65,27 @@ export function toAppointmentDetail(
  */
 export async function listAppointments(
   actor: Actor,
-  query: AppointmentListQuery,
-): Promise<AppointmentSummary[]> {
+  query: Omit<AppointmentListQuery, 'limit'> & { limit?: number },
+): Promise<Page<AppointmentSummary>> {
   const scope = await appointmentListScope(actor)
   const clinic = await getClinicFacts(actor.clinicId)
 
   const from = instantOf(query.from, '00:00', clinic.timezone)
   const to = instantOf(nextDate(query.to), '00:00', clinic.timezone)
 
-  const appointments = await appointmentRepository.list(actor.clinicId, {
-    from,
-    to,
-    doctorId: scope.doctorId ?? query.doctorId,
-    patientId: scope.patientId ?? query.patientId,
-    status: query.status,
-    branchId: query.branchId,
-  })
-  return appointments.map(toAppointmentSummary)
+  const page = await appointmentRepository.list(
+    actor.clinicId,
+    {
+      from,
+      to,
+      doctorId: scope.doctorId ?? query.doctorId,
+      patientId: scope.patientId ?? query.patientId,
+      status: query.status,
+      branchId: query.branchId,
+    },
+    { cursor: query.cursor, limit: pageLimit(query.limit) },
+  )
+  return { items: page.items.map(toAppointmentSummary), nextCursor: page.nextCursor }
 }
 
 export async function getAppointment(

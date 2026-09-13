@@ -12,6 +12,7 @@ import {
   QueryState,
   Row,
   Screen,
+  Truncated,
   confirm,
   inform,
   palette,
@@ -148,11 +149,11 @@ export default function ChartScreen() {
         <Heading>Visits</Heading>
         <QueryState
           query={visits}
-          isEmpty={(list) => list.length === 0}
+          isEmpty={(list) => list.items.length === 0}
           emptyText="No visits recorded yet."
         >
           {(list) => {
-            const newestFirst = [...list].sort(
+            const newestFirst = [...list.items].sort(
               (left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt),
             )
             const shown = showAllVisits ? newestFirst : newestFirst.slice(0, 5)
@@ -185,6 +186,7 @@ export default function ChartScreen() {
                     onPress={() => setShowAllVisits(true)}
                   />
                 ) : null}
+                {newestFirst.length === shown.length ? <Truncated listed={list} /> : null}
               </View>
             )
           }}
@@ -193,12 +195,12 @@ export default function ChartScreen() {
         <Heading>Prescriptions</Heading>
         <QueryState
           query={prescriptions}
-          isEmpty={(list) => list.length === 0}
+          isEmpty={(list) => list.items.length === 0}
           emptyText="No prescriptions."
         >
           {(list) => (
             <View style={{ gap: 8 }}>
-              {list.map((prescription) => {
+              {list.items.map((prescription) => {
                 const expired =
                   prescription.validUntil !== null && prescription.validUntil < localDateIn(zone)
                 return (
@@ -245,19 +247,27 @@ export default function ChartScreen() {
                   </Card>
                 )
               })}
+              <Truncated listed={list} />
             </View>
           )}
         </QueryState>
 
         <Heading>Documents</Heading>
-        <QueryState query={files} isEmpty={(list) => list.length === 0} emptyText="No documents.">
+        <QueryState
+          query={files}
+          isEmpty={(list) => list.items.length === 0}
+          emptyText="No documents."
+        >
           {(list) => (
-            <DocumentList
-              files={list}
-              timeZone={zone}
-              disabled={offline}
-              linkFor={(fileId) => doctor.downloadLink(fileId)}
-            />
+            <>
+              <DocumentList
+                files={list.items}
+                timeZone={zone}
+                disabled={offline}
+                linkFor={(fileId) => doctor.downloadLink(fileId)}
+              />
+              <Truncated listed={list} />
+            </>
           )}
         </QueryState>
 

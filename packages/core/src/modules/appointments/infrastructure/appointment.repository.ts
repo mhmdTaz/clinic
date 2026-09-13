@@ -2,6 +2,14 @@ import { AppointmentModel, SlotReservationModel, newId, nextFormatted } from '@c
 import type { AppointmentSource, AppointmentStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import { SLOT_HOLDING_STATUSES } from '../domain/status'
 
 export interface StoredStatusChange {
@@ -132,7 +140,33 @@ function toAppointment(doc: AppointmentRecord): StoredAppointment {
 export const isSlotTaken = (error: unknown) => (error as { code?: unknown } | null)?.code === 11000
 
 /** A calendar asks for a day or a week; the ceiling is a guard, not a page size. */
-const CALENDAR_LIMIT = 2000
+/** In the order they happen; `startsAt` is required on every appointment. */
+const CALENDAR_ORDER: readonly SortKey[] = [
+  { field: 'startsAt', direction: 1, kind: 'date' },
+  { field: '_id', direction: 1, kind: 'string' },
+]
+
+function calendarFilter(
+  clinicId: string,
+  filter: {
+    from: Date
+    to: Date
+    doctorId?: string
+    patientId?: string
+    status?: AppointmentStatus
+    branchId?: string
+  },
+): Record<string, unknown> {
+  const where: Record<string, unknown> = {
+    clinicId,
+    startsAt: { $gte: filter.from, $lt: filter.to },
+  }
+  if (filter.doctorId) where.doctorId = filter.doctorId
+  if (filter.patientId) where.patientId = filter.patientId
+  if (filter.status) where.status = filter.status
+  if (filter.branchId) where.branchId = filter.branchId
+  return where
+}
 
 export const appointmentRepository = {
   nextNumber(clinicId: string): Promise<string> {
@@ -169,30 +203,36 @@ export const appointmentRepository = {
     return doc ? toAppointment(doc as unknown as AppointmentRecord) : null
   },
 
+  /** A page of the calendar. Before Phase 10: the first 2,000 in the range, and nothing said. */
   async list(
     clinicId: string,
-    filter: {
-      from: Date
-      to: Date
-      doctorId?: string
-      patientId?: string
-      status?: AppointmentStatus
-      branchId?: string
-    },
-  ): Promise<StoredAppointment[]> {
-    const where: Record<string, unknown> = {
-      clinicId,
-      startsAt: { $gte: filter.from, $lt: filter.to },
+    filter: Parameters<typeof calendarFilter>[1],
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredAppointment>> {
+    const where = calendarFilter(clinicId, filter)
+    if (page.cursor) {
+      where.$and = [keysetAfter(CALENDAR_ORDER, decodeCursor(page.cursor, CALENDAR_ORDER.length))]
     }
-    if (filter.doctorId) where.doctorId = filter.doctorId
-    if (filter.patientId) where.patientId = filter.patientId
-    if (filter.status) where.status = filter.status
-    if (filter.branchId) where.branchId = filter.branchId
-
-    const docs = await AppointmentModel()
+    const docs = (await AppointmentModel()
       .find(where)
-      .sort({ startsAt: 1 })
-      .limit(CALENDAR_LIMIT)
+      .sort(sortFor(CALENDAR_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<AppointmentRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, CALENDAR_ORDER)
+    return { items: rows.map(toAppointment), nextCursor }
+  },
+
+  /**
+   * Every appointment in a window, for the reminder sweep. No cap: the first version read the sweep
+   * through the calendar's 2,000-row limit, so a reminder beyond it was never sent and nothing said.
+   */
+  async listAll(
+    clinicId: string,
+    filter: Parameters<typeof calendarFilter>[1],
+  ): Promise<StoredAppointment[]> {
+    const docs = await AppointmentModel()
+      .find(calendarFilter(clinicId, filter))
+      .sort(sortFor(CALENDAR_ORDER))
       .lean()
     return (docs as unknown as AppointmentRecord[]).map(toAppointment)
   },
@@ -216,8 +256,9 @@ export const appointmentRepository = {
 
     const docs = (await AppointmentModel()
       .find(where)
+      // No limit: one doctor's commitments over a bounded range. A cap here would offer as free a
+      // time the doctor is already booked for.
       .select({ startsAt: 1, endsAt: 1 })
-      .limit(CALENDAR_LIMIT)
       .lean()) as unknown as Array<{ startsAt: Date; endsAt: Date }>
     return docs.map(({ startsAt, endsAt }) => ({ startsAt, endsAt }))
   },

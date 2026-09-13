@@ -7,6 +7,7 @@ import type {
   UpdateTicketRequest,
 } from '@clinic/contracts'
 import { BusinessRuleError, ConflictError, ForbiddenError, NotFoundError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { runInTransaction } from '../../../transaction'
 import { recordAudit } from '../../audit'
 import { assertCan, holds, type Actor } from '../../access'
@@ -274,7 +275,10 @@ export async function updateTicket(
   return toTicketDetail(ticket, actor)
 }
 
-export async function listTickets(actor: Actor, query: TicketListQuery): Promise<TicketSummary[]> {
+export async function listTickets(
+  actor: Actor,
+  query: Partial<TicketListQuery>,
+): Promise<Page<TicketSummary>> {
   await assertCan(actor, 'ticket:read')
 
   const filter: TicketFilter = {
@@ -294,8 +298,14 @@ export async function listTickets(actor: Actor, query: TicketListQuery): Promise
     filter.requesterId = actor.userId
   }
 
-  const tickets = await ticketRepository.list(actor.clinicId, filter)
-  return tickets.map((ticket) => toTicketSummary(ticket, actor))
+  const page = await ticketRepository.list(actor.clinicId, filter, {
+    cursor: query.cursor,
+    limit: pageLimit(query.limit),
+  })
+  return {
+    items: page.items.map((ticket) => toTicketSummary(ticket, actor)),
+    nextCursor: page.nextCursor,
+  }
 }
 
 export async function getTicket(actor: Actor, ticketId: string): Promise<TicketDetail> {

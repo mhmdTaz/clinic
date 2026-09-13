@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import {
   IdParam,
   LocalDate,
+  idList,
   PersonRef,
   blankToNull,
   nullableInteger,
@@ -173,9 +175,15 @@ export const EncounterDetail = EncounterSummary.extend({
 })
 export type EncounterDetail = z.infer<typeof EncounterDetail>
 
-export const EncounterListQuery = z.object({
+export const EncounterListQuery = PaginationQuery.extend({
   patientId: z.string().max(64).optional(),
   doctorId: z.string().max(64).optional(),
+  /**
+   * The visits recorded against these appointments — how a day view decides between "open the
+   * note" and "record the visit". Before Phase 10 it could only ask by date, and the date filter
+   * is the day a visit *started*, so a visit opened the evening before was missed.
+   */
+  appointmentIds: idList(100).optional(),
   status: EncounterStatus.optional(),
   from: LocalDate.optional(),
   to: LocalDate.optional(),

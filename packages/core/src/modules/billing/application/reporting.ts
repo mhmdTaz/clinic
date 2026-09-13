@@ -82,6 +82,9 @@ export async function dailyReconciliation(
   }
 }
 
+/** How many of each a statement lists. The totals are computed over all of them regardless. */
+const STATEMENT_LINES = 100
+
 /**
  * A patient's statement of account (P8): everything they have been billed and everything they
  * have paid, with the difference stated once.
@@ -103,8 +106,8 @@ export async function accountStatement(
   // The list keeps voided invoices — a patient should see that a bill was cancelled rather than
   // find it missing — while the totals exclude them, because a void owes nothing.
   const [invoices, payments, totals] = await Promise.all([
-    invoiceRepository.list(actor.clinicId, invoiceFilter),
-    paymentRepository.list(actor.clinicId, paymentFilter),
+    invoiceRepository.list(actor.clinicId, invoiceFilter, { limit: STATEMENT_LINES }),
+    paymentRepository.list(actor.clinicId, paymentFilter, { limit: STATEMENT_LINES }),
     invoiceRepository.totals(actor.clinicId, invoiceFilter),
   ])
 
@@ -114,7 +117,9 @@ export async function accountStatement(
     invoiced: totals.invoiced,
     paid: totals.paid,
     outstanding: totals.outstanding,
-    invoices: invoices.map((invoice) => toInvoiceSummary(invoice, today)),
-    payments: payments.map(toPayment),
+    invoices: invoices.items.map((invoice) => toInvoiceSummary(invoice, today)),
+    payments: payments.items.map(toPayment),
+    hasMoreInvoices: invoices.nextCursor !== null,
+    hasMorePayments: payments.nextCursor !== null,
   }
 }

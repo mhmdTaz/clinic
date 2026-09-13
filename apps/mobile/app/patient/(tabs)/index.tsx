@@ -22,7 +22,8 @@ export default function PatientHome() {
 
   if (!user.patientId) return <NoPatientRecord />
 
-  const unread = notifications.data?.unreadCount ?? 0
+  // The first page carries the current count: a refetch reloads the pages in order.
+  const unread = notifications.data?.pages[0]?.unreadCount ?? 0
 
   return (
     <ScrollView
@@ -48,11 +49,11 @@ export default function PatientHome() {
 
         <QueryState
           query={appointments}
-          isEmpty={(list) => nextUpcoming(list) === null}
+          isEmpty={(diary) => nextUpcoming(diary.items) === null}
           emptyText="You have no upcoming appointments."
         >
-          {(list) => {
-            const next = nextUpcoming(list)
+          {(diary) => {
+            const next = nextUpcoming(diary.items)
             if (!next) return null
             return (
               <Card>

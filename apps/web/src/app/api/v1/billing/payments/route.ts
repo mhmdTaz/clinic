@@ -1,5 +1,6 @@
 import { PaymentListQuery, RecordPaymentRequest } from '@clinic/contracts'
 import { listPayments, recordPayment } from '@clinic/core/billing'
+import { paged } from '@/lib/api/paged'
 import { withApi } from '@/lib/api/with-api'
 
 export const runtime = 'nodejs'
@@ -7,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export const GET = withApi(
   { permission: 'payment:read', query: PaymentListQuery },
-  async ({ actor, query }) => ({ data: await listPayments(actor, query) }),
+  async ({ actor, query }) => paged(await listPayments(actor, query)),
 )
 
 /**

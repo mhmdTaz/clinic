@@ -6,12 +6,12 @@ import {
   ageLabel,
   ageOn,
   appointmentStatusLabel,
+  bookingWeek,
   fileCategoryLabel,
   formatBytes,
   formatCalendarDate,
   formatWhen,
   isCancellable,
-  isOwnBooking,
   nextUpcoming,
   pastAppointments,
   relativeDay,
@@ -179,33 +179,55 @@ describe('which appointment is next', () => {
   })
 })
 
-describe('a booking refused as taken', () => {
+describe('the booking week', () => {
   /**
-   * The server does not yet honour idempotency keys on bookings, so a retry of a booking that went
-   * through is refused SLOT_TAKEN. Telling the patient somebody else took their own appointment
-   * would have them book a second one.
+   * The clinic's horizon, not a guess at it: Phase 9 offered eight weeks at every clinic because a
+   * phone could not read the setting.
    */
-  it('is recognised as the person’s own when their diary has it', () => {
-    const mine = appointment({ id: 'mine', startsAt: '2026-09-22T09:00:00.000Z' })
-    expect(isOwnBooking([mine], { doctorId: 'd1', startsAt: '2026-09-22T09:00:00Z' })?.id).toBe(
-      'mine',
-    )
+  it('goes as far as the week holding the last bookable date, and no further', () => {
+    // Sixty days from 19 September is 18 November: the ninth week, 14–20 November, holds it.
+    const first = bookingWeek('2026-09-19', 60, 0)
+    expect(first).toEqual({ from: '2026-09-19', to: '2026-09-25', lastOffset: 8 })
+
+    const last = bookingWeek('2026-09-19', 60, 8)
+    expect(last.from).toBe('2026-11-14')
+    // Cut at the horizon rather than run to the week's seventh day.
+    expect(last.to).toBe('2026-11-18')
   })
 
-  it('is somebody else’s when the diary has a different doctor, time, or a cancellation', () => {
-    const attempt = { doctorId: 'd1', startsAt: '2026-09-22T09:00:00.000Z' }
-    expect(
-      isOwnBooking(
-        [appointment({ startsAt: attempt.startsAt, doctor: { id: 'd2', name: 'Dr X' } })],
-        attempt,
-      ),
-    ).toBeNull()
-    expect(
-      isOwnBooking([appointment({ startsAt: '2026-09-22T09:30:00.000Z' })], attempt),
-    ).toBeNull()
-    expect(
-      isOwnBooking([appointment({ startsAt: attempt.startsAt, status: 'CANCELLED' })], attempt),
-    ).toBeNull()
+  it('never goes past the last week, or before this one, whatever it is asked', () => {
+    expect(bookingWeek('2026-09-19', 60, 99).from).toBe('2026-11-14')
+    expect(bookingWeek('2026-09-19', 60, -3).from).toBe('2026-09-19')
+  })
+
+  it('shows a whole first week when the horizon is exactly a week', () => {
+    // Seven days ahead is the eighth date, which starts the second week — and is its only day.
+    expect(bookingWeek('2026-09-19', 7, 0)).toEqual({
+      from: '2026-09-19',
+      to: '2026-09-25',
+      lastOffset: 1,
+    })
+    expect(bookingWeek('2026-09-19', 7, 1)).toEqual({
+      from: '2026-09-26',
+      to: '2026-09-26',
+      lastOffset: 1,
+    })
+  })
+
+  it('offers only this week while the horizon is unknown', () => {
+    expect(bookingWeek('2026-09-19', null, 4)).toEqual({
+      from: '2026-09-19',
+      to: '2026-09-25',
+      lastOffset: 0,
+    })
+  })
+
+  it('crosses a month and a year boundary on calendar dates, not on 24-hour days', () => {
+    expect(bookingWeek('2026-12-28', 10, 1)).toEqual({
+      from: '2027-01-04',
+      to: '2027-01-07',
+      lastOffset: 1,
+    })
   })
 })
 

@@ -1,5 +1,5 @@
 import { RefreshControl, ScrollView } from 'react-native'
-import { Muted, QueryState, Screen } from '~/components/ui'
+import { Muted, QueryState, Screen, Truncated } from '~/components/ui'
 import { portal } from '~/lib/api'
 import { useMyDocuments } from '~/lib/queries'
 import { useIsOffline, useUser } from '~/lib/session'
@@ -29,16 +29,19 @@ export default function PatientDocuments() {
         <Muted>Everything the clinic has shared with you.</Muted>
         <QueryState
           query={query}
-          isEmpty={(files) => files.length === 0}
+          isEmpty={(files) => files.items.length === 0}
           emptyText="Documents your clinic shares with you appear here."
         >
           {(files) => (
-            <DocumentList
-              files={files}
-              timeZone={user.clinic.timezone}
-              disabled={offline}
-              linkFor={(fileId) => portal.downloadLink(fileId)}
-            />
+            <>
+              <DocumentList
+                files={files.items}
+                timeZone={user.clinic.timezone}
+                disabled={offline}
+                linkFor={(fileId) => portal.downloadLink(fileId)}
+              />
+              <Truncated listed={files} />
+            </>
           )}
         </QueryState>
       </Screen>

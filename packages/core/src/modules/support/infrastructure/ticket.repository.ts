@@ -2,6 +2,14 @@ import { SupportTicketModel, newId, nextFormatted } from '@clinic/db'
 import type { TicketCategory, TicketPriority, TicketStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 
 export interface StoredMessage {
   id: string
@@ -109,6 +117,12 @@ function filterFor(clinicId: string, filter: TicketFilter): Record<string, unkno
   return query
 }
 
+/** `lastMessageAt` defaults to the moment a ticket is opened, so it is never null. */
+const TICKET_ORDER: readonly SortKey[] = [
+  { field: 'lastMessageAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
+
 export const ticketRepository = {
   nextNumber(clinicId: string): Promise<string> {
     return nextFormatted(`ticket:${clinicId}`, 'TKT', 6)
@@ -184,13 +198,29 @@ export const ticketRepository = {
     }
   },
 
-  async list(clinicId: string, filter: TicketFilter, limit = 200): Promise<StoredTicket[]> {
+  /**
+   * A page of tickets, latest activity first. Before Phase 10: at most 200, silently.
+   *
+   * Sorted on the latest message, which moves: a ticket answered while somebody pages through the
+   * inbox jumps to the top and may be missed from the page after. That is the inbox doing its job —
+   * it has just become the most recent — and a refresh shows it.
+   */
+  async list(
+    clinicId: string,
+    filter: TicketFilter,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredTicket>> {
+    const where = filterFor(clinicId, filter)
+    if (page.cursor) {
+      where.$and = [keysetAfter(TICKET_ORDER, decodeCursor(page.cursor, TICKET_ORDER.length))]
+    }
     const docs = (await SupportTicketModel()
-      .find(filterFor(clinicId, filter))
-      .sort({ lastMessageAt: -1 })
-      .limit(limit)
-      .lean()) as TicketRecord[]
-    return docs.map(toTicket)
+      .find(where)
+      .sort(sortFor(TICKET_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<TicketRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, TICKET_ORDER)
+    return { items: rows.map(toTicket), nextCursor }
   },
 
   /**

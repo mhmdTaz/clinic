@@ -13,6 +13,7 @@ import {
   TicketDetail,
   TicketSummary,
   AccountStatement,
+  BookingWindow,
 } from '@clinic/contracts'
 import type {
   AppointmentListQuery,
@@ -31,6 +32,10 @@ import type {
 } from '@clinic/contracts'
 import { z } from 'zod'
 import type { ApiClient } from '../client'
+import type { PageRequest } from '../pages'
+
+/** A diary window, a page at a time. The window is required; the page is not. */
+export type AppointmentsRequest = Omit<AppointmentListQuery, 'cursor' | 'limit'> & PageRequest
 
 /**
  * Everything the patient portal does, as one typed surface (P1–P14, section 9.1).
@@ -49,11 +54,9 @@ export function patientPortal(client: ApiClient) {
     /**
      * One patient record.
      *
-     * Note on shapes: most of this portal's collections are **filtered lists, not cursor pages**.
-     * §9.2 states cursor pagination as the convention and only `patients` and `users` actually
-     * follow it; the rest are bounded by a date range or by belonging to one patient. That is a
-     * real limit for a device — recorded as a deviation in ARCHITECTURE §9.2 — and the client
-     * reflects what the API does rather than pretending otherwise.
+     * Note on shapes: every collection here is a **cursor page** (`Paged`), as §9.2 has always
+     * said. Until Phase 10 most were filtered lists the server cut off at a few hundred rows
+     * without saying so; a screen that wants a bounded list whole reads it with `collectPages`.
      */
     patient(patientId: string) {
       return client.request(`/api/v1/patients/${patientId}`, { schema: PatientDetail })
@@ -61,14 +64,13 @@ export function patientPortal(client: ApiClient) {
 
     // ── Appointments (P3, P5) ────────────────────────────────────────────────
     /**
-     * Bounded by a date range rather than by a cursor, which is how the endpoint is defined:
-     * `from` and `to` are required (`AppointmentListQuery`). A diary is read a window at a time,
-     * and the window is the bound.
+     * A window of the diary, in the order the appointments happen. `from` and `to` are required
+     * (`AppointmentListQuery`); within the window the list pages like every other.
      */
-    appointments(query: AppointmentListQuery) {
-      return client.request('/api/v1/appointments', {
+    appointments(query: AppointmentsRequest) {
+      return client.paged('/api/v1/appointments', {
         query: { ...query },
-        schema: z.array(AppointmentSummary),
+        schema: AppointmentSummary,
       })
     },
 
@@ -84,6 +86,15 @@ export function patientPortal(client: ApiClient) {
       })
     },
 
+    /**
+     * The rules this clinic books by — how far ahead, how much notice, until when a cancellation
+     * is accepted online (ADR-0022). A booking screen offers exactly the horizon the server will
+     * accept, rather than a guess at it.
+     */
+    bookingWindow() {
+      return client.request('/api/v1/clinic/booking-window', { schema: BookingWindow })
+    },
+
     doctors(query: Partial<DoctorListQuery> = {}) {
       return client.request('/api/v1/doctors', {
         query: { ...query },
@@ -95,12 +106,12 @@ export function patientPortal(client: ApiClient) {
      * Booking for oneself, which is a different permission from booking for somebody else and so
      * is a different endpoint (§9.2: transitions are explicit, not a status field).
      *
-     * The key is sent because §9.2 says an `Idempotency-Key` is honoured on every POST that
-     * creates a booking. **The server does not honour it yet** — found while building the booking
-     * screen, and recorded in ARCHITECTURE §17 rather than quietly fixed, because it is backend
-     * work. What protects a patient today is the slot hold: a repeat of a booking that went through
-     * is refused `SLOT_TAKEN`, which the app then has to recognise as *its own* booking rather
-     * than somebody else's (see `isOwnBooking` in the mobile app).
+     * **Send the same key when retrying the same attempt.** The server keeps the first answer for
+     * a day (§9.2): a retry after a lost response gets the appointment that was booked — status,
+     * body and all, with an `idempotent-replayed` header — rather than a `SLOT_TAKEN` for the
+     * patient's own slot. A retry that arrives while the first is still running is refused
+     * `IDEMPOTENCY_KEY_IN_USE` (409, retry after a second); the same key on a *different* booking
+     * is refused `IDEMPOTENCY_KEY_REUSED` (422).
      */
     bookForMyself(input: BookOwnAppointmentRequest, idempotencyKey: string) {
       return client.request('/api/v1/me/appointments', {
@@ -111,17 +122,23 @@ export function patientPortal(client: ApiClient) {
       })
     },
 
-    cancelAppointment(appointmentId: string, input: CancelAppointmentRequest) {
+    /** Honours an idempotency key as booking does: a retried cancellation answers as the first. */
+    cancelAppointment(
+      appointmentId: string,
+      input: CancelAppointmentRequest,
+      idempotencyKey?: string,
+    ) {
       return client.request(`/api/v1/appointments/${appointmentId}/cancel`, {
         method: 'POST',
         body: input,
+        idempotencyKey,
         schema: AppointmentDetail,
       })
     },
 
     // ── Documents (P8) ───────────────────────────────────────────────────────
     files(query: Partial<FileListQuery> = {}) {
-      return client.request('/api/v1/files', { query: { ...query }, schema: z.array(StoredFile) })
+      return client.paged('/api/v1/files', { query: { ...query }, schema: StoredFile })
     },
 
     /**
@@ -136,20 +153,21 @@ export function patientPortal(client: ApiClient) {
 
     // ── Prescriptions (P7) ───────────────────────────────────────────────────
     prescriptions(query: Partial<PrescriptionListQuery> = {}) {
-      return client.request('/api/v1/prescriptions', {
-        query: { ...query },
-        schema: z.array(Prescription),
-      })
+      return client.paged('/api/v1/prescriptions', { query: { ...query }, schema: Prescription })
     },
 
     // ── Money (P9) ───────────────────────────────────────────────────────────
     invoices(query: Partial<InvoiceListQuery> = {}) {
-      return client.request('/api/v1/billing/invoices', {
+      return client.paged('/api/v1/billing/invoices', {
         query: { ...query },
-        schema: z.array(InvoiceSummary),
+        schema: InvoiceSummary,
       })
     },
 
+    /**
+     * Totals over everything; the lines are the newest hundred of each, with `hasMoreInvoices` and
+     * `hasMorePayments` saying when there are older ones.
+     */
     statement(patientId: string) {
       return client.request('/api/v1/billing/statement', {
         query: { patientId },
@@ -158,10 +176,11 @@ export function patientPortal(client: ApiClient) {
     },
 
     // ── Support (P12) ────────────────────────────────────────────────────────
+    /** Newest activity first. */
     tickets(query: Partial<TicketListQuery> = {}) {
-      return client.request('/api/v1/support/tickets', {
+      return client.paged('/api/v1/support/tickets', {
         query: { ...query },
-        schema: z.array(TicketSummary),
+        schema: TicketSummary,
       })
     },
 
@@ -186,11 +205,18 @@ export function patientPortal(client: ApiClient) {
     },
 
     // ── The bell (section 8.12) ──────────────────────────────────────────────
-    notifications(query: Partial<NotificationListQuery> = {}) {
-      return client.request('/api/v1/me/notifications', {
+    /**
+     * The newest notifications, the unread count, and the cursor to older ones. The feed is an
+     * object rather than a bare list — it carries the count — so the cursor comes back beside it.
+     */
+    async notifications(
+      query: Partial<NotificationListQuery> = {},
+    ): Promise<NotificationFeed & { nextCursor: string | null }> {
+      const { value, meta } = await client.requestWithMeta('/api/v1/me/notifications', {
         query: { ...query },
         schema: NotificationFeed,
       })
+      return { ...(value as NotificationFeed), nextCursor: meta?.nextCursor ?? null }
     },
 
     /** An empty list marks everything read — the "clear all" the bell offers. */

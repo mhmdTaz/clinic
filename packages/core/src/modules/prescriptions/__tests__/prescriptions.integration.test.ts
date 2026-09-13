@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import { DoctorModel, PatientModel, newId } from '@clinic/db'
-import { TEST_PASSWORD, createUser, meta, signedInActor } from '../../../../test/fixtures'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  signedInActor,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { openEncounter, signNote, updateEncounter } from '../../clinical'
 import { registerPatient } from '../../patients'
@@ -112,7 +118,7 @@ describe('prescribing', () => {
     expect(again.fileName).toBe(link.fileName)
 
     // And it is the patient's own document to read (P7).
-    const mine = await listPrescriptions(patientActor, {})
+    const mine = await everyPage((page) => listPrescriptions(patientActor, page))
     expect(mine.map((prescription) => prescription.id)).toEqual([issued.id])
     expect((await getPrescriptionPdf(patientActor, issued.id)).fileName).toBe(link.fileName)
   })
@@ -134,7 +140,7 @@ describe('prescribing', () => {
       code: 'FORBIDDEN',
       status: 403,
     })
-    expect(await listPrescriptions(someoneElse, {})).toEqual([])
+    expect(await listPrescriptions(someoneElse, {})).toEqual({ items: [], nextCursor: null })
   })
 
   it('lists only what a patient is still meant to be taking', async () => {
@@ -154,9 +160,11 @@ describe('prescribing', () => {
       notes: null,
     })
 
-    const active = await listPrescriptions(patientActor, { active: true })
+    const active = await everyPage((page) =>
+      listPrescriptions(patientActor, { active: true, ...page }),
+    )
     expect(active.map((prescription) => prescription.id)).toEqual([current.id])
-    const all = await listPrescriptions(patientActor, {})
+    const all = await everyPage((page) => listPrescriptions(patientActor, page))
     expect(all.map((prescription) => prescription.id).sort()).toEqual(
       [expired.id, current.id].sort(),
     )

@@ -201,28 +201,30 @@ export function pastAppointments(
 export const isCancellable = (appointment: AppointmentSummary, now: Date = new Date()): boolean =>
   STILL_HAPPENING.has(appointment.status) && startsAtOf(appointment) >= now.getTime()
 
+/** A week at a time: far enough to find something, short enough to read on a phone. */
+export const BOOKING_WEEK_DAYS = 7
+
 /**
- * Whether a booking that was refused as taken is in fact this person's own.
+ * The week of open times a booking screen shows, and how many weeks ahead it may go.
  *
- * §9.2 promises that an `Idempotency-Key` is honoured on every POST that creates a booking. It is
- * not, yet (ARCHITECTURE §17). What stops a double booking is the slot hold, which means a
- * booking that *succeeded* but whose response was lost to a weak signal is refused `SLOT_TAKEN` on
- * the retry — and a patient told "somebody else took that time" about their own appointment will
- * book another one. So the app looks before it says so.
+ * The last bookable date is `today + horizonDays` — the web's own reckoning — because the server
+ * accepts a start up to `horizonDays × 24h` from now, which lands on that calendar date. The final
+ * week is cut at that date rather than run to its seventh day, so the screen never asks for, or
+ * shows, a day the server would only refuse. An unknown horizon offers this week and no further:
+ * guessing a later one is how the first version came to offer eight weeks at every clinic.
  */
-export function isOwnBooking(
-  appointments: readonly AppointmentSummary[],
-  attempt: { doctorId: string; startsAt: string },
-): AppointmentSummary | null {
-  const at = Date.parse(attempt.startsAt)
-  return (
-    appointments.find(
-      (appointment) =>
-        appointment.doctor.id === attempt.doctorId &&
-        Date.parse(appointment.startsAt) === at &&
-        STILL_HAPPENING.has(appointment.status),
-    ) ?? null
-  )
+export function bookingWeek(
+  today: string,
+  horizonDays: number | null,
+  offset: number,
+): { from: string; to: string; lastOffset: number } {
+  const lastOffset =
+    horizonDays === null ? 0 : Math.floor(Math.max(0, horizonDays) / BOOKING_WEEK_DAYS)
+  const week = Math.min(Math.max(0, offset), lastOffset)
+  const from = shiftDate(today, week * BOOKING_WEEK_DAYS)
+  const weekEnd = shiftDate(from, BOOKING_WEEK_DAYS - 1)
+  const lastBookable = horizonDays === null ? weekEnd : shiftDate(today, Math.max(0, horizonDays))
+  return { from, to: weekEnd < lastBookable ? weekEnd : lastBookable, lastOffset }
 }
 
 /*

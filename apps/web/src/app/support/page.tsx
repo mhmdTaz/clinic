@@ -9,6 +9,8 @@ import { TicketPriorityBadge, TicketStatusBadge } from '@/components/support/tic
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { requireActor } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 import { formatInstant } from '@/lib/format/dates'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -25,14 +27,16 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function MyTicketsPage() {
   const actor = await requireActor()
-  const [tickets, clinic, t, tStatus, tPriority, locale] = await Promise.all([
-    listTickets(actor, { view: 'all' }),
+  const [mine, clinic, t, tStatus, tPriority, locale] = await Promise.all([
+    collectPages((page) => listTickets(actor, { view: 'all', ...page }), 500),
     getClinicSessionInfo(actor.clinicId),
     getTranslations('support.mine'),
     getTranslations('support.statuses'),
     getTranslations('support.priorities'),
     getLocale(),
   ])
+
+  const tickets = mine.items
 
   return (
     <>
@@ -85,6 +89,7 @@ export default async function MyTicketsPage() {
               ))}
             </ul>
           )}
+          <TruncatedNotice shown={tickets.length} truncated={mine.truncated} />
         </CardContent>
       </Card>
     </>

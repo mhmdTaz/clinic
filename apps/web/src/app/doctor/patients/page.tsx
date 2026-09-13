@@ -7,6 +7,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { requirePortal } from '@/lib/auth/server-session'
+import { param, type SearchParams } from '@/lib/server/page-helpers'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,10 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * the question actually is. A doctor holding `patient:read` at ASSIGNED is refused the directory
  * and given this instead (ADR-0004, Phase 4 addendum).
  */
-export default async function MyPatientsPage() {
+export default async function MyPatientsPage({ searchParams }: { searchParams: SearchParams }) {
   const actor = await requirePortal('doctor')
-  const [patients, clinic, locale, t, tCommon] = await Promise.all([
-    listMyPatients(actor),
+  const cursor = param(await searchParams, 'cursor')
+  const [page, clinic, locale, t, tCommon] = await Promise.all([
+    listMyPatients(actor, { cursor, limit: 50 }),
     getClinicSessionInfo(actor.clinicId),
     getLocale(),
     getTranslations('doctor.patients'),
@@ -37,7 +39,7 @@ export default async function MyPatientsPage() {
     <>
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
 
-      {patients.length === 0 ? (
+      {page.items.length === 0 && !cursor ? (
         <EmptyState title={t('emptyTitle')} body={t('emptyBody')} />
       ) : (
         <DataTable
@@ -47,7 +49,8 @@ export default async function MyPatientsPage() {
             { id: 'age', header: t('columns.age'), priority: 2 },
             { id: 'contact', header: t('columns.contact'), priority: 3 },
           ]}
-          rows={patients.map((patient) => ({
+          nextCursor={page.nextCursor}
+          rows={page.items.map((patient) => ({
             id: patient.id,
             href: `/doctor/patients/${patient.id}`,
             cells: {

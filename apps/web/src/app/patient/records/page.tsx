@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { EncounterList } from '@/components/clinical/encounter-list'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('patient.records')
@@ -36,19 +38,20 @@ export default async function PatientRecordsPage() {
     )
   }
 
-  const encounters = await listEncounters(actor, {})
+  const encounters = await collectPages((page) => listEncounters(actor, page), 500)
 
   return (
     <>
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
       <EncounterList
-        encounters={encounters}
+        encounters={encounters.items}
         timeZone={clinic.timezone}
         hrefFor={(encounter) => `/patient/records/${encounter.id}`}
         show={{ doctor: true }}
         emptyTitle={t('emptyTitle')}
         emptyBody={t('emptyBody')}
       />
+      <TruncatedNotice shown={encounters.items.length} truncated={encounters.truncated} />
     </>
   )
 }

@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import { OutboxEventModel, PatientModel, newId } from '@clinic/db'
-import { createUser, meta, outcome, signedInActor, TEST_PASSWORD } from '../../../../test/fixtures'
+import {
+  createUser,
+  meta,
+  outcome,
+  signedInActor,
+  TEST_PASSWORD,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { registerPatient } from '../../patients'
 import { authenticateAccessToken, login } from '../../session'
@@ -273,7 +280,7 @@ describe('who sees which tickets', () => {
     const opened = await openTicket(mine.actor, TICKET)
     await openTicket(theirs.actor, { ...TICKET, subject: 'Something else entirely' })
 
-    const visible = await listTickets(mine.actor, { view: 'all' })
+    const visible = await everyPage((page) => listTickets(mine.actor, { view: 'all', ...page }))
     expect(visible.map((ticket) => ticket.id)).toEqual([opened.id])
 
     // And asking for somebody else's by id is a 404, not a 403 — a detail URL cannot be used
@@ -286,20 +293,71 @@ describe('who sees which tickets', () => {
     const patient = await patientActor(staff)
     const opened = await openTicket(patient.actor, TICKET)
 
-    const unassigned = await listTickets(staff, { view: 'unassigned' })
+    const unassigned = await everyPage((page) =>
+      listTickets(staff, { view: 'unassigned', ...page }),
+    )
     expect(unassigned.map((ticket) => ticket.id)).toContain(opened.id)
 
     await updateTicket(staff, opened.id, { assigneeId: staff.userId })
 
-    const mine = await listTickets(staff, { view: 'mine' })
+    const mine = await everyPage((page) => listTickets(staff, { view: 'mine', ...page }))
     expect(mine.map((ticket) => ticket.id)).toContain(opened.id)
 
-    const stillUnassigned = await listTickets(staff, { view: 'unassigned' })
+    const stillUnassigned = await everyPage((page) =>
+      listTickets(staff, { view: 'unassigned', ...page }),
+    )
     expect(stillUnassigned.map((ticket) => ticket.id)).not.toContain(opened.id)
 
     // The default inbox is everything the clinic still owes something on.
     await updateTicket(staff, opened.id, { status: 'CLOSED' })
-    const inbox = await listTickets(staff, { view: 'open' })
+    const inbox = await everyPage((page) => listTickets(staff, { view: 'open', ...page }))
     expect(inbox.map((ticket) => ticket.id)).not.toContain(opened.id)
+  })
+})
+
+async function walk<T extends { id: string }>(
+  fetchPage: (page: {
+    cursor?: string
+    limit: number
+  }) => Promise<{ items: T[]; nextCursor: string | null }>,
+  limit: number,
+): Promise<{ ids: string[]; pages: number }> {
+  const ids: string[] = []
+  let cursor: string | undefined
+  let pages = 0
+  for (;;) {
+    const page = await fetchPage({ cursor, limit })
+    pages += 1
+    expect(page.items.length).toBeLessThanOrEqual(limit)
+    ids.push(...page.items.map((item) => item.id))
+    if (!page.nextCursor) return { ids, pages }
+    // A page that offers a way on is full; a short page with a cursor sends a client to nothing.
+    expect(page.items).toHaveLength(limit)
+    cursor = page.nextCursor
+  }
+}
+
+describe('paging through tickets', () => {
+  it('reaches every ticket exactly once', async () => {
+    const requester = await signedInActor({ role: 'patient' })
+    const opened: string[] = []
+    for (let index = 0; index < 5; index += 1) {
+      opened.push(
+        (await openTicket(requester.actor, { ...TICKET, subject: `Question ${index}` })).id,
+      )
+    }
+    const { ids, pages } = await walk(
+      (page) => listTickets(requester.actor, { view: 'all', ...page }),
+      2,
+    )
+    expect(pages).toBe(3)
+    expect([...ids].sort()).toEqual([...opened].sort())
+  })
+
+  it('refuses a cursor it did not make, rather than returning the first page again', async () => {
+    const requester = await signedInActor({ role: 'patient' })
+    await expect(
+      listTickets(requester.actor, { view: 'all', cursor: 'not-a-cursor', limit: 2 }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
   })
 })

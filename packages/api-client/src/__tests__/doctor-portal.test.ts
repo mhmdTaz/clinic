@@ -5,7 +5,7 @@ import { invalidatedBy, queryKeys } from '../query-keys'
 import { doctorPortal } from '../resources/doctor-portal'
 import { memoryTokenStore } from '../tokens'
 
-function stub(body: unknown) {
+function stub(body: unknown, meta: Record<string, unknown> = {}) {
   const calls: Array<{ url: string; init: RequestInit }> = []
   const fetchStub = vi.fn(async (input: unknown, init: RequestInit = {}) => {
     calls.push({ url: String(input), init })
@@ -13,7 +13,7 @@ function stub(body: unknown) {
       ok: true,
       status: 200,
       headers: { get: () => null },
-      json: async () => ({ data: body, meta: { requestId: 'req-1' } }),
+      json: async () => ({ data: body, meta: { requestId: 'req-1', ...meta } }),
     } as unknown as Response
   })
   const client = createClient({
@@ -52,7 +52,17 @@ describe('the doctor portal', () => {
   it('reads the caseload as summaries, which is what the endpoint returns', async () => {
     const { portal } = stub([summary])
     const patients = await portal.patientsITreat()
-    expect(patients[0]?.medicalRecordNo).toBe('MRN-000001')
+    expect(patients.items[0]?.medicalRecordNo).toBe('MRN-000001')
+  })
+
+  it('pages through the caseload with the cursor the envelope carried', async () => {
+    const { portal, calls } = stub([summary], { nextCursor: 'next-1', hasMore: true })
+    const first = await portal.patientsITreat({ limit: 1 })
+    expect(first.nextCursor).toBe('next-1')
+    expect(first.hasMore).toBe(true)
+
+    await portal.patientsITreat({ cursor: 'next-1', limit: 1 })
+    expect(calls[1]?.url).toBe('https://clinic.test/api/v1/me/patients?cursor=next-1&limit=1')
   })
 
   it('still refuses a caseload that is not the contract', async () => {
@@ -72,6 +82,23 @@ describe('the doctor portal', () => {
 
     expect(calls[1]?.url).toBe('https://clinic.test/api/v1/encounters/e1/sign')
     expect(calls[1]?.init.method).toBe('POST')
+  })
+
+  it('asks for the visits of a day’s appointments as one comma-separated parameter', async () => {
+    // A repeated parameter would reach the server as its last value alone: the API reads a query
+    // into one object, so all but one appointment would silently go unmatched.
+    const { portal, calls } = stub([])
+    await portal.encounters({ appointmentIds: ['a1', 'a2', 'a3'], limit: 100 })
+    const url = new URL(calls[0]?.url ?? '')
+    expect(url.pathname).toBe('/api/v1/encounters')
+    expect(url.searchParams.getAll('appointmentIds')).toEqual(['a1,a2,a3'])
+    expect(url.searchParams.get('limit')).toBe('100')
+  })
+
+  it('leaves the appointment filter out when there is none', async () => {
+    const { portal, calls } = stub([])
+    await portal.encounters({ patientId: 'p1' })
+    expect(calls[0]?.url).toBe('https://clinic.test/api/v1/encounters?patientId=p1')
   })
 
   it('narrows the visit list by the day, as the query string', async () => {

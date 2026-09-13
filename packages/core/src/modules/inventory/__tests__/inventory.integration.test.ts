@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import type { InventoryItemInput } from '@clinic/contracts'
-import { DoctorModel, PatientModel, newId } from '@clinic/db'
-import { TEST_PASSWORD, createUser, meta, outcome, signedInActor } from '../../../../test/fixtures'
+import { DoctorModel, InventoryItemModel, PatientModel, decimal128, newId } from '@clinic/db'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  outcome,
+  signedInActor,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { getInvoice, listInvoices } from '../../billing'
 import { openEncounter } from '../../clinical'
@@ -283,7 +290,9 @@ describe('using stock during a visit', () => {
     expect(invoice.total).toBe('27.00')
     expect(invoice.balanceDue).toBe('27.00')
 
-    const invoices = await listInvoices(staff, { encounterId: visit.id })
+    const invoices = await everyPage((page) =>
+      listInvoices(staff, { encounterId: visit.id, ...page }),
+    )
     expect(invoices).toHaveLength(1)
   })
 
@@ -361,7 +370,10 @@ describe('using stock during a visit', () => {
     expect((await getItem(staff, gloves.id)).quantityOnHand).toBe('18.000')
     // The ledger still records it: the clinic used them whether or not anybody paid.
     expect(result.movements[0]?.quantity).toBe('-2.000')
-    expect(await listInvoices(staff, { encounterId: visit.id })).toHaveLength(0)
+    expect(await listInvoices(staff, { encounterId: visit.id })).toEqual({
+      items: [],
+      nextCursor: null,
+    })
   })
 
   it('refuses more than the shelf holds, and writes nothing', async () => {
@@ -380,8 +392,14 @@ describe('using stock during a visit', () => {
     ).toBe('INSUFFICIENT_STOCK')
 
     expect((await getItem(staff, item.id)).quantityOnHand).toBe('2.000')
-    expect(await listInvoices(staff, { encounterId: visit.id })).toHaveLength(0)
-    expect(await listMovements(staff, { encounterId: visit.id })).toHaveLength(0)
+    expect(await listInvoices(staff, { encounterId: visit.id })).toEqual({
+      items: [],
+      nextCursor: null,
+    })
+    expect(await listMovements(staff, { encounterId: visit.id })).toEqual({
+      items: [],
+      nextCursor: null,
+    })
   })
 
   it('refuses expired stock, and says that is what is wrong', async () => {
@@ -574,7 +592,7 @@ describe('the ledger explains the balance', () => {
     expect(reconciliation.ledgerTotal).toBe('27.000')
     expect(reconciliation.agrees).toBe(true)
 
-    const movements = await listMovements(staff, { itemId: item.id })
+    const movements = await everyPage((page) => listMovements(staff, { itemId: item.id, ...page }))
     expect(movements.map((row) => row.type)).toEqual([
       'RECEIPT',
       'ADJUSTMENT',
@@ -605,8 +623,12 @@ describe('what needs attention', () => {
     const staff = await staffActor()
     const low = await stockedItem(staff, '1', { reorderLevel: '5' })
 
-    const all = await listItems(staff, { status: 'active', view: 'all' })
-    const lowOnly = await listItems(staff, { status: 'active', view: 'low' })
+    const all = await everyPage((page) =>
+      listItems(staff, { status: 'active', view: 'all', ...page }),
+    )
+    const lowOnly = await everyPage((page) =>
+      listItems(staff, { status: 'active', view: 'low', ...page }),
+    )
 
     expect(all.map((item) => item.id)).toContain(low.id)
     expect(lowOnly.map((item) => item.id)).toContain(low.id)
@@ -618,5 +640,82 @@ describe('what needs attention', () => {
     const item = await stockedItem(staff, '0.001', { reorderLevel: '0' })
     const alerts = await stockAlerts(staff)
     expect(alerts.low.map((row) => row.id)).not.toContain(item.id)
+  })
+})
+
+async function walk<T extends { id: string }>(
+  fetchPage: (page: {
+    cursor?: string
+    limit: number
+  }) => Promise<{ items: T[]; nextCursor: string | null }>,
+  limit: number,
+): Promise<{ ids: string[]; pages: number }> {
+  const ids: string[] = []
+  let cursor: string | undefined
+  let pages = 0
+  for (;;) {
+    const page = await fetchPage({ cursor, limit })
+    pages += 1
+    expect(page.items.length).toBeLessThanOrEqual(limit)
+    ids.push(...page.items.map((item) => item.id))
+    if (!page.nextCursor) return { ids, pages }
+    // A page that offers a way on is full; a short page with a cursor sends a client to nothing.
+    expect(page.items).toHaveLength(limit)
+    cursor = page.nextCursor
+  }
+}
+
+/**
+ * "Running low" is worked out from the shelf, not stored, so it is paged in memory — the one list
+ * whose cursor is not a database cursor, and so the one most worth walking.
+ */
+describe('paging through the catalogue', () => {
+  it('reaches every low item exactly once, a page at a time', async () => {
+    const staff = await staffActor()
+    const low: string[] = []
+    for (let index = 0; index < 5; index += 1) {
+      low.push((await stockedItem(staff, '1', { reorderLevel: '5' })).id)
+    }
+
+    const { ids } = await walk(
+      (page) => listItems(staff, { status: 'active', view: 'low', ...page }),
+      2,
+    )
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const id of low) expect(ids).toContain(id)
+  })
+
+  it('alerts on every low item, not only those on the first 300 names', async () => {
+    const staff = await staffActor()
+    // Inserted directly: the regression is about how many rows the alert reads, and building 310
+    // items through the use cases would test the use cases 310 times rather than the alert once.
+    // Named to sort after everything else, where the old 300-row read never reached.
+    const ids = Array.from({ length: 310 }, () => newId())
+    await InventoryItemModel().collection.insertMany(
+      ids.map((id, index) => ({
+        _id: id,
+        clinicId: clinicId(),
+        sku: `ALERT-${id.slice(0, 12)}`,
+        name: `zzz Alert item ${String(index).padStart(3, '0')}`,
+        search: {
+          sku: `alert-${id.slice(0, 12)}`,
+          name: `zzz alert item ${String(index).padStart(3, '0')}`,
+        },
+        unit: 'box',
+        quantityOnHand: decimal128('1'),
+        reorderLevel: decimal128('5'),
+        batches: [],
+        isTracked: true,
+        isBillable: false,
+        isActive: true,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })) as never[],
+    )
+
+    const alerts = await stockAlerts(staff)
+    const flagged = new Set(alerts.low.map((item) => item.id))
+    expect(ids.filter((id) => !flagged.has(id))).toEqual([])
   })
 })

@@ -26,7 +26,8 @@
     "no": "No",
     "never": "Never",
     "reason": "Reason",
-    "reasonOptional": "Reason (optional)"
+    "reasonOptional": "Reason (optional)",
+    "truncated": "Only the first {count} are shown."
   },
   "portals": {
     "admin": "Admin",

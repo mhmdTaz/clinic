@@ -3,6 +3,14 @@ import { addAmounts } from '@clinic/contracts'
 import type { InvoiceStatus } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { ComputedLine, ComputedTotals } from '../domain/totals'
 
 /** Mongoose hands back a Decimal128; an invoice speaks in the decimal strings it was written in. */
@@ -172,6 +180,12 @@ function filterFor(clinicId: string, filter: InvoiceFilter): Record<string, unkn
   return query
 }
 
+/** Newest first; `createdAt` comes from the schema's timestamps, so it is never null. */
+const INVOICE_ORDER: readonly SortKey[] = [
+  { field: 'createdAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
+
 export const invoiceRepository = {
   /**
    * "INV-2026-000318". The sequence restarts each calendar year, which is what an accountant
@@ -266,13 +280,23 @@ export const invoiceRepository = {
     }
   },
 
-  async list(clinicId: string, filter: InvoiceFilter, limit = 200): Promise<StoredInvoice[]> {
+  /** A page of invoices, newest first. Before Phase 10: at most 200, and nothing said. */
+  async list(
+    clinicId: string,
+    filter: InvoiceFilter,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredInvoice>> {
+    const where = filterFor(clinicId, filter)
+    if (page.cursor) {
+      where.$and = [keysetAfter(INVOICE_ORDER, decodeCursor(page.cursor, INVOICE_ORDER.length))]
+    }
     const docs = (await InvoiceModel()
-      .find(filterFor(clinicId, filter))
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean()) as InvoiceRecord[]
-    return docs.map(toInvoice)
+      .find(where)
+      .sort(sortFor(INVOICE_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<InvoiceRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, INVOICE_ORDER)
+    return { items: rows.map(toInvoice), nextCursor }
   },
 
   /**

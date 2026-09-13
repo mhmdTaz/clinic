@@ -7,6 +7,7 @@ import {
   meta,
   signedInActor,
   uniqueEmail,
+  everyPage,
 } from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { getClinicSettings } from '../../clinic'
@@ -343,7 +344,9 @@ describe('who sees which appointments', () => {
       listAppointments(doctorWithoutProfile, { from: date, to: date }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 })
 
-    const everyone = await listAppointments(staff, { from: date, to: date })
+    const everyone = await everyPage((page) =>
+      listAppointments(staff, { from: date, to: date, ...page }),
+    )
     expect(everyone.some((appointment) => appointment.doctor.id === doctor.id)).toBe(true)
   })
 })
@@ -413,7 +416,9 @@ describe('self-service', () => {
       reason: null,
     })
 
-    const mine = await listAppointments(patient, { from: date, to: date })
+    const mine = await everyPage((page) =>
+      listAppointments(patient, { from: date, to: date, ...page }),
+    )
     expect(mine.map((appointment) => appointment.id)).toEqual([own.id])
   })
 })

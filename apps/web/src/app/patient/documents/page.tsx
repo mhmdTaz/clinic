@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { requirePortal } from '@/lib/auth/server-session'
+import { TruncatedNotice } from '@/components/portal/truncated-notice'
+import { collectPages } from '@/lib/server/pages'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('patient.documents')
@@ -35,19 +37,20 @@ export default async function PatientDocumentsPage() {
     )
   }
 
-  const files = await listFiles(actor, {})
+  const files = await collectPages((page) => listFiles(actor, page), 500)
 
   return (
     <>
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
       <DocumentsCard
-        files={files}
+        files={files.items}
         timeZone={clinic.timezone}
         canShare={false}
         canDelete={false}
         title={t('title')}
         emptyBody={t('emptyBody')}
       />
+      <TruncatedNotice shown={files.items.length} truncated={files.truncated} />
     </>
   )
 }

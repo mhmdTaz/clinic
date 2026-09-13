@@ -1,5 +1,6 @@
 import type { EncounterDetail, EncounterListQuery, EncounterSummary } from '@clinic/contracts'
 import { NotFoundError } from '../../../errors'
+import { pageLimit, type Page } from '../../../pagination'
 import { assertCan, type Actor } from '../../access'
 import { getClinicFacts } from '../../clinic'
 import { instantOf, nextDate } from '../../scheduling'
@@ -81,27 +82,29 @@ export function mayReadNote(
   return facts.noteStatus === 'SIGNED' && facts.isNoteVisible
 }
 
-/** The chart timeline and the doctor's list of visits (D4, D5, P4, P10). */
+/** The chart timeline and the doctor's list of visits (D4, D5, P4, P10), a page at a time. */
 export async function listEncounters(
   actor: Actor,
-  query: EncounterListQuery,
-): Promise<EncounterSummary[]> {
+  query: Partial<EncounterListQuery>,
+): Promise<Page<EncounterSummary>> {
   const scope = await encounterListScope(actor)
   const clinic = await getClinicFacts(actor.clinicId)
 
-  const encounters = await encounterRepository.list(
+  const page = await encounterRepository.list(
     actor.clinicId,
     {
       patientId: scope.patientId ?? query.patientId,
       doctorId: scope.doctorId ?? query.doctorId,
+      appointmentIds: query.appointmentIds,
       status: query.status,
       from: query.from ? instantOf(query.from, '00:00', clinic.timezone) : undefined,
       to: query.to ? instantOf(nextDate(query.to), '00:00', clinic.timezone) : undefined,
     },
+    { cursor: query.cursor, limit: pageLimit(query.limit) },
     // A timeline lists visits, never note text — so the text is not read for any audience.
     { omitNoteContent: true },
   )
-  return encounters.map(toEncounterSummary)
+  return { items: page.items.map(toEncounterSummary), nextCursor: page.nextCursor }
 }
 
 export async function getEncounter(actor: Actor, encounterId: string): Promise<EncounterDetail> {

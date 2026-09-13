@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import {
   IdParam,
   PersonRef,
@@ -54,7 +55,7 @@ export const Prescription = z.object({
 })
 export type Prescription = z.infer<typeof Prescription>
 
-export const PrescriptionListQuery = z.object({
+export const PrescriptionListQuery = PaginationQuery.extend({
   patientId: z.string().max(64).optional(),
   encounterId: z.string().max(64).optional(),
   /** Only what the patient is still meant to be taking (P7). */

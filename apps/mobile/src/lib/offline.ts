@@ -96,7 +96,14 @@ export interface KeptReads {
   state: DehydratedState
 }
 
-const FORMAT_VERSION = 1
+/**
+ * Bumped whenever a kept query's data changes shape, so a file from an older build is discarded
+ * rather than handed to a screen that would read it wrong.
+ *
+ * 2 — Phase 10: the diary is kept as `{ items, truncated }` and the feed as pages, where version 1
+ * kept a bare list and a single feed.
+ */
+const FORMAT_VERSION = 2
 
 export function createOfflineStore(vault: Vault, now: () => number = Date.now) {
   async function destroy(): Promise<void> {

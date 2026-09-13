@@ -3,6 +3,14 @@ import { addQuantities } from '@clinic/contracts'
 import type { StockMovementType } from '@clinic/config'
 import type { PersonRef } from '@clinic/contracts'
 import { sessionOf, type Transaction } from '../../../transaction'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 
 /** Mongoose hands back a Decimal128; a quantity leaves this file as the decimal string it is. */
 type Decimalish = { toString(): string } | string | number | null | undefined
@@ -93,6 +101,25 @@ export interface MovementFilter {
   to?: Date
 }
 
+const MOVEMENT_ORDER: readonly SortKey[] = [
+  { field: 'occurredAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
+
+function movementFilter(clinicId: string, filter: MovementFilter): Record<string, unknown> {
+  const query: Record<string, unknown> = { clinicId }
+  if (filter.itemId) query.itemId = filter.itemId
+  if (filter.encounterId) query.encounterId = filter.encounterId
+  if (filter.type) query.type = filter.type
+  if (filter.from || filter.to) {
+    const range: Record<string, Date> = {}
+    if (filter.from) range.$gte = filter.from
+    if (filter.to) range.$lt = filter.to
+    query.occurredAt = range
+  }
+  return query
+}
+
 export const movementRepository = {
   /**
    * The ledger is append-only: rows are written, never edited or removed. A movement recorded in
@@ -108,21 +135,36 @@ export const movementRepository = {
     return docs.map((doc) => toMovement(doc.toObject() as MovementRecord))
   },
 
-  async list(clinicId: string, filter: MovementFilter, limit = 200): Promise<StoredMovement[]> {
-    const query: Record<string, unknown> = { clinicId }
-    if (filter.itemId) query.itemId = filter.itemId
-    if (filter.encounterId) query.encounterId = filter.encounterId
-    if (filter.type) query.type = filter.type
-    if (filter.from || filter.to) {
-      const range: Record<string, Date> = {}
-      if (filter.from) range.$gte = filter.from
-      if (filter.to) range.$lt = filter.to
-      query.occurredAt = range
+  /** A page of the ledger, newest first. Before Phase 10: the newest 200, and nothing said. */
+  async list(
+    clinicId: string,
+    filter: MovementFilter,
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredMovement>> {
+    const query = movementFilter(clinicId, filter)
+    if (page.cursor) {
+      query.$and = [keysetAfter(MOVEMENT_ORDER, decodeCursor(page.cursor, MOVEMENT_ORDER.length))]
     }
     const docs = (await StockMovementModel()
       .find(query)
-      .sort({ occurredAt: -1, _id: -1 })
-      .limit(limit)
+      .sort(sortFor(MOVEMENT_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<MovementRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, MOVEMENT_ORDER)
+    return { items: rows.map(toMovement), nextCursor }
+  },
+
+  /**
+   * Every movement matching a filter that bounds itself — one visit's consumption. No page and no
+   * cap, because a cap is exactly the silent truncation Phase 10 removed.
+   */
+  async listAllFor(
+    clinicId: string,
+    filter: MovementFilter & { encounterId: string },
+  ): Promise<StoredMovement[]> {
+    const docs = (await StockMovementModel()
+      .find(movementFilter(clinicId, filter))
+      .sort(sortFor(MOVEMENT_ORDER))
       .lean()) as MovementRecord[]
     return docs.map(toMovement)
   },

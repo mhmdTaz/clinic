@@ -240,7 +240,7 @@ function plan(
 /** What a visit used, for the workspace that shows it. */
 export async function listConsumption(actor: Actor, encounterId: string) {
   await assertCan(actor, 'inventory:read')
-  const movements = await movementRepository.list(actor.clinicId, {
+  const movements = await movementRepository.listAllFor(actor.clinicId, {
     encounterId,
     type: 'CONSUMPTION',
   })

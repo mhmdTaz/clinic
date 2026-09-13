@@ -1,4 +1,12 @@
 import { PrescriptionModel, newId, nextFormatted } from '@clinic/db'
+import {
+  decodeCursor,
+  keysetAfter,
+  pageFrom,
+  sortFor,
+  type Page,
+  type SortKey,
+} from '../../../pagination'
 import type { PersonRef } from '@clinic/contracts'
 
 export interface StoredPrescriptionItem {
@@ -64,7 +72,11 @@ function toPrescription(doc: PrescriptionRecord): StoredPrescription {
   }
 }
 
-const LIST_LIMIT = 200
+/** Newest first. `issuedAt` is required on every prescription. */
+const LIST_ORDER: readonly SortKey[] = [
+  { field: 'issuedAt', direction: -1, kind: 'date' },
+  { field: '_id', direction: -1, kind: 'string' },
+]
 
 export const prescriptionRepository = {
   nextNumber(clinicId: string): Promise<string> {
@@ -122,7 +134,8 @@ export const prescriptionRepository = {
   async list(
     clinicId: string,
     filter: { patientId?: string; doctorId?: string; encounterId?: string; activeOn?: string },
-  ): Promise<StoredPrescription[]> {
+    page: { cursor?: string; limit: number },
+  ): Promise<Page<StoredPrescription>> {
     const where: Record<string, unknown> = { clinicId }
     if (filter.patientId) where.patientId = filter.patientId
     if (filter.doctorId) where.doctorId = filter.doctorId
@@ -132,12 +145,17 @@ export const prescriptionRepository = {
       where.$or = [{ validUntil: null }, { validUntil: { $gte: filter.activeOn } }]
     }
 
-    const docs = await PrescriptionModel()
+    // Beside the "still taking it" `$or`, not replacing it.
+    if (page.cursor)
+      where.$and = [keysetAfter(LIST_ORDER, decodeCursor(page.cursor, LIST_ORDER.length))]
+
+    const docs = (await PrescriptionModel()
       .find(where)
-      .sort({ issuedAt: -1 })
-      .limit(LIST_LIMIT)
-      .lean()
-    return (docs as unknown as PrescriptionRecord[]).map(toPrescription)
+      .sort(sortFor(LIST_ORDER))
+      .limit(page.limit + 1)
+      .lean()) as unknown as Array<PrescriptionRecord & Record<string, unknown>>
+    const { docs: rows, nextCursor } = pageFrom(docs, page.limit, LIST_ORDER)
+    return { items: rows.map(toPrescription), nextCursor }
   },
 
   /**

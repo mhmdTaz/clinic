@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
 import { AuditLogModel, DoctorModel, PatientModel, newId } from '@clinic/db'
-import { TEST_PASSWORD, createUser, meta, signedInActor } from '../../../../test/fixtures'
+import {
+  TEST_PASSWORD,
+  createUser,
+  meta,
+  signedInActor,
+  everyPage,
+} from '../../../../test/fixtures'
 import type { Actor } from '../../access'
 import { getPatient, registerPatient } from '../../patients'
 import { authenticateAccessToken, login } from '../../session'
@@ -222,7 +228,7 @@ describe('what a patient may read of their own chart', () => {
     const mine = await visitWithSignedNote(doctor, patient.id)
     await visitWithSignedNote(doctor, someoneElse.id)
 
-    const visible = await listEncounters(patientActor, {})
+    const visible = await everyPage((page) => listEncounters(patientActor, page))
     expect(visible.map((encounter) => encounter.id)).toEqual([mine.id])
   })
 })
@@ -306,7 +312,133 @@ describe('whose chart a doctor may open (ADR-0004, Phase 4 addendum)', () => {
 
     await visitWithSignedNote(doctor, patient.id)
 
-    const mine = await listMyPatients(doctor)
+    const mine = await everyPage((page) => listMyPatients(doctor, page))
     expect(mine.map((entry) => entry.id)).toEqual([patient.id])
+  })
+})
+
+async function walk<T extends { id: string }>(
+  fetchPage: (page: {
+    cursor?: string
+    limit: number
+  }) => Promise<{ items: T[]; nextCursor: string | null }>,
+  limit: number,
+): Promise<{ ids: string[]; pages: number }> {
+  const ids: string[] = []
+  let cursor: string | undefined
+  let pages = 0
+  for (;;) {
+    const page = await fetchPage({ cursor, limit })
+    pages += 1
+    expect(page.items.length).toBeLessThanOrEqual(limit)
+    ids.push(...page.items.map((item) => item.id))
+    if (!page.nextCursor) return { ids, pages }
+    // A page that offers a way on is full; a short page with a cursor sends a client to nothing.
+    expect(page.items).toHaveLength(limit)
+    cursor = page.nextCursor
+  }
+}
+
+/**
+ * Phase 10. Before it the visit list stopped at 500 with nothing to say so. Seven visits opened in
+ * the same instant are seven ties on the sort key, which is exactly where a cursor that ignored the
+ * tie-breaker would skip or repeat a row.
+ */
+describe('paging through visits', () => {
+  it('reaches every visit exactly once, across ties on the start time', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    const sameInstant = new Date('2026-09-10T08:00:00.000Z')
+
+    const opened: string[] = []
+    for (let index = 0; index < 7; index += 1) {
+      const visit = await openEncounter(
+        doctor,
+        {
+          patientId: patient.id,
+          appointmentId: null,
+          encounterType: 'CONSULTATION',
+          chiefComplaint: null,
+        },
+        sameInstant,
+      )
+      opened.push(visit.id)
+    }
+
+    const { ids, pages } = await walk(
+      (page) => listEncounters(staff, { patientId: patient.id, ...page }),
+      3,
+    )
+    expect(pages).toBe(3)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect([...ids].sort()).toEqual([...opened].sort())
+  })
+
+  it('offers no next page when the list is an exact multiple of the page', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    for (let index = 0; index < 4; index += 1) {
+      await openEncounter(doctor, {
+        patientId: patient.id,
+        appointmentId: null,
+        encounterType: 'CONSULTATION',
+        chiefComplaint: null,
+      })
+    }
+    const { pages } = await walk(
+      (page) => listEncounters(staff, { patientId: patient.id, ...page }),
+      2,
+    )
+    expect(pages).toBe(2)
+  })
+
+  /**
+   * How a day view matches its appointments to their visits: by appointment, not by the day a visit
+   * started — a visit opened the evening before is on another day (Phase 9's finding).
+   */
+  it('finds visits by the appointments they were recorded against', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    const [first, second, other] = [newId(), newId(), newId()]
+    const recorded = await Promise.all(
+      [first, second, other].map((appointmentId) =>
+        openEncounter(doctor, {
+          patientId: patient.id,
+          appointmentId,
+          encounterType: 'CONSULTATION',
+          chiefComplaint: null,
+        }),
+      ),
+    )
+
+    const found = await listEncounters(doctor, { appointmentIds: [first, second] })
+    expect(found.items.map((visit) => visit.appointmentId).sort()).toEqual([first, second].sort())
+    expect(found.items.map((visit) => visit.id)).not.toContain(recorded[2]?.id)
+  })
+
+  it('pages a doctor’s caseload, most recently seen first', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const seen: string[] = []
+    for (let index = 0; index < 5; index += 1) {
+      const { patient } = await portalPatient(staff)
+      await openEncounter(
+        doctor,
+        {
+          patientId: patient.id,
+          appointmentId: null,
+          encounterType: 'CONSULTATION',
+          chiefComplaint: null,
+        },
+        new Date(Date.UTC(2026, 8, 1, 8 + index)),
+      )
+      seen.push(patient.id)
+    }
+
+    const { ids } = await walk((page) => listMyPatients(doctor, page), 2)
+    expect(ids).toEqual([...seen].reverse())
   })
 })

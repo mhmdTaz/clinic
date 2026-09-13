@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import {
   IdParam,
   LocalDate,
@@ -173,16 +174,14 @@ export type RescheduleAppointmentRequest = z.infer<typeof RescheduleAppointmentR
 export const CancelAppointmentRequest = z.object({ reason: nullableText(300) })
 export type CancelAppointmentRequest = z.infer<typeof CancelAppointmentRequest>
 
-export const AppointmentListQuery = z
-  .object({
-    from: LocalDate,
-    to: LocalDate,
-    doctorId: z.string().max(64).optional(),
-    patientId: z.string().max(64).optional(),
-    status: AppointmentStatus.optional(),
-    branchId: z.string().max(64).optional(),
-  })
-  .refine((query) => query.to >= query.from, { message: 'ENDS_BEFORE_STARTS', path: ['to'] })
+export const AppointmentListQuery = PaginationQuery.extend({
+  from: LocalDate,
+  to: LocalDate,
+  doctorId: z.string().max(64).optional(),
+  patientId: z.string().max(64).optional(),
+  status: AppointmentStatus.optional(),
+  branchId: z.string().max(64).optional(),
+}).refine((query) => query.to >= query.from, { message: 'ENDS_BEFORE_STARTS', path: ['to'] })
 export type AppointmentListQuery = z.infer<typeof AppointmentListQuery>
 
 export const AppointmentSummary = z.object({

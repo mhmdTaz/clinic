@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PaginationQuery } from './envelope'
 import { IdParam, LocalDate, MoneyAmount, PersonRef, nullableText, requiredText } from './common'
 
 /**
@@ -123,7 +124,7 @@ export const InventoryItemDetail = InventoryItemSummary.extend({
 })
 export type InventoryItemDetail = z.infer<typeof InventoryItemDetail>
 
-export const InventoryListQuery = z.object({
+export const InventoryListQuery = PaginationQuery.extend({
   q: z.string().trim().max(80).optional(),
   categoryId: z.string().max(64).optional(),
   status: z.enum(['active', 'inactive', 'all']).default('active'),
@@ -194,7 +195,7 @@ export const StockMovement = z.object({
 })
 export type StockMovement = z.infer<typeof StockMovement>
 
-export const MovementListQuery = z.object({
+export const MovementListQuery = PaginationQuery.extend({
   itemId: z.string().max(64).optional(),
   encounterId: z.string().max(64).optional(),
   type: StockMovementType.optional(),
