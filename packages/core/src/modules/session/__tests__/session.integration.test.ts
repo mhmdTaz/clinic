@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
-import { AuditLogModel, ClinicModel, RoleModel, UserModel, newId } from '@clinic/db'
+import {
+  AuditLogModel,
+  ClinicModel,
+  DeviceTokenModel,
+  RoleModel,
+  UserModel,
+  newId,
+} from '@clinic/db'
 import {
   NEW_PASSWORD,
   TEST_PASSWORD,
@@ -12,6 +19,7 @@ import {
 import { assertCan } from '../../access'
 import { flushAudit } from '../../audit'
 import { issueInvitation } from '../../identity'
+import { registerDevice } from '../../notifications'
 import { generateOpaqueToken, hashOpaqueToken } from '../../identity/domain/tokens'
 import { passwordResetRepository } from '../../identity/infrastructure/password-reset.repository'
 import {
@@ -124,6 +132,38 @@ describe('authenticateAccessToken', () => {
     expect(actor.userId).toBe(user.id)
     expect(actor.sessionId).toBe(session.sessionId)
     expect(actor.permissions.get('patient:read')).toBe('OWN')
+  })
+
+  it('stops a device receiving in the same request that signs it out', async () => {
+    const user = await createUser({ role: 'patient' })
+    const session = await login({ email: user.email, password: TEST_PASSWORD, meta: meta() })
+    const { actor } = await authenticateAccessToken(session.accessToken)
+    const pushToken = `ExponentPushToken[${newId()}]`
+    await registerDevice(actor, { token: pushToken, platform: 'ios' })
+
+    // The refresh token alone, as a phone holding a lapsed access token signs out.
+    await logout({ refreshToken: session.refreshToken, pushToken })
+
+    expect(
+      await DeviceTokenModel().countDocuments({ clinicId: env().CLINIC_ID, token: pushToken }),
+    ).toBe(0)
+    const [entry] = await auditEntries('auth.logout', user.id)
+    expect(entry?.metadata).toMatchObject({ detachedDevice: true })
+  })
+
+  it('does not detach a device for a request that names no session', async () => {
+    const user = await createUser({ role: 'patient' })
+    const session = await login({ email: user.email, password: TEST_PASSWORD, meta: meta() })
+    const { actor } = await authenticateAccessToken(session.accessToken)
+    const pushToken = `ExponentPushToken[${newId()}]`
+    await registerDevice(actor, { token: pushToken, platform: 'ios' })
+
+    // Anonymous: no actor and no refresh token. A push token names a device, not a person.
+    await logout({ pushToken })
+
+    expect(
+      await DeviceTokenModel().countDocuments({ clinicId: env().CLINIC_ID, token: pushToken }),
+    ).toBe(1)
   })
 
   it('rejects the token on the very next request after sign-out', async () => {

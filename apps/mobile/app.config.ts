@@ -16,9 +16,10 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
-  ios: { supportsTablet: true, bundleIdentifier: 'com.clinic.patient' },
+  // One app for both people who are away from a desk: the patient and the doctor (routes.ts).
+  ios: { supportsTablet: true, bundleIdentifier: 'com.clinic.app' },
   android: {
-    package: 'com.clinic.patient',
+    package: 'com.clinic.app',
     // Reminders arrive while the phone is locked, which is the point of them.
     permissions: ['NOTIFICATIONS'],
   },

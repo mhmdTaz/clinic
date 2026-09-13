@@ -28,7 +28,7 @@ async function signedInAs(browser: Browser, email: string): Promise<Page> {
  */
 
 /** Books an appointment for the seeded patient so the doctor has a visit to record. */
-async function bookForSeededPatient(page: Page, date: string): Promise<void> {
+async function bookForSeededPatient(page: Page, date: string): Promise<string> {
   const doctorId = await seededDoctorId()
   const patientId = await seededPatientId('Karam')
 
@@ -46,7 +46,7 @@ async function bookForSeededPatient(page: Page, date: string): Promise<void> {
   )
   expect(startsAt).not.toBe('')
 
-  const status = await page.evaluate(
+  const booked = await page.evaluate(
     async ({ patientId, doctorId, startsAt }) => {
       const response = await fetch('/api/v1/appointments', {
         method: 'POST',
@@ -61,11 +61,13 @@ async function bookForSeededPatient(page: Page, date: string): Promise<void> {
           internalNote: null,
         }),
       })
-      return response.status
+      const body = (await response.json()) as { data?: { id: string } }
+      return { status: response.status, id: body.data?.id ?? '' }
     },
     { patientId, doctorId, startsAt },
   )
-  expect(status).toBe(201)
+  expect(booked.status).toBe(201)
+  return booked.id
 }
 
 test.describe('the clinical record', () => {
@@ -274,5 +276,54 @@ test.describe('the clinical record', () => {
     })
     expect(status).toBe(404)
     await patient.context().close()
+  })
+
+  /**
+   * The encounter list filters by the day a visit *started*. A visit opened before its appointment
+   * day — the evening before, say — used to be missed by the agenda, which then offered "Record the
+   * visit" for an appointment whose note already existed, and the server refused the click. Found
+   * by the mobile app in Phase 9.
+   *
+   * Last in this block on purpose: it adds a newer visit for the seeded patient, and the journeys
+   * above read "the newest visit" as the one the first journey recorded.
+   */
+  test('a visit opened before its appointment day still shows as that appointment’s note', async ({
+    browser,
+  }) => {
+    const date = workingDate(1)
+
+    const desk = await signedInAs(browser, 'staff@clinic.local')
+    await desk.goto('/staff/appointments')
+    const appointmentId = await bookForSeededPatient(desk, date)
+    await desk.context().close()
+
+    const page = await signedInAs(browser, 'doctor@clinic.local')
+    await page.goto('/doctor')
+    const patientId = await seededPatientId('Karam')
+    // Opened today, ahead of the appointment's own day.
+    const opened = await page.evaluate(
+      async ({ patientId, appointmentId }) => {
+        const response = await fetch('/api/v1/encounters', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            patientId,
+            appointmentId,
+            encounterType: 'CONSULTATION',
+            chiefComplaint: 'Opened ahead of the day',
+          }),
+        })
+        return response.status
+      },
+      { patientId, appointmentId },
+    )
+    expect(opened).toBe(201)
+
+    await page.goto(`/doctor/appointments?date=${date}`)
+    const card = page.getByRole('article').filter({ hasText: 'Sore throat' })
+    await expect(card.getByRole('link', { name: 'Open the note' })).toBeVisible()
+    await expect(card.getByRole('button', { name: 'Record the visit' })).toHaveCount(0)
+    await page.context().close()
   })
 })

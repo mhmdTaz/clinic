@@ -22,6 +22,7 @@ import {
   type Actor,
 } from '../../access'
 import { getClinicSessionInfo } from '../../clinic'
+import { detachDevice } from '../../notifications'
 import {
   changePassword,
   endAllSessions,
@@ -187,9 +188,15 @@ export async function revokeMySession(
   })
 }
 
-/** Works with either an access token's actor, a refresh token, or both. */
+/**
+ * Works with either an access token's actor, a refresh token, or both.
+ *
+ * A device also names its push token, and stops receiving in the same request (§9.4). Detaching is
+ * best-effort: a sign-out must succeed whether or not it does, on a phone that may be about to
+ * change hands.
+ */
 export async function logout(
-  input: { actor?: Actor | null; refreshToken?: string | null },
+  input: { actor?: Actor | null; refreshToken?: string | null; pushToken?: string | null },
   now: Date = new Date(),
 ): Promise<void> {
   const clinicId = env().CLINIC_ID
@@ -203,13 +210,20 @@ export async function logout(
   }
   if (sessionId) await endSessionFamily(clinicId, sessionId, 'logout', now)
 
+  // Only once the session has told us whose it is: a push token alone names nobody, and an
+  // anonymous request must not be able to silence another person's phone.
+  const detachedDevice =
+    input.pushToken && userId
+      ? await detachDevice(clinicId, userId, input.pushToken).catch(() => false)
+      : false
+
   if (userId) {
     await recordAudit({
       action: 'auth.logout',
       category: 'AUTH',
       clinicId,
       entity: { type: 'User', id: userId },
-      metadata: { sessionId },
+      metadata: { sessionId, detachedDevice },
     })
   }
 }

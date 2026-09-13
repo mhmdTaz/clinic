@@ -1,20 +1,22 @@
 import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
-import type { RegisterDeviceRequest } from '@clinic/contracts'
+import type { RegisterDeviceRequest, RegisteredDevice } from '@clinic/contracts'
 import Constants from 'expo-constants'
-
-// Re-exported so a screen has one obvious import for "push things". The rule itself lives in a
-// module with no native imports, so it can be tested without a device.
-export { destinationOf } from './notification-routing'
+import { keychain } from './device/keychain'
 
 /**
  * Asking for push, and telling the server where to send it (§9.4).
  *
  * **Permission is asked for at the moment it means something**, not on launch. A prompt on first
  * open, before the app has shown anything, is the prompt people decline — and iOS gives an app
- * exactly one chance to ask. So the caller is a screen that has just explained why: after booking
- * an appointment, or from a switch the person deliberately turned on.
+ * exactly one chance to ask. So the only caller that prompts is a switch the person deliberately
+ * turned on.
+ *
+ * **Registration is renewed on every launch.** A push token is reissued on reinstall, on restore
+ * from a backup, and occasionally for no reason the app is told. The first version registered once,
+ * from the switch, while the API client's own comment said "every launch": a reissued token would
+ * have gone quietly unregistered and reminders would have stopped with nothing on screen to say so.
  */
 
 export type PushEnrolment =
@@ -23,28 +25,14 @@ export type PushEnrolment =
   | { status: 'unsupported'; reason: string }
 
 /**
- * Obtains a token, if the person allows it and the device can have one.
+ * The token for this installation, kept only while the person has reminders switched on.
  *
- * Returns a discriminated result rather than throwing or returning null, because the three
- * outcomes need three different things said to somebody: "you're set up", "you said no and here
- * is how to change that", and "this device cannot do this, which is not your fault".
+ * Its presence *is* the opt-in. It is also what sign-out sends, so this phone stops receiving the
+ * person's notifications in the same request that ends their session.
  */
-export async function enrolForPush(): Promise<PushEnrolment> {
-  // A simulator has no push service behind it. Asking anyway produces a confusing failure that
-  // reads like a bug in the app.
-  if (!Device.isDevice) {
-    return { status: 'unsupported', reason: 'Push notifications need a physical device.' }
-  }
+const OPT_IN_ITEM = 'clinic.push.token'
 
-  const existing = await Notifications.getPermissionsAsync()
-  let granted = existing.granted
-
-  if (!granted && existing.canAskAgain) {
-    const asked = await Notifications.requestPermissionsAsync()
-    granted = asked.granted
-  }
-  if (!granted) return { status: 'denied' }
-
+async function registrationFor(): Promise<PushEnrolment> {
   const projectId = (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)
     ?.eas?.projectId
   if (!projectId) {
@@ -52,18 +40,82 @@ export async function enrolForPush(): Promise<PushEnrolment> {
   }
 
   const token = await Notifications.getExpoPushTokenAsync({ projectId })
-
   return {
     status: 'ready',
     registration: {
       token: token.data,
       platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
       // What the person sees in "your devices" — "Pixel 7", never a token.
-      deviceName: Device.deviceName ?? Device.modelName ?? null,
+      deviceName: deviceLabel(),
       // The build, so a delivery failure can be traced to a version rather than guessed at.
       appVersion: Constants.expoConfig?.version ?? null,
     },
   }
+}
+
+/**
+ * Obtains a token, asking if the person has not been asked before.
+ *
+ * A discriminated result rather than a throw or a null, because the three outcomes need three
+ * different things said: "you're set up", "you said no and here is how to change that", and "this
+ * device cannot do this, which is not your fault".
+ */
+export async function enrolForPush(): Promise<PushEnrolment> {
+  // A simulator has no push service behind it. Asking anyway produces a confusing failure that
+  // reads like a bug in the app.
+  if (!Device.isDevice || Platform.OS === 'web') {
+    return { status: 'unsupported', reason: 'Push notifications need a phone or tablet.' }
+  }
+
+  const existing = await Notifications.getPermissionsAsync()
+  let granted = existing.granted
+  if (!granted && existing.canAskAgain) {
+    granted = (await Notifications.requestPermissionsAsync()).granted
+  }
+  if (!granted) return { status: 'denied' }
+
+  return registrationFor()
+}
+
+/** Remembers that this person switched reminders on here, and which token they were given. */
+export const rememberOptIn = (token: string): Promise<void> => keychain.setItem(OPT_IN_ITEM, token)
+
+export const forgetOptIn = (): Promise<void> => keychain.removeItem(OPT_IN_ITEM)
+
+/** The token sign-out should detach, if reminders are on. */
+export const optedInToken = (): Promise<string | null> =>
+  keychain.getItem(OPT_IN_ITEM).catch(() => null)
+
+/**
+ * Renews this installation's registration, **without ever prompting**.
+ *
+ * Only for somebody who switched reminders on. If they have since turned notifications off in the
+ * phone's Settings, the opt-in is forgotten rather than retried on every launch — the switch then
+ * shows off, which is the truth.
+ */
+export async function renewPushRegistration(
+  register: (input: RegisterDeviceRequest) => Promise<RegisteredDevice>,
+): Promise<void> {
+  if (!Device.isDevice || Platform.OS === 'web') return
+  const previous = await optedInToken()
+  if (!previous) return
+
+  const permissions = await Notifications.getPermissionsAsync()
+  if (!permissions.granted) {
+    await forgetOptIn()
+    return
+  }
+
+  const enrolment = await registrationFor()
+  if (enrolment.status !== 'ready') return
+  await register(enrolment.registration)
+  if (enrolment.registration.token !== previous) await rememberOptIn(enrolment.registration.token)
+}
+
+/** How this phone is named to the server: at sign-in, and in the list of devices. */
+export function deviceLabel(): string | null {
+  const name = Device.deviceName ?? Device.modelName ?? null
+  return name ? name.slice(0, 80) : null
 }
 
 /**

@@ -74,6 +74,7 @@ To see a role change reach someone with no deploy: sign in as `nurse@` in one br
 | `pnpm test:integration`                      | Live tests against MongoDB, Redis and Mailpit (needs `infra:up`)                                                                      |
 | `pnpm test:e2e`                              | Browser journeys **and** the mobile API parity suite (needs `infra:up`, `pnpm build`, and once: `pnpm --filter @clinic/e2e browsers`) |
 | `pnpm --filter @clinic/mobile start`         | The Expo app. Needs `CLINIC_API_URL` set, and a device or simulator                                                                   |
+| `pnpm --filter @clinic/mobile preview:web`   | The same app in a browser at http://localhost:8090, against the API on :3000 — no simulator needed, nothing native available          |
 | `pnpm infra:reset`                           | Destroy and recreate the stack, data included                                                                                         |
 | `pnpm audit`                                 | The **production** dependency tree, which is what ships, against high and critical advisories                                         |
 | `pnpm db:backup`                             | One gzipped `mongodump --oplog` archive plus a manifest of counts, schema version and checksum                                        |
@@ -84,7 +85,7 @@ Live and end-to-end tests use databases of their own (`clinic_test_*`, `clinic_e
 and re-migrated on every run. They never touch the development database. The e2e server runs on
 port 3100, so it cannot collide with `pnpm dev`.
 
-`tests/e2e/specs/mobile-api-parity.spec.ts` drives the whole patient portal through
+`tests/e2e/specs/mobile-api-parity.spec.ts` drives the patient and doctor portals through
 `@clinic/api-client` over HTTP with a Bearer token and no cookie — no browser involved. It is the
 check that the mobile app needs no backend of its own (ARCHITECTURE §9.1), and it will fail the
 moment a capability exists only as a Server Action.
@@ -99,6 +100,7 @@ the live one without an explicit flag. The drill and the real recovery are diffe
 
 ```
 apps/web           Next.js — pages, REST API, cookies and redirects
+apps/mobile        Expo — the patient and doctor portals on a phone (apps/mobile/README.md)
 packages/core      ALL business logic. Zero framework imports.
   modules/identity   credentials, lockout, sessions, resets, invitations, accounts
   modules/access     permission catalogue, policy engine, roles editor, portals, navigation
@@ -109,7 +111,8 @@ packages/core      ALL business logic. Zero framework imports.
   modules/doctors    doctor onboarding and the specialty vocabulary
   modules/audit      audit recorder and capture
 packages/db        Mongoose models, plugins, migrations
-packages/contracts Zod schemas shared by server, web and the future mobile app
+packages/contracts Zod schemas shared by server, web and the mobile app
+packages/api-client The typed client both apps use: cookies for the browser, Bearer for a phone
 packages/ui        Design tokens and primitives
 packages/config    Env schema — the only place that reads process.env
 packages/events    Domain event names and payload schemas

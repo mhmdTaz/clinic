@@ -7,8 +7,8 @@ import {
   Text,
   TextInput,
 } from 'react-native'
-import type { ApiError } from '@clinic/api-client'
 import { Button, Muted, Screen, Title, palette } from '~/components/ui'
+import { signInMessageFor } from '~/lib/errors'
 import { useSession } from '~/lib/session'
 
 /**
@@ -77,7 +77,7 @@ export default function SignInScreen() {
 
           {error ? (
             <Text accessibilityRole="alert" style={styles.error}>
-              {messageFor(error)}
+              {signInMessageFor(error)}
             </Text>
           ) : null}
 
@@ -91,28 +91,6 @@ export default function SignInScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
   )
-}
-
-/**
- * What to say about a failure.
- *
- * Wrong credentials get one deliberately unhelpful sentence: saying whether the email exists
- * turns a sign-in form into an account-enumeration oracle (§16.1). A rate limit and an
- * unreachable server, by contrast, are worth being specific about — they tell somebody whether
- * to wait or to find better signal.
- */
-function messageFor(error: ApiError): string {
-  if (error.code === 'RATE_LIMITED') {
-    const wait = error.retryAfterSeconds
-    return wait
-      ? `Too many attempts. Try again in ${Math.ceil(wait / 60)} minute(s).`
-      : 'Too many attempts. Try again shortly.'
-  }
-  if (error.code === 'NETWORK_UNREACHABLE') {
-    return 'The clinic could not be reached. Check your connection and try again.'
-  }
-  if (error.status === 401) return 'That email and password do not match.'
-  return error.message
 }
 
 const styles = StyleSheet.create({

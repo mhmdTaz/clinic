@@ -73,8 +73,15 @@ export default async function DoctorAgendaPage({ searchParams }: { searchParams:
    * The visits already recorded for this range, so each appointment offers the right next step:
    * open the note that exists, or start the one that does not. One query for the range rather
    * than one per card.
+   *
+   * A week wider on each side, because the list filters by the day a visit *started*: a visit
+   * opened the evening before its appointment, or written up the morning after, is on another day,
+   * and matching on the range alone offered "Record the visit" for an appointment whose note was
+   * already signed — which the server then refused. Found by the mobile app (Phase 9).
    */
-  const encounters = holds(actor, 'encounter:read') ? await listEncounters(actor, { from, to }) : []
+  const encounters = holds(actor, 'encounter:read')
+    ? await listEncounters(actor, { from: shiftDate(from, -7), to: shiftDate(to, 7) })
+    : []
   const noteFor = new Map(
     encounters
       .filter((encounter) => encounter.appointmentId)

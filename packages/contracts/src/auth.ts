@@ -99,6 +99,12 @@ export type RefreshRequest = z.infer<typeof RefreshRequest>
 export const LogoutRequest = z.object({
   /** The mobile app sends its refresh token; browsers rely on the cookie. */
   refreshToken: OpaqueToken.optional(),
+  /**
+   * The push token of the device signing out, so it stops receiving this person's notifications
+   * in the same request that ends the session. Two requests would leave a window — and a sign-out
+   * on a weak connection is exactly when the second one fails.
+   */
+  pushToken: z.string().min(8).max(256).optional(),
 })
 export type LogoutRequest = z.infer<typeof LogoutRequest>
 

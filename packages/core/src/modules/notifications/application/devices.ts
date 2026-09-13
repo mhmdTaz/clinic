@@ -76,8 +76,12 @@ export async function removeDevice(actor: Actor, deviceId: string): Promise<void
  * attempted — but failing to detach is not a reason to refuse somebody the sign-out they asked
  * for, on a phone they may be about to hand over.
  */
-export async function detachDevice(clinicId: string, token: string): Promise<boolean> {
-  return deviceRepository.removeByToken(clinicId, token)
+export async function detachDevice(
+  clinicId: string,
+  userId: string,
+  token: string,
+): Promise<boolean> {
+  return deviceRepository.removeByToken(clinicId, userId, token)
 }
 
 const toRegistered = (device: DeviceRecord, thisToken?: string): RegisteredDevice => ({

@@ -38,23 +38,14 @@ import type { ApiClient } from '../client'
  * **Every call here is a plain `/api/v1` endpoint that already existed.** That is the point of
  * Phase 9 rather than an incidental property of it: if any of these needed a Server Action, a
  * bespoke route or a shape the web computes on the server, the mobile app would need backend work
- * and §9.1's promise would be false. Building this file is how that claim gets tested — and the
- * only thing it turned out to need was push registration, which §9.4 predicted.
+ * and §9.1's promise would be false. Building this file is how that claim gets tested. It needed
+ * push registration, which §9.4 predicted, and one thing it did not: the session had to start
+ * naming the patient record the account is (ARCHITECTURE §17, Phase 9).
+ *
+ * The doctor's calls are in `doctor-portal.ts`.
  */
 export function patientPortal(client: ApiClient) {
   return {
-    /**
-     * The patients a **doctor** has treated (D2), not "my own record".
-     *
-     * Named as the endpoint means it rather than as the patient app wishes it did: a patient's own
-     * record comes from `session.user.patientId`, because the session is what resolves it
-     * (ADR-0004). Getting this wrong is easy and silent — it returns an empty array for a patient
-     * rather than an error — so the name is the warning.
-     */
-    patientsITreat() {
-      return client.request('/api/v1/me/patients', { schema: z.array(PatientDetail) })
-    },
-
     /**
      * One patient record.
      *
@@ -104,8 +95,12 @@ export function patientPortal(client: ApiClient) {
      * Booking for oneself, which is a different permission from booking for somebody else and so
      * is a different endpoint (§9.2: transitions are explicit, not a status field).
      *
-     * The idempotency key is not optional in practice: a phone on a weak connection retries, and
-     * two of the same appointment is the failure a patient actually notices.
+     * The key is sent because §9.2 says an `Idempotency-Key` is honoured on every POST that
+     * creates a booking. **The server does not honour it yet** — found while building the booking
+     * screen, and recorded in ARCHITECTURE §17 rather than quietly fixed, because it is backend
+     * work. What protects a patient today is the slot hold: a repeat of a booking that went through
+     * is refused `SLOT_TAKEN`, which the app then has to recognise as *its own* booking rather
+     * than somebody else's (see `isOwnBooking` in the mobile app).
      */
     bookForMyself(input: BookOwnAppointmentRequest, idempotencyKey: string) {
       return client.request('/api/v1/me/appointments', {
@@ -199,6 +194,14 @@ export function patientPortal(client: ApiClient) {
     },
 
     /** An empty list marks everything read — the "clear all" the bell offers. */
+    markNotificationsRead(ids: string[] = []) {
+      return client.request('/api/v1/me/notifications', {
+        method: 'POST',
+        body: { ids },
+        schema: z.object({ read: z.number(), unreadCount: z.number() }),
+      })
+    },
+
     // ── Push (§9.4) ──────────────────────────────────────────────────────────
     /**
      * Registers this installation for push.
@@ -208,6 +211,9 @@ export function patientPortal(client: ApiClient) {
      * token, so calling it repeatedly is free and calling it rarely is a bug.
      */
     registerDevice(input: RegisterDeviceRequest) {
+      // POST /api/v1/me/devices. This route was missing from the first Phase 9 commit — only the
+      // DELETE beside it existed — and nothing noticed, because the core tests call the use case
+      // directly and the parity suite never registered a device. It does now.
       return client.request('/api/v1/me/devices', {
         method: 'POST',
         body: input,
@@ -215,22 +221,21 @@ export function patientPortal(client: ApiClient) {
       })
     },
 
-    myDevices() {
-      return client.request('/api/v1/me/devices', { schema: z.array(RegisteredDevice) })
+    /**
+     * The person's devices. Pass this installation's push token to be told which row is this
+     * phone; it travels in a header so it never appears in a URL or an access log.
+     */
+    myDevices(pushToken?: string) {
+      return client.request('/api/v1/me/devices', {
+        schema: z.array(RegisteredDevice),
+        headers: pushToken ? { 'x-push-token': pushToken } : undefined,
+      })
     },
 
     removeDevice(deviceId: string) {
       return client.request(`/api/v1/me/devices/${deviceId}`, {
         method: 'DELETE',
         schema: z.object({ ok: z.boolean() }),
-      })
-    },
-
-    markNotificationsRead(ids: string[] = []) {
-      return client.request('/api/v1/me/notifications', {
-        method: 'POST',
-        body: { ids },
-        schema: z.object({ read: z.number(), unreadCount: z.number() }),
       })
     },
   }

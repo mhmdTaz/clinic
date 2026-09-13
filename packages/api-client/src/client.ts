@@ -56,6 +56,11 @@ export interface RequestOptions<TResponse extends z.ZodTypeAny | undefined> {
   schema?: TResponse
   /** For a POST that creates a booking or moves money (section 9.2). */
   idempotencyKey?: string
+  /**
+   * Extra headers for the one endpoint that wants something outside the body. Authorization and
+   * content negotiation are the client's, and are set after these so a caller cannot replace them.
+   */
+  headers?: Record<string, string>
   signal?: AbortSignal
   /** Auth endpoints must not try to refresh: that is what they are for. */
   skipRefresh?: boolean
@@ -159,6 +164,7 @@ export function createClient(options: ClientOptions = {}) {
 
   async function send(path: string, options_: RequestOptions<z.ZodTypeAny | undefined>) {
     const headers: Record<string, string> = {
+      ...options_.headers,
       accept: 'application/json',
       // A header rather than fetch's `cache` option: React Native's fetch has no such option, and
       // a client shared by a browser and a device cannot use one platform's extras. Every API
