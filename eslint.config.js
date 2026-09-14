@@ -189,6 +189,10 @@ export default tseslint.config(
       // process, and its configuration arrives through Expo's app config at build time. The one
       // place it reads process.env is app.config.ts, which is that build step.
       'apps/mobile/app.config.ts',
+      // NEXT_RUNTIME is not configuration: Next replaces it while compiling, and only when it is
+      // written as the literal process.env.NEXT_RUNTIME. Read through @clinic/config it would reach
+      // the Edge bundle as a runtime lookup, and the Node-only imports it guards would follow.
+      'apps/web/src/instrumentation.ts',
     ],
     rules: {
       'no-restricted-syntax': [
