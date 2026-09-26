@@ -9,7 +9,12 @@ self.onmessage = (
 ) => {
   const { upper, primary, position, crownOnly } = event.data
   const arrays = meshArrays(upper, primary, position, crownOnly)
-  const transfer = [arrays.positions.buffer, arrays.normals.buffer, arrays.colors.buffer]
+  const transfer = [
+    arrays.positions.buffer,
+    arrays.normals.buffer,
+    arrays.colors.buffer,
+    arrays.density.buffer,
+  ]
   ;(
     self as unknown as { postMessage(message: unknown, transfer: ArrayBuffer[]): void }
   ).postMessage(arrays, transfer as ArrayBuffer[])

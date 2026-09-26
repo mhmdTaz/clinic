@@ -202,7 +202,11 @@ test.describe('billing', () => {
 
     const readReport = (target: Page) =>
       target.evaluate(async () => {
-        const today = new Date().toISOString().slice(0, 10)
+        // The clinic's day, in its own zone (the seed's Beirut), not UTC's: between 21:00 and
+        // midnight UTC they are different days, and the payments land on the clinic's.
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Beirut' }).format(
+          new Date(),
+        )
         const response = await fetch(`/api/v1/billing/reports/daily?date=${today}`, {
           credentials: 'same-origin',
         })

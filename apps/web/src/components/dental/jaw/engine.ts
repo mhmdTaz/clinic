@@ -71,9 +71,41 @@ const TILT = {
   l: [0, 0.2, 0.18, 0.1, -0.04, -0.06, -0.14, -0.14, -0.14],
 } as const
 
-const GAP = 1.6
+/**
+ * How far the upper teeth come down over the lower ones, in millimetres: about two at the incisors,
+ * as in a normal bite, and less at the back where the cusps sit in each other's fossae instead.
+ */
+const overbite = (s: number) => 0.7 + 1.3 * (1 - sm(8, 20, Math.abs(s)))
+/**
+ * How much arch a tooth takes. Teeth touch at their contact points, which on a front tooth tipped
+ * toward the lips sit outside the arch line — where the curve spreads them apart — so front teeth
+ * are packed a little closer than their width.
+ */
+const pitchOf = (width: number, position: number) =>
+  width * (position === 1 ? 0.84 : position === 2 ? 0.88 : position === 3 ? 0.93 : 0.97)
+
+/** How far behind the upper arch the lower one sits, so the upper incisors close in front. */
+const OVERJET = 2.6
 const EXTENSION = 7
-const BACKGROUND = new THREE.Color(0x16191d)
+/**
+ * A studio backdrop: a soft pool of light behind the jaw, falling off to near black at the edges,
+ * as a dental photograph is lit. Drawn once into a small canvas.
+ */
+function backdrop(): THREE.Texture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const context = canvas.getContext('2d')!
+  const glow = context.createRadialGradient(128, 118, 8, 128, 128, 190)
+  glow.addColorStop(0, '#3a4148')
+  glow.addColorStop(0.55, '#1d2226')
+  glow.addColorStop(1, '#0c0e10')
+  context.fillStyle = glow
+  context.fillRect(0, 0, 256, 256)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
 const XRAY_BACKGROUND = new THREE.Color(0x040506)
 
 const sm = (a: number, b: number, x: number) => {
@@ -102,9 +134,94 @@ interface Slot {
   planned: THREE.Mesh
   implant: THREE.Mesh
   canals: THREE.Mesh[]
+  pulp: THREE.Mesh[]
   decay: THREE.Mesh[]
   anchor: THREE.Object3D
   visual: ToothVisual | null
+}
+
+/**
+ * The orange-peel stippling of healthy attached gingiva, as a tiling normal map: many small pits,
+ * made once. Height from dimples on a jittered grid; normals from its slope.
+ */
+function stippleTexture(): THREE.DataTexture {
+  const size = 128
+  const height = new Float32Array(size * size)
+  let seed = 7
+  const random = () => {
+    seed = (seed * 16807) % 2147483647
+    return seed / 2147483647
+  }
+  const cells = 22
+  for (let cy = 0; cy < cells; cy++) {
+    for (let cx = 0; cx < cells; cx++) {
+      const px = ((cx + 0.2 + 0.6 * random()) / cells) * size
+      const py = ((cy + 0.2 + 0.6 * random()) / cells) * size
+      const radius = 1.4 + 1.6 * random()
+      for (let dy = -4; dy <= 4; dy++) {
+        for (let dx = -4; dx <= 4; dx++) {
+          const d = Math.hypot(dx, dy) / radius
+          if (d >= 1) continue
+          const x = (Math.round(px) + dx + size) % size
+          const y = (Math.round(py) + dy + size) % size
+          height[y * size + x] = height[y * size + x]! - (1 - d * d) * (1 - d * d)
+        }
+      }
+    }
+  }
+  const data = new Uint8Array(size * size * 4)
+  const at = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)]!
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = (at(x - 1, y) - at(x + 1, y)) * 1.2
+      const ny = (at(x, y - 1) - at(x, y + 1)) * 1.2
+      const l = Math.hypot(nx, ny, 1)
+      const i = (y * size + x) * 4
+      data[i] = Math.round(((nx / l) * 0.5 + 0.5) * 255)
+      data[i + 1] = Math.round(((ny / l) * 0.5 + 0.5) * 255)
+      data[i + 2] = Math.round(((1 / l) * 0.5 + 0.5) * 255)
+      data[i + 3] = 255
+    }
+  }
+  const texture = new THREE.DataTexture(data, size, size)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.magFilter = THREE.LinearFilter
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.generateMipmaps = true
+  texture.needsUpdate = true
+  return texture
+}
+
+/**
+ * Light that goes into enamel or gum comes back out somewhere else, tinted by what it passed
+ * through — which is why a tooth's shadow side is never grey, and gum glows red where it is thin.
+ * Proper subsurface scattering is out of reach for a chart that must run on any laptop, so this
+ * adds its most visible part: a little light of the tissue's own colour into every surface, most
+ * where it faces away from the camera's light and at grazing angles, where the tissue is thinnest.
+ */
+function translucent(
+  material: THREE.MeshPhysicalMaterial,
+  tint: THREE.ColorRepresentation,
+  strength: number,
+): THREE.MeshPhysicalMaterial {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.scatterTint = { value: new THREE.Color(tint) }
+    shader.uniforms.scatterStrength = { value: strength }
+    shader.fragmentShader =
+      'uniform vec3 scatterTint;\nuniform float scatterStrength;\n' +
+      shader.fragmentShader.replace(
+        '#include <lights_fragment_end>',
+        [
+          '#include <lights_fragment_end>',
+          'float scatterEdge = 1.0 - abs(dot(normal, normalize(vViewPosition)));',
+          'reflectedLight.indirectDiffuse += diffuseColor.rgb * scatterTint * scatterStrength *',
+          '  (0.55 + 0.9 * scatterEdge * scatterEdge);',
+        ].join('\n'),
+      )
+  }
+  material.customProgramCacheKey = () => `translucent-${strength}`
+  return material
 }
 
 function implantGeometry(): THREE.LatheGeometry {
@@ -133,6 +250,8 @@ export function createJawEngine(
   const renderer = new THREE.WebGLRenderer({ antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.08
+  renderer.localClippingEnabled = true
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.domElement.style.display = 'block'
@@ -140,6 +259,7 @@ export function createJawEngine(
   container.prepend(renderer.domElement)
 
   const scene = new THREE.Scene()
+  const BACKGROUND = backdrop()
   scene.background = BACKGROUND
   const camera = new THREE.PerspectiveCamera(30, 1, 1, 1000)
   camera.position.set(55, 22, 105)
@@ -166,6 +286,7 @@ export function createJawEngine(
   })
   key.shadow.bias = -0.0004
   key.shadow.normalBias = 0.25
+  key.shadow.radius = 4
   scene.add(key)
   const fill = new THREE.DirectionalLight(0xfff0e8, 0.5)
   fill.position.set(-90, -25, 50)
@@ -180,6 +301,17 @@ export function createJawEngine(
   camera.add(head)
   scene.add(camera)
 
+  const palateTissue = translucent(
+    new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
+      roughness: 0.55,
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.4,
+      side: THREE.DoubleSide,
+    }),
+    0xff4a40,
+    0.12,
+  )
   const titanium = new THREE.MeshPhysicalMaterial({
     color: 0xbdbdb8,
     metalness: 1,
@@ -200,22 +332,56 @@ export function createJawEngine(
     opacity: 0.12,
     depthWrite: false,
   })
-  const gum = new THREE.MeshPhysicalMaterial({
-    vertexColors: true,
-    roughness: 0.42,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.35,
-    sheen: 0.5,
-    sheenColor: new THREE.Color(0xffc8c8),
-    sheenRoughness: 0.5,
-    side: THREE.DoubleSide,
-  })
+  const stipple = stippleTexture()
+  // The palate is smoother and less glossy than the gum: no stippling, a softer sheen.
+  // Wet tissue: a clear coat of saliva over a stippled, matt surface.
+  const gum = translucent(
+    new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
+      roughness: 0.62,
+      normalMap: stipple,
+      normalScale: new THREE.Vector2(0.22, 0.22),
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.3,
+      sheen: 0.15,
+      sheenColor: new THREE.Color(0xffb3b3),
+      sheenRoughness: 0.45,
+      side: THREE.DoubleSide,
+    }),
+    0xff4a40,
+    0.13,
+  )
+  // On a radiograph enamel is the brightest thing in the mouth and root dentin a step darker; the
+  // tooth geometry carries a density per vertex that scales the X-ray tone.
   const xrTooth = new THREE.MeshBasicMaterial({
-    color: 0x7c8792,
+    color: 0x8e99a4,
     transparent: true,
     opacity: 0.6,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+  })
+  xrTooth.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute float density;\nvarying float vDensity;\nvoid main() {')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vDensity = density;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'varying float vDensity;\nvoid main() {')
+      .replace(
+        'vec4 diffuseColor = vec4( diffuse, opacity );',
+        'vec4 diffuseColor = vec4( diffuse * vDensity, opacity );',
+      )
+  }
+  xrTooth.customProgramCacheKey = () => 'xray-density'
+  // The pulp is soft tissue inside the tooth, so it shows dark: drawn after the teeth, it
+  // multiplies down what is behind it rather than adding to it.
+  const xrPulp = new THREE.MeshBasicMaterial({
+    color: 0x6a6a6a,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.OneMinusSrcColorFactor,
   })
   const xrDense = new THREE.MeshBasicMaterial({ color: 0xf4f7fa })
   const xrSoft = new THREE.MeshBasicMaterial({
@@ -227,6 +393,19 @@ export function createJawEngine(
   })
   const implantShape = implantGeometry()
   const decayShape = new THREE.SphereGeometry(1, 16, 10)
+  const pulpChamber = new THREE.SphereGeometry(1, 20, 14)
+
+  // Roots are for the X-ray view. Outside it, a plane per jaw cuts them off just inside the gum,
+  // which is a closed shape, so the cut is never seen: a model shows gum, not bone and root tips.
+  const clip = {
+    u: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),
+    l: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+  }
+  const clipAt = { u: 0, l: 0 }
+  const titaniumOf = {
+    u: null as unknown as THREE.MeshPhysicalMaterial,
+    l: null as unknown as THREE.MeshPhysicalMaterial,
+  }
 
   const upperJaw = new THREE.Group()
   const lowerJaw = new THREE.Group()
@@ -274,8 +453,8 @@ export function createJawEngine(
     const arch = upper ? 'u' : 'l'
     const jaw = upper ? upperJaw : lowerJaw
     let sum = 0
-    for (const position of positions) sum += dimsOf(upper, primary, position)[0]
-    arches[arch] = { ...makeCurve(upper, sum), sum, zOff: upper ? 0 : -1.5 }
+    for (const position of positions) sum += pitchOf(dimsOf(upper, primary, position)[0], position)
+    arches[arch] = { ...makeCurve(upper, sum), sum, zOff: upper ? 0 : -OVERJET }
 
     for (const side of [-1, 1]) {
       const quadrant = primary
@@ -296,11 +475,12 @@ export function createJawEngine(
       let along = 0
       for (const position of positions) {
         const [W, D, CH] = dimsOf(upper, primary, position)
-        const centre = along + W / 2
-        along += W
+        const pitch = pitchOf(W, position)
+        const centre = along + pitch / 2
+        along += pitch
         const s = side * centre
         const { point, normal } = at(arch, s)
-        const yOcclusal = (upper ? GAP : -GAP) + spee(s)
+        const yOcclusal = (upper ? -overbite(s) : overbite(s)) / 2 + spee(s)
 
         const group = new THREE.Group()
         const yAxis = new THREE.Vector3(0, upper ? -1 : 1, 0)
@@ -313,19 +493,30 @@ export function createJawEngine(
           ),
         )
         group.position.set(point.x, yOcclusal + (upper ? CH : -CH), point.z)
+        // A tooth's own frame has distal at +x. One side of each jaw sees that mirrored, so its
+        // teeth are flipped — roots curve toward the back of the mouth on both sides.
+        if (upper ? s > 0 : s < 0) group.scale.x = -1
         jaw.add(group)
 
         const fdi = `${quadrant}${position}`
-        const enamel = new THREE.MeshPhysicalMaterial({
-          vertexColors: true,
-          roughness: 0.24,
-          clearcoat: 0.8,
-          clearcoatRoughness: 0.12,
-          ior: 1.62,
-          sheen: 0.25,
-          sheenColor: new THREE.Color(0xfff4e0),
-          sheenRoughness: 0.6,
-        })
+        // Enamel: a hard, faintly translucent surface under a film of saliva — broad soft
+        // highlights from the enamel itself, small sharp ones from the wet coat over it.
+        const enamel = translucent(
+          new THREE.MeshPhysicalMaterial({
+            clippingPlanes: [clip[arch]],
+            vertexColors: true,
+            roughness: 0.34,
+            clearcoat: 0.55,
+            clearcoatRoughness: 0.1,
+            ior: 1.62,
+            specularIntensity: 0.8,
+            sheen: 0.12,
+            sheenColor: new THREE.Color(0xfff4e0),
+            sheenRoughness: 0.5,
+          }),
+          0xffd9a8,
+          0.16,
+        )
         const ceramic = new THREE.MeshPhysicalMaterial({
           color: 0xf6f2ea,
           roughness: 0.08,
@@ -343,7 +534,9 @@ export function createJawEngine(
         shell.scale.setScalar(1.025)
         const planned = new THREE.Mesh(crownOnly, glass)
         planned.scale.setScalar(1.06)
-        const implant = new THREE.Mesh(implantShape, titanium)
+        titaniumOf[arch] ??= titanium.clone()
+        titaniumOf[arch].clippingPlanes = [clip[arch]]
+        const implant = new THREE.Mesh(implantShape, titaniumOf[arch])
         for (const mesh of [natural, ghostMesh, prosthetic, shell, planned, implant]) {
           mesh.userData.fdi = fdi
           mesh.castShadow = mesh !== ghostMesh && mesh !== planned
@@ -353,16 +546,47 @@ export function createJawEngine(
         picks.push(natural, ghostMesh, prosthetic, shell)
 
         const spec = specOf(upper, primary, position)
-        const canals = spec.roots.map((root) => {
-          const path = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(0, CH * 0.3, 0),
-            new THREE.Vector3(root[0][0], root[0][1] - 1, root[0][2]),
-            new THREE.Vector3(root[1][0] * 0.95, root[1][1] * 0.93, root[1][2] * 0.95),
-          ])
-          const canal = new THREE.Mesh(new THREE.TubeGeometry(path, 40, 0.45, 10), gutta)
+        // Each canal runs from the pulp chamber down its root's centreline, stopping short of the
+        // apex. Filled, it is gutta-percha; untreated, it is pulp, dark on the X-ray.
+        const chamberY = CH * (spec.kind === 'mol' ? 0.18 : spec.kind === 'pre' ? 0.25 : 0.3)
+        const canalPaths = spec.roots.map(
+          (root) =>
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(0, chamberY, 0),
+              ...root.path
+                .slice(0, -1)
+                .map(
+                  (q, i, all) =>
+                    new THREE.Vector3(q[0], i === all.length - 1 ? q[1] + 0.8 : q[1], q[2]),
+                ),
+            ]),
+        )
+        const canals = canalPaths.map((path) => {
+          const canal = new THREE.Mesh(new THREE.TubeGeometry(path, 48, 0.42, 10), gutta)
           group.add(canal)
           return canal
         })
+        const pulp = [
+          ...canalPaths.map(
+            (path) => new THREE.Mesh(new THREE.TubeGeometry(path, 48, 0.32, 8), xrPulp),
+          ),
+          (() => {
+            const chamber = new THREE.Mesh(pulpChamber, xrPulp)
+            const front = spec.kind === 'inc' || spec.kind === 'can'
+            chamber.scale.set(
+              spec.W * (front ? 0.14 : spec.kind === 'pre' ? 0.17 : 0.25),
+              CH * (front ? 0.34 : 0.2),
+              spec.D * (front ? 0.13 : 0.2),
+            )
+            chamber.position.y = chamberY
+            return chamber
+          })(),
+        ]
+        for (const mesh of pulp) {
+          mesh.renderOrder = 2
+          mesh.visible = false
+          group.add(mesh)
+        }
         const spots = [
           [0.5, 0.93, 0.1, 0.9, 0.35, 0.7],
           [-1.0, 0.92, -0.3, 0.7, 0.3, 0.55],
@@ -397,6 +621,7 @@ export function createJawEngine(
           planned,
           implant,
           canals,
+          pulp,
           decay: spots,
           anchor,
           visual: null,
@@ -427,6 +652,9 @@ export function createJawEngine(
         neck: slot.base.position.y,
         halfDepth: slot.depth * 0.42,
         missing: slot.visual?.absent ?? false,
+        // How far the root shows through the bone as a ridge: most for a canine's long root.
+        eminence:
+          slot.position === 3 ? 1.1 : slot.position <= 2 ? 0.6 : slot.position <= 5 ? 0.5 : 0.35,
       }))
       .sort((a, b) => a.s - b.s)
 
@@ -438,34 +666,53 @@ export function createJawEngine(
       const t = a === b ? 0 : (s - a.s) / (b.s - a.s)
       let papilla = 0
       let closed = 0
+      let eminence = 0
       for (const tooth of teeth) {
         const r = Math.abs(s - tooth.s) / tooth.halfWidth
         if (r <= 1) {
           papilla = Math.pow(sm(0.3, 1, r), 1.4)
           if (tooth.missing) closed = 1 - sm(0.7, 1, r)
         }
+        if (!tooth.missing) {
+          eminence +=
+            tooth.eminence * Math.exp(-Math.pow((s - tooth.s) / (tooth.halfWidth * 0.62), 2))
+        }
       }
       const reach = Math.abs(s)
+      // How far the gum runs above the necks before the model ends: the attached gingiva and a
+      // band of lining mucosa, as a dental model shows it, not a whole jaw.
       const root =
-        (upper ? 13.5 : 13) * (primary ? 0.8 : 1) +
-        (upper ? 5 : 4.5) * Math.exp(-Math.pow((reach - (upper ? 18 : 15)) / 10, 2)) -
-        1.5 * sm(sum - 4, sum + EXTENSION, reach)
+        (upper ? 10.5 : 9.5) * (primary ? 0.8 : 1) - 1.2 * sm(sum - 4, sum + EXTENSION, reach)
       return {
         neck: a.neck + (b.neck - a.neck) * t,
         halfDepth: a.halfDepth + (b.halfDepth - a.halfDepth) * t,
         root,
         papilla,
         closed,
+        eminence,
       }
     }
 
-    const steps = 380
-    const profileSteps = 34
+    // Where the roots are cut: a little inside the shallowest part of the gum.
+    let shallowest = Infinity
+    for (let i = 0; i <= 60; i++) {
+      const s = -sum + (2 * sum * i) / 60
+      const g = info(s)
+      shallowest = Math.min(shallowest, g.neck * (upper ? 1 : -1) + g.root)
+    }
+    clipAt[arch] = shallowest - 1.5
+
+    const steps = 420
+    const profileSteps = 40
     const positions: number[] = []
     const colors: number[] = []
+    const uvs: number[] = []
     const index: number[] = []
-    const margin = new THREE.Color(0xf2a9ab)
-    const deep = new THREE.Color(0xc24c5d)
+    // The free margin is a touch paler than the attached gingiva below it; beyond the
+    // mucogingival line, about five millimetres from the margin, the lining mucosa is redder.
+    const margin = new THREE.Color(0xe1918f)
+    const attached = new THREE.Color(0xdc8987)
+    const mucosa = new THREE.Color(0xbb4a5a)
     const colour = new THREE.Color()
     const end = sum + EXTENSION - 0.5
     for (let i = 0; i <= steps; i++) {
@@ -505,15 +752,29 @@ export function createJawEngine(
       const samples = new THREE.SplineCurve(
         profile.map(([n, h]) => new THREE.Vector2(n, h)),
       ).getPoints(profileSteps)
-      for (const q of samples) {
+      let travelled = 0
+      samples.forEach((q, k) => {
+        if (k > 0) travelled += q.distanceTo(samples[k - 1]!)
+        const below = top - q.y
+        // The root's ridge under the cheek, strongest a few millimetres above the margin.
+        const ridge =
+          q.x > 0
+            ? g.eminence * (1 - g.closed) * sm(0.8, 3.5, below) * (1 - sm(r * 0.55, r, below))
+            : 0
         positions.push(
-          point.x + normal.x * q.x,
+          point.x + normal.x * (q.x + ridge),
           g.neck + (upper ? -q.y : q.y),
-          point.z + normal.z * q.x,
+          point.z + normal.z * (q.x + ridge),
         )
-        colour.copy(margin).lerp(deep, sm(0.3, 7, top - q.y))
+        colour
+          .copy(margin)
+          .lerp(attached, sm(0.4, 1.6, below))
+          .lerp(mucosa, sm(4.2, 6.5, below))
+          // A shade darker in the hollows between the root ridges.
+          .multiplyScalar(1 - 0.05 * sm(0.2, 0.6, 0.7 - g.eminence) * sm(1.5, 4, below))
         colors.push(colour.r, colour.g, colour.b)
-      }
+        uvs.push(s / 5, travelled / 5)
+      })
     }
     for (let i = 0; i < steps; i++) {
       for (let j = 0; j < profileSteps; j++) {
@@ -525,6 +786,7 @@ export function createJawEngine(
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
     geometry.setIndex(index)
     geometry.computeVertexNormals()
     const mesh = new THREE.Mesh(geometry, gum)
@@ -534,9 +796,12 @@ export function createJawEngine(
     gumMeshes[arch].push(mesh)
 
     if (upper) {
-      // The palate, with a few rugae behind the front teeth.
-      const rows = 200
-      const columns = 16
+      // The palate: a vault rising steeply from the gum behind the teeth and flattening toward
+      // the midline, with the rugae — the wavy ridges across its front — the raphe down its middle,
+      // and the incisive papilla just behind the central incisors. Each row of the mesh runs from
+      // the gum to the midline at one depth, so a ruga is a function of how far back the row is.
+      const rows = 220
+      const columns = 30
       const palate: number[] = []
       const palateColors: number[] = []
       const palateIndex: number[] = []
@@ -549,16 +814,29 @@ export function createJawEngine(
         const g = info(s)
         const qx = point.x - normal.x * (g.halfDepth + 2.3)
         const qz = point.z - normal.z * (g.halfDepth + 2.3)
-        const qy = g.neck + 4
-        const vy = g.neck + (primary ? 8 : 11)
+        const qy = g.neck + 3.5
+        const vy = g.neck + (primary ? 9 : 13)
+        // How far behind the front of the arch this row is.
+        const back = -qz
         for (let j = 0; j <= columns; j++) {
           const u = j / columns
-          const ruga =
-            Math.abs(s) < 14
-              ? 0.35 * Math.sin(u * 9 + Math.abs(s) * 0.4) * sm(0.2, 0.6, u) * (1 - sm(0.75, 1, u))
-              : 0
-          palate.push(qx * (1 - u), qy + (vy - qy) * Math.sin((u * Math.PI) / 2) + ruga, qz)
-          colour.copy(front).lerp(vault, u)
+          const rise = 1 - Math.pow(1 - u, 2.4)
+          const rugae =
+            0.55 *
+            Math.max(0, Math.sin(back * 1.15 + 0.9 * Math.sin(u * 7 + back * 0.3))) *
+            sm(6, 9, back) *
+            (1 - sm(18, 24, back)) *
+            sm(0.15, 0.45, u) *
+            (1 - sm(0.8, 0.97, u))
+          const raphe = 0.3 * Math.exp(-Math.pow((1 - u) * 16, 2)) * sm(8, 12, back)
+          const papilla =
+            1.1 * Math.exp(-Math.pow((1 - u) * 5, 2)) * Math.exp(-Math.pow((back - 8) / 2.2, 2))
+          // The two halves meet at the midline; each runs a hair past it, so no crack shows.
+          palate.push(qx * (1 - 1.012 * u), qy + (vy - qy) * rise - rugae - raphe - papilla, qz)
+          colour
+            .copy(front)
+            .lerp(vault, sm(0.2, 1, u))
+            .multiplyScalar(1 + 0.06 * rugae)
           palateColors.push(colour.r, colour.g, colour.b)
         }
       }
@@ -574,8 +852,9 @@ export function createJawEngine(
       palateGeometry.setAttribute('color', new THREE.Float32BufferAttribute(palateColors, 3))
       palateGeometry.setIndex(palateIndex)
       palateGeometry.computeVertexNormals()
-      const palateMesh = new THREE.Mesh(palateGeometry, gum)
+      const palateMesh = new THREE.Mesh(palateGeometry, palateTissue)
       palateMesh.receiveShadow = true
+      palateMesh.userData.palate = true
       jaw.add(palateMesh)
       gumMeshes.u.push(palateMesh)
     }
@@ -605,16 +884,21 @@ export function createJawEngine(
       slot.natural.material = xray ? xrTooth : slot.enamel
       slot.prosthetic.material = xray ? xrDense : slot.ceramic
       slot.shell.material = xray ? xrDense : slot.ceramic
-      slot.implant.material = xray ? xrDense : titanium
+      slot.implant.material = xray ? xrDense : titaniumOf[slot.upper ? 'u' : 'l']
       for (const canal of slot.canals) {
         canal.material = xray ? xrDense : gutta
         canal.visible = xray && v?.rootCanal === 'done' && !v.absent && !v.replacedBy
+      }
+      for (const part of slot.pulp) {
+        part.visible = xray && v?.rootCanal !== 'done' && !v?.absent && !v?.replacedBy
       }
       slot.planned.visible = !xray && Boolean(v?.planned) && !v?.absent
       for (const spot of slot.decay) spot.visible = !xray && Boolean(v?.caries) && !v?.absent
       slot.ghost.visible = !xray && Boolean(v?.absent)
     }
-    for (const mesh of [...gumMeshes.u, ...gumMeshes.l]) mesh.material = xray ? xrSoft : gum
+    for (const mesh of [...gumMeshes.u, ...gumMeshes.l]) {
+      mesh.material = xray ? xrSoft : mesh.userData.palate ? palateTissue : gum
+    }
     scene.background = xray ? XRAY_BACKGROUND : BACKGROUND
     gtao.enabled = !xray
   }
@@ -759,6 +1043,8 @@ export function createJawEngine(
     open = opening ? open + (openTarget - open) * 0.12 : openTarget
     upperJaw.position.y = open / 2
     lowerJaw.position.y = -open / 2
+    clip.u.constant = clipAt.u + open / 2
+    clip.l.constant = clipAt.l + open / 2
     glow(now)
     composer.render()
 
@@ -863,13 +1149,31 @@ export function createJawEngine(
         slot.enamel.dispose()
         slot.ceramic.dispose()
         for (const canal of slot.canals) canal.geometry.dispose()
+        for (const part of slot.pulp) if (part.geometry !== pulpChamber) part.geometry.dispose()
       }
       // Tooth meshes are shared by every chart on the page and kept for the next one.
-      for (const material of [titanium, gutta, decay, glass, ghost, gum, xrTooth, xrDense, xrSoft])
+      for (const material of [
+        titanium,
+        gutta,
+        decay,
+        glass,
+        ghost,
+        gum,
+        palateTissue,
+        xrTooth,
+        xrDense,
+        xrSoft,
+      ])
         material.dispose()
+      titaniumOf.u?.dispose()
+      titaniumOf.l?.dispose()
       implantShape.dispose()
       decayShape.dispose()
+      pulpChamber.dispose()
+      xrPulp.dispose()
+      stipple.dispose()
       pmrem.dispose()
+      BACKGROUND.dispose()
       target.dispose()
       composer.dispose()
       renderer.dispose()
