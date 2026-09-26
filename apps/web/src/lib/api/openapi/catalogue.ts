@@ -142,6 +142,16 @@ import {
   TimeOffInput,
   ToothRecord,
   ToothRecordListQuery,
+  TreatmentPlan,
+  TreatmentPlanInput,
+  TreatmentPlanListQuery,
+  AcceptTreatmentPlanRequest,
+  DeclineTreatmentPlanRequest,
+  CancelTreatmentPlanRequest,
+  BillPlanItemRequest,
+  PlanItemBilled,
+  OverduePlan,
+  OverduePlansQuery,
   UpdateBookingWindowRequest,
   UpdateBranchRequest,
   UpdateDoctorRequest,
@@ -1174,5 +1184,65 @@ export const OPERATIONS: readonly Operation[] = [
   POST('/api/v1/tooth-records/{recordId}/void', 'Void a tooth record', data(ToothRecord), {
     permission: 'dental:write',
     body: VoidToothRecordRequest,
+  }),
+
+  // ── Treatment plans ─────────────────────────────────────────────────────────
+  GET(
+    '/api/v1/patients/{patientId}/treatment-plans',
+    'A patient’s treatment plans, newest first',
+    page(TreatmentPlan),
+    { permission: 'dental:read', query: TreatmentPlanListQuery },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/treatment-plans',
+    'Draft a treatment plan',
+    created(TreatmentPlan),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: TreatmentPlanInput,
+      description:
+        'Items are PLANNED chart rows; prices come from the price list unless given (ADR-0036).',
+    },
+  ),
+  GET('/api/v1/treatment-plans/{planId}', 'One treatment plan', data(TreatmentPlan), {
+    permission: 'dental:read',
+  }),
+  PUT('/api/v1/treatment-plans/{planId}', 'Rewrite a draft plan', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: TreatmentPlanInput,
+    description: 'A presented plan goes back to DRAFT.',
+  }),
+  POST(
+    '/api/v1/treatment-plans/{planId}/present',
+    'Record that a plan was shown',
+    data(TreatmentPlan),
+    { permission: 'dental:write' },
+  ),
+  POST('/api/v1/treatment-plans/{planId}/accept', 'The patient agrees', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: AcceptTreatmentPlanRequest,
+  }),
+  POST('/api/v1/treatment-plans/{planId}/decline', 'The patient says no', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: DeclineTreatmentPlanRequest,
+  }),
+  POST('/api/v1/treatment-plans/{planId}/cancel', 'Cancel a plan', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: CancelTreatmentPlanRequest,
+  }),
+  POST(
+    '/api/v1/treatment-plans/{planId}/items/{itemId}/bill',
+    'Put done work on a visit’s invoice',
+    data(PlanItemBilled),
+    {
+      permission: 'dental:write',
+      body: BillPlanItemRequest,
+      description: 'Also needs invoice:create. At the agreed price; an item is billed once.',
+    },
+  ),
+  GET('/api/v1/dental/overdue-plans', 'Agreed plans with work left undone', page(OverduePlan), {
+    permission: 'dental:read',
+    query: OverduePlansQuery,
   }),
 ]

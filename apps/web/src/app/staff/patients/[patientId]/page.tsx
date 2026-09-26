@@ -21,6 +21,7 @@ import { CreateInvoiceButton } from '@/components/billing/create-invoice-button'
 import { PatientInvoicesCard } from '@/components/billing/patient-invoices-card'
 import { ChartBanner } from '@/components/clinical/chart-banner'
 import { DentalChartCard } from '@/components/dental/dental-chart-card'
+import { TreatmentPlansCard } from '@/components/dental/plans/treatment-plans-card'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { EncounterList } from '@/components/clinical/encounter-list'
 import { requirePortal } from '@/lib/auth/server-session'
@@ -155,6 +156,16 @@ export default async function PatientPage({
         clinic={clinic}
         locale={locale}
         visits={encounters.items}
+        editable={patient.isActive}
+      />
+
+      <TreatmentPlansCard
+        actor={actor}
+        patientId={patient.id}
+        clinic={clinic}
+        locale={locale}
+        visits={encounters.items}
+        basePath={`/staff/patients/${patient.id}/plans`}
         editable={patient.isActive}
       />
 
