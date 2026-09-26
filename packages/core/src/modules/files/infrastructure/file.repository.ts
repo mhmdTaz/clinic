@@ -29,6 +29,7 @@ export interface StoredFileRecord {
   uploadedBy: PersonRef | null
   confirmedAt: Date | null
   createdAt: Date | null
+  teeth: string[]
 }
 
 interface FileRecord {
@@ -49,6 +50,7 @@ interface FileRecord {
   uploadedBy: PersonRef | null
   confirmedAt: Date | null
   createdAt: Date | null
+  teeth?: string[] | null
 }
 
 function toFile(doc: FileRecord): StoredFileRecord {
@@ -71,6 +73,7 @@ function toFile(doc: FileRecord): StoredFileRecord {
     uploadedBy: doc.uploadedBy ?? null,
     confirmedAt: doc.confirmedAt ?? null,
     createdAt: doc.createdAt ?? null,
+    teeth: [...(doc.teeth ?? [])],
   }
 }
 
@@ -101,6 +104,7 @@ export const fileRepository = {
     description: string | null
     isPatientVisible: boolean
     uploadedBy: PersonRef
+    teeth?: string[]
   }): Promise<StoredFileRecord> {
     const doc = await FileModel().create({
       _id: input.id,
@@ -117,6 +121,7 @@ export const fileRepository = {
       isPatientVisible: input.isPatientVisible,
       status: 'PENDING',
       uploadedBy: input.uploadedBy,
+      teeth: input.teeth ?? [],
     })
     return toFile(doc.toObject() as unknown as FileRecord)
   },
@@ -166,6 +171,7 @@ export const fileRepository = {
       ownerId?: string
       patientId?: string
       category?: FileCategory
+      tooth?: string
       patientVisibleOnly?: boolean
     },
     page: { cursor?: string; limit: number },
@@ -175,6 +181,7 @@ export const fileRepository = {
     if (filter.ownerId) where['owner.id'] = filter.ownerId
     if (filter.patientId) where.patientId = filter.patientId
     if (filter.category) where.category = filter.category
+    if (filter.tooth) where.teeth = filter.tooth
     if (filter.patientVisibleOnly) where.isPatientVisible = true
     // A file nobody confirmed is an abandoned upload, and an infected one is quarantined.
     where.status = { $ne: 'PENDING' }
@@ -216,7 +223,9 @@ export const fileRepository = {
   async update(
     clinicId: string,
     fileId: string,
-    patch: Partial<Pick<StoredFileRecord, 'category' | 'isPatientVisible' | 'description'>>,
+    patch: Partial<
+      Pick<StoredFileRecord, 'category' | 'isPatientVisible' | 'description' | 'teeth'>
+    >,
   ): Promise<StoredFileRecord | null> {
     const doc = (await FileModel()
       .findOneAndUpdate({ clinicId, _id: fileId }, { $set: patch }, { new: true })

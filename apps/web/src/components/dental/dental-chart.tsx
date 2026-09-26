@@ -55,6 +55,7 @@ export function DentalChart({
   defaultVisitId,
   today,
   canWrite,
+  files,
 }: {
   patientId: string
   chart: Chart
@@ -64,6 +65,7 @@ export function DentalChart({
   defaultVisitId: string | null
   today: string
   canWrite: boolean
+  files: { canRead: boolean; canUpload: boolean }
 }) {
   const t = useTranslations('dental')
   const router = useRouter()
@@ -333,6 +335,7 @@ export function DentalChart({
                 defaultVisitId={defaultVisitId}
                 today={today}
                 canWrite={canWrite && !replaying}
+                files={{ canRead: files.canRead, canUpload: files.canUpload && !replaying }}
                 onChanged={() => router.refresh()}
               />
             ) : (

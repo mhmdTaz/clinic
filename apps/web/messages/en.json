@@ -65,7 +65,8 @@
       "support": "Support",
       "getHelp": "Get help",
       "analytics": "Analytics",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "dental": "Dental chart"
     }
   },
   "shell": {
@@ -704,6 +705,68 @@
       "newHint": "{percent}% of everybody seen.",
       "returning": "Returning",
       "returningHint": "Registered before this range began."
+    },
+    "dental": {
+      "title": "Dental chart",
+      "subtitle": "What the tooth chart offers: your treatments and the one-tap presets built from them.",
+      "disabled": "The tooth chart is turned off for this clinic, so nobody sees it yet. What you set up here is ready for when it is turned on.",
+      "retired": "Retired",
+      "unknown": "Unknown",
+      "edit": "Edit",
+      "scopes": {
+        "TOOTH": "Whole tooth",
+        "SURFACE": "Surfaces",
+        "SPAN": "Several teeth (bridge)",
+        "ARCH": "A jaw (denture)"
+      },
+      "treatments": {
+        "title": "Treatments and findings",
+        "add": "Add a treatment",
+        "body": "Everything that can be charted on a tooth. A treatment is retired rather than deleted: records already charted keep its name as it was on the day.",
+        "priced": "priced as {service}",
+        "unpriced": "not priced"
+      },
+      "quickPicks": {
+        "title": "Quick-picks",
+        "add": "Add a quick-pick",
+        "body": "One tap charts several things on the selected tooth, together — for example a root canal done and a crown planned.",
+        "none": "No quick-picks yet",
+        "noneBody": "Add the combinations your clinic charts most often."
+      },
+      "treatmentForm": {
+        "addTitle": "Add a treatment",
+        "editTitle": "Edit treatment",
+        "body": "The symbol decides how it is drawn on the chart; the scope decides what it is charted on.",
+        "code": "Code",
+        "name": "Name",
+        "symbol": "Drawn as",
+        "scope": "Charted on",
+        "fixed": "What a treatment draws cannot change once it exists, because records already charted rely on it. Retire it and add another instead.",
+        "service": "Price-list service",
+        "noService": "Not linked",
+        "serviceHint": "Links the treatment to what it costs, for treatment plans and invoices.",
+        "sortOrder": "Order",
+        "active": "Offered on the chart",
+        "cancel": "Cancel",
+        "save": "Save"
+      },
+      "quickPickForm": {
+        "addTitle": "Add a quick-pick",
+        "editTitle": "Edit quick-pick",
+        "body": "Applied to the tooth that is selected. Each line is checked against that tooth when the quick-pick is used.",
+        "name": "Name",
+        "namePlaceholder": "Root canal + crown",
+        "sortOrder": "Order",
+        "items": "What it charts",
+        "treatmentFor": "Treatment on line {number}",
+        "statusFor": "Status on line {number}",
+        "surfacesFor": "Surfaces on line {number}",
+        "remove": "Remove line {number}",
+        "addItem": "Add a line",
+        "active": "Offered on the chart",
+        "cancel": "Cancel",
+        "save": "Save"
+      }
     }
   },
   "staff": {
@@ -1602,7 +1665,10 @@
         "CLEAN": "Ready",
         "INFECTED": "Quarantined",
         "FAILED": "Rejected"
-      }
+      },
+      "teeth": "Teeth shown",
+      "teethHint": "FDI numbers, separated by spaces — for example 16 17 for a radiograph of both.",
+      "teethInvalid": "One of the teeth is not an FDI tooth number, such as 16 or 55."
     }
   },
   "billing": {
@@ -2073,7 +2139,12 @@
       "aVisit": "a visit",
       "chartedBy": "charted by {name}",
       "markDone": "Mark as done",
-      "void": "Void"
+      "void": "Void",
+      "pictures": "X-rays and photos",
+      "addPicture": "Add an X-ray or photo",
+      "noPictures": "No X-rays or photos of this tooth yet.",
+      "openPicture": "Open {name}",
+      "notReady": "Being checked"
     },
     "void": {
       "title": "Void this record?",

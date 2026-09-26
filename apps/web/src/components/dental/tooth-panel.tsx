@@ -36,6 +36,7 @@ import {
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
 import { SymbolIcon } from './symbol-icon'
+import { ToothPictures } from './tooth-pictures'
 import { toneOf } from './tooth-visual'
 
 /**
@@ -80,6 +81,7 @@ export function ToothPanel({
   defaultVisitId,
   today,
   canWrite,
+  files,
   onChanged,
 }: {
   patientId: string
@@ -93,6 +95,8 @@ export function ToothPanel({
   defaultVisitId: string | null
   today: string
   canWrite: boolean
+  /** What the caller may do with documents: the pictures section follows file permissions. */
+  files: { canRead: boolean; canUpload: boolean }
   onChanged: () => void
 }) {
   const t = useTranslations('dental')
@@ -243,6 +247,15 @@ export function ToothPanel({
             </Button>
           )}
         </div>
+      ) : null}
+
+      {files.canRead ? (
+        <ToothPictures
+          patientId={patientId}
+          tooth={tooth.fdi}
+          visitId={defaultVisitId}
+          canUpload={files.canUpload}
+        />
       ) : null}
 
       <div className="flex items-center justify-between gap-2 border-t pt-3">

@@ -67,6 +67,10 @@ export async function DentalChartCard({
           defaultVisitId={visitId ?? todays?.id ?? null}
           today={today}
           canWrite={editable && holds(actor, 'dental:write')}
+          files={{
+            canRead: holds(actor, 'file:read'),
+            canUpload: editable && holds(actor, 'file:upload'),
+          }}
         />
       </CardContent>
     </Card>
