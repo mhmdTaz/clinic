@@ -185,6 +185,21 @@ export type DentalScope = (typeof DENTAL_SCOPES)[number]
 export const TOOTH_ROLES = ['ABUTMENT', 'PONTIC', 'DENTURE_TOOTH'] as const
 export type ToothRole = (typeof TOOTH_ROLES)[number]
 
+/**
+ * A treatment plan's life (Phase 12). Drafted, shown to the patient, and then either agreed to or
+ * turned down. An agreed plan completes itself when its last item is done; CANCELLED is the way
+ * out for a plan that stops mattering at any point before that.
+ */
+export const TREATMENT_PLAN_STATUSES = [
+  'DRAFT',
+  'PRESENTED',
+  'ACCEPTED',
+  'DECLINED',
+  'COMPLETED',
+  'CANCELLED',
+] as const
+export type TreatmentPlanStatus = (typeof TREATMENT_PLAN_STATUSES)[number]
+
 /** How long the presigned URLs live (section 12.1): long enough to upload, short enough to leak. */
 export const UPLOAD_URL_SECONDS = 300
 export const DOWNLOAD_URL_SECONDS = 60

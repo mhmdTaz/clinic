@@ -34,7 +34,7 @@ export function Sidebar({
   )
 
   return (
-    <aside className="border-border bg-card fixed inset-y-0 start-0 z-30 hidden w-20 flex-col border-e md:flex lg:w-64">
+    <aside className="border-border bg-card fixed inset-y-0 start-0 z-30 hidden w-20 flex-col border-e md:flex lg:w-64 print:hidden!">
       <div className="border-border flex h-16 shrink-0 items-center justify-center gap-3 border-b px-4 lg:justify-start lg:px-5">
         <span
           aria-hidden="true"

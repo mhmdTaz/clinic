@@ -168,6 +168,15 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           minScope: 'CLINIC',
         },
         {
+          id: 'staff.dentalRecall',
+          labelKey: 'nav.items.dentalRecall',
+          href: '/staff/dental/recall',
+          icon: 'calendar-clock',
+          permission: 'dental:read',
+          minScope: 'CLINIC',
+          flag: 'dental',
+        },
+        {
           id: 'staff.doctors',
           labelKey: 'nav.items.doctors',
           href: '/staff/doctors',

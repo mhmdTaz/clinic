@@ -66,7 +66,8 @@
       "getHelp": "Get help",
       "analytics": "Analytics",
       "audit": "Audit log",
-      "dental": "Dental chart"
+      "dental": "Dental chart",
+      "dentalRecall": "Plan recall"
     }
   },
   "shell": {
@@ -160,7 +161,12 @@
     "TREATMENT_UNAVAILABLE": "A treatment in this preset is no longer available.",
     "FIXED": "This cannot be changed once the treatment exists.",
     "INVALID_CODE": "Use capital letters, digits and underscores only.",
-    "TAKEN": "This is already in use."
+    "TAKEN": "This is already in use.",
+    "NO_SUCH_PHASE": "Choose one of the plan’s phases.",
+    "DUPLICATE_ITEM": "This work is in the plan twice.",
+    "NOT_PLANNED": "Only planned work that is still live can go in a plan.",
+    "ALREADY_DONE": "This work has already been done.",
+    "PRICE_REQUIRED": "There is no price list price for this — type one."
   },
   "auth": {
     "login": {
@@ -278,7 +284,14 @@
     "ALREADY_COMPLETED": "This planned work has already been done.",
     "NOT_PLANNED": "Only planned work can be marked as done.",
     "RECORD_VOIDED": "This record has been voided.",
-    "CODE_TAKEN": "Another treatment already uses this code."
+    "CODE_TAKEN": "Another treatment already uses this code.",
+    "PLAN_STATE": "This plan can no longer be changed that way. Reload to see where it stands.",
+    "PLAN_OUT_OF_DATE": "Some of this plan has been done or voided on the chart since it was drawn up. Edit the plan first.",
+    "ALREADY_AGREED": "Some of this work is already in a plan the patient has agreed to.",
+    "PLAN_NOT_AGREED": "Only work in an agreed plan can be billed from it.",
+    "NOT_DONE": "This work has not been done yet.",
+    "ALREADY_BILLED": "This work is already on an invoice.",
+    "NOTHING_TO_BILL": "There was nothing to bill."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -2170,6 +2183,159 @@
       "notesPlaceholder": "What was done, materials, shade, anything the next visit should know",
       "save": "Save to the chart",
       "cancel": "Cancel"
+    },
+    "plans": {
+      "title": "Treatment plans",
+      "new": "New plan",
+      "none": "No treatment plans yet.",
+      "openWork": "{count, plural, one {# piece of planned work} other {# pieces of planned work}} on the chart.",
+      "noOpenWork": "Chart planned work on a tooth to put it in a plan.",
+      "edit": "Edit",
+      "present": "Present",
+      "print": "Print",
+      "recordDecline": "Patient declined",
+      "cancel": "Cancel plan",
+      "draftedOn": "Drawn up on {date}",
+      "agreedOn": "Agreed on {date} by {name}",
+      "declinedOn": "Declined on {date}",
+      "declineReason": "Reason: {reason}",
+      "cancelledBecause": "Cancelled: {reason}",
+      "progressLabel": "Work done",
+      "progress": "{done} of {total} done",
+      "remaining": "Left to do:",
+      "doneOn": "done {date}",
+      "onInvoice": "On {number}",
+      "statuses": {
+        "DRAFT": "Draft",
+        "PRESENTED": "Presented",
+        "ACCEPTED": "Agreed",
+        "DECLINED": "Declined",
+        "COMPLETED": "Completed",
+        "CANCELLED": "Cancelled"
+      },
+      "itemStates": {
+        "OPEN": "to do",
+        "DONE": "done",
+        "DROPPED": "dropped"
+      },
+      "editor": {
+        "newTitle": "New treatment plan",
+        "editTitle": "Edit treatment plan",
+        "body": "Put planned work from the chart into phases. Prices come from the price list unless you type another.",
+        "backToDraft": "Saving changes sends the plan back to draft; present it to the patient again.",
+        "defaultTitle": "Treatment plan",
+        "defaultPhase": "First visit",
+        "title": "Title",
+        "phases": "Phases",
+        "phaseName": "Name of phase {number}",
+        "phaseN": "Phase {number}",
+        "addPhase": "Add a phase",
+        "removePhase": "Remove phase {number}",
+        "work": "Planned work",
+        "noWork": "There is no planned work on the chart to put in a plan.",
+        "plannedOn": "Planned on {date}",
+        "phase": "Phase",
+        "quantity": "Units",
+        "unitPrice": "Price per unit",
+        "noListPrice": "No list price",
+        "discount": "Discount",
+        "notes": "Notes for the patient",
+        "total": "Total",
+        "cancel": "Cancel",
+        "save": "Save plan"
+      },
+      "bill": {
+        "trigger": "Add to invoice",
+        "title": "Add to the visit’s invoice",
+        "body": "{work}, at the agreed price:",
+        "visit": "Visit",
+        "hint": "It goes on the visit’s open invoice, or starts one.",
+        "noVisits": "This patient has no visit to bill against yet.",
+        "cancel": "Cancel",
+        "confirm": "Add to invoice"
+      },
+      "declineDialog": {
+        "title": "The patient declined",
+        "body": "The plan stays on the record as declined.",
+        "reason": "What they said (optional)",
+        "back": "Back",
+        "confirm": "Record decline"
+      },
+      "cancelDialog": {
+        "title": "Cancel this plan",
+        "body": "The plan stays on the record as cancelled. Work already done is not affected.",
+        "reason": "Why",
+        "back": "Keep the plan",
+        "confirm": "Cancel plan"
+      },
+      "document": {
+        "pageTitle": "Treatment plan",
+        "back": "Back to the patient",
+        "print": "Print or save as PDF",
+        "born": "Born {date}",
+        "heading": "Treatment plan",
+        "drawnUp": "drawn up on {date}",
+        "work": "Treatment",
+        "price": "Price",
+        "discount": "Discount",
+        "amount": "Amount",
+        "subtotal": "Subtotal",
+        "tax": "Tax",
+        "total": "Total",
+        "notes": "Notes",
+        "patientSignature": "Patient",
+        "signatureAlt": "The patient’s signature",
+        "signedOn": "{name}, {date}",
+        "nameAndDate": "Name and date",
+        "clinicSignature": "For the clinic",
+        "validity": "Prices are those agreed on the plan. Work not listed here, or a change to the plan, is priced separately."
+      },
+      "presentation": {
+        "pageTitle": "Treatment plan",
+        "showPrices": "Show prices",
+        "close": "Close",
+        "phase": "Phase {number}",
+        "discount": "Discount",
+        "total": "Total",
+        "agree": "I agree to this plan",
+        "notNow": "Not today",
+        "signTitle": "Agree and sign",
+        "consent": "By signing I agree to the treatment above, at the prices shown.",
+        "signedBy": "Name",
+        "signHere": "Sign here",
+        "clearSignature": "Clear",
+        "signAndAgree": "Sign and agree",
+        "back": "Back",
+        "declineTitle": "Decline the plan",
+        "declineReason": "Anything you would like us to know? (optional)",
+        "confirmDecline": "Decline",
+        "agreedBy": "Agreed by {name}. Thank you.",
+        "declinedNote": "Recorded as declined.",
+        "done": "Done"
+      }
+    },
+    "recall": {
+      "title": "Plan recall",
+      "subtitle": "Patients who agreed to a plan and still have work to do — the longest waiting first.",
+      "columns": {
+        "patient": "Patient",
+        "plan": "Plan",
+        "agreed": "Agreed",
+        "left": "Left to pay",
+        "next": "Next visit",
+        "book": "Book"
+      },
+      "filters": {
+        "waited": "Agreed at least",
+        "days": "{days} days ago",
+        "booked": "Booking",
+        "unbooked": "Nothing booked",
+        "all": "Everyone"
+      },
+      "itemsLeft": "{open} of {total} still to do",
+      "nothingBooked": "Nothing booked",
+      "none": "Nobody to recall",
+      "noneBody": "Every agreed plan is finished, recent, or has a visit booked."
     }
   }
 }
