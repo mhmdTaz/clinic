@@ -3321,6 +3321,13 @@ was.
 - **The tooth's story beside it**: every row newest first, the form that charts the next thing, mark
   done, void. A filter (to do, done, last charting day), a slider that replays the chart on each day
   something was charted, and the teeth touched last time pulsing when the chart opens.
+- **A tooth's X-rays and photos.** An upload from the drawer names the teeth it shows — the tooth
+  being looked at, and any neighbours typed beside it — and belongs to the visit being charted, or
+  to the patient. The drawer shows every picture that names the tooth; the file list filters by
+  `tooth`, and a picture can be re-tagged.
+- **The catalogue has screens.** Admin → Dental chart lists the treatments and quick-picks, adds and
+  edits them, links a treatment to a price-list service, and retires rather than deletes. It is in
+  the navigation only when the clinic has the chart turned on.
 
 **Exit criteria:**
 
@@ -3344,6 +3351,11 @@ was.
    surface on a front tooth, a tooth the dentition does not have, a visit of another patient, a date
    in the future, a bridge with nothing to stand on, and a finding recorded as work.
 
+In the browser, as the administrator: the treatment list, a crown linked to a price-list service,
+a duplicate code refused under its field, and a quick-pick created. As the front desk: a PNG
+uploaded from tooth 16's drawer, tagged 16 and 17, stored in object storage, shown on both teeth and
+not on 15.
+
 **Found along the way:** `next dev` did not start. The instrumentation hook imported the server
 unconditionally, so the edge bundle tried to include argon2's native binding. It is now inside a
 `NEXT_RUNTIME === 'nodejs'` block, which the compiler can drop.
@@ -3353,10 +3365,10 @@ unconditionally, so the edge bundle tried to include argon2's native binding. It
 - **Which mark hides which is not decided.** `supersedes` in `domain/derive-chart.ts` returns false,
   so every mark on a tooth is drawn. Whether an extraction hides what came before it, or a new crown
   an old filling, is a clinical rule to be settled with the practice.
-- **X-rays and photos on a tooth.** Files can name teeth (`files.teeth`), but nothing uploads with
-  teeth yet, and the drawer shows no thumbnails.
-- **No admin screens for the catalogue.** Treatments and quick-picks are managed through the API;
-  the clinic starts with the seeded list.
+- **Quick-picks are the clinic's only.** The model and the list query carry a dentist's own
+  presets, but the screen creates clinic-wide ones; nobody can create a personal one yet.
+- **A thumbnail is a download.** Each picture shown asks for a one-minute link and writes a line in
+  the audit log, like any download. There are no reduced-size previews.
 - **A mixed dentition is drawn in 2D only.** The 3D jaw draws one set at a time.
 - **The tooth meshes are built in the browser**, spread over animation frames, not shipped as
   models built ahead of time. A slow device takes a few seconds the first time the 3D view opens.
