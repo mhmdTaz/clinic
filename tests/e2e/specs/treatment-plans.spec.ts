@@ -46,11 +46,14 @@ async function planFilling(page: Page, patientId: string, fdi: string): Promise<
 test.describe('treatment plans', () => {
   test('the front desk draws up a plan, the patient signs it, and the done work is billed once', async ({
     browser,
-  }) => {
+  }, testInfo) => {
     const patientId = await seededPatientId('Fakhoury')
     const page = await signedInAs(browser, 'staff@clinic.local')
     await page.goto(`/staff/patients/${patientId}`)
-    const recordId = await planFilling(page, patientId, '37')
+    // A retry plans on another tooth: the first attempt's filling is already on the chart, and the
+    // editor would offer both.
+    const tooth = testInfo.retry === 0 ? '37' : '38'
+    const recordId = await planFilling(page, patientId, tooth)
     await page.reload()
 
     await expect(page.getByRole('heading', { name: 'Treatment plans' })).toBeVisible()
@@ -65,20 +68,23 @@ test.describe('treatment plans', () => {
       await expect(page.getByRole('dialog')).toBeVisible({ timeout: 1_000 })
     }).toPass({ timeout: 30_000 })
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Title', { exact: true }).fill('Filling on 37')
+    await dialog.getByLabel('Title', { exact: true }).fill(`Filling on ${tooth}`)
     for (const box of await dialog.getByRole('checkbox').all()) await box.uncheck()
-    await dialog.getByRole('checkbox', { name: /Composite filling \(O\) — 37/ }).check()
+    await dialog.getByRole('checkbox', { name: `Composite filling (O) — ${tooth}` }).check()
     await expect(dialog.getByText('Total')).toContainText('60.00')
     await dialog.getByRole('button', { name: 'Save plan' }).click()
     await expect(dialog).toBeHidden()
 
-    const plan = page.getByRole('article', { name: 'Filling on 37' })
+    const plan = page.getByRole('article', { name: `Filling on ${tooth}` })
     await expect(plan).toContainText('Draft')
     await expect(plan).toContainText('60.00')
 
     // Presented at the chair: the patient signs on the screen.
-    await plan.getByRole('link', { name: 'Present' }).click()
-    await expect(page).toHaveURL(/\/plans\/[^/]+\/present$/)
+    // The card is re-rendered by the refresh after saving; a click that lands on the old one is lost.
+    await expect(async () => {
+      await plan.getByRole('link', { name: 'Present' }).click()
+      await expect(page).toHaveURL(/\/plans\/[^/]+\/present$/, { timeout: 2_000 })
+    }).toPass({ timeout: 30_000 })
     await page.getByRole('button', { name: 'I agree to this plan' }).click()
     const pad = page.getByRole('img', { name: 'Sign here' })
     const box = (await pad.boundingBox())!
