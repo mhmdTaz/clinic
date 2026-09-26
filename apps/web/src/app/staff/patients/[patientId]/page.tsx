@@ -20,6 +20,7 @@ import { BookAppointmentDialog } from '@/components/scheduling/book-appointment-
 import { CreateInvoiceButton } from '@/components/billing/create-invoice-button'
 import { PatientInvoicesCard } from '@/components/billing/patient-invoices-card'
 import { ChartBanner } from '@/components/clinical/chart-banner'
+import { DentalChartCard } from '@/components/dental/dental-chart-card'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { EncounterList } from '@/components/clinical/encounter-list'
 import { requirePortal } from '@/lib/auth/server-session'
@@ -146,6 +147,15 @@ export default async function PatientPage({
         patientId={patient.id}
         banner={{ allergies: patient.allergies, chronicConditions: patient.chronicConditions }}
         canEdit={canUpdate && patient.isActive}
+      />
+
+      <DentalChartCard
+        actor={actor}
+        patientId={patient.id}
+        clinic={clinic}
+        locale={locale}
+        visits={encounters.items}
+        editable={patient.isActive}
       />
 
       <div className="grid gap-4 lg:grid-cols-3">

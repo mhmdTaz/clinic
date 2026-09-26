@@ -10,6 +10,7 @@ import {
 import { installAppointmentScopeResolvers } from '../modules/appointments'
 import { installBillingScopeResolvers } from '../modules/billing'
 import { installEncounterScopeResolvers } from '../modules/clinical'
+import { installDentalScopeResolvers } from '../modules/dental'
 import { installDoctorScopeResolvers } from '../modules/doctors'
 import { installFileScopeResolvers } from '../modules/files'
 import { installPatientScopeResolvers } from '../modules/patients'
@@ -52,6 +53,7 @@ beforeAll(() => {
   installFileScopeResolvers()
   installBillingScopeResolvers()
   installTicketScopeResolvers()
+  installDentalScopeResolvers()
 })
 
 describe('scope resolvers', () => {

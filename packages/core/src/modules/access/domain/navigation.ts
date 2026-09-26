@@ -114,6 +114,14 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           permission: 'service:manage',
         },
         {
+          id: 'admin.dental',
+          labelKey: 'nav.items.dental',
+          href: '/admin/dental',
+          icon: 'clipboard-list',
+          permission: 'dental:configure',
+          flag: 'dental',
+        },
+        {
           id: 'admin.analytics',
           labelKey: 'nav.items.analytics',
           href: '/admin/analytics',

@@ -30,7 +30,8 @@
     "./notifications": "./src/modules/notifications/index.ts",
     "./support": "./src/modules/support/index.ts",
     "./analytics": "./src/modules/analytics/index.ts",
-    "./idempotency": "./src/modules/idempotency/index.ts"
+    "./idempotency": "./src/modules/idempotency/index.ts",
+    "./dental": "./src/modules/dental/index.ts"
   },
   "scripts": {
     "lint": "eslint src scripts",

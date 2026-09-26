@@ -3290,6 +3290,96 @@ mobile app — or, for the silent caps below, into nobody's awareness at all.
   this phase's scope.
 - The app has still not run on a phone or a simulator (Phase 9).
 
+### Phase 11 — A tooth remembers what was done to it · after v1 · 🔸
+
+A dental practice reads a patient through their teeth. The dentist fixes a tooth; the front desk
+marks it on a picture of the jaw — a crown on 11, a root canal on 16 — with a note; and at the next
+visit the dentist looks at the picture before anything else. Every dental system has it, and the
+practice this app is being built for will not move without it. Nothing in the app knew what a tooth
+was.
+
+- **The tooth chart is an event log** (ADR-0035). A `tooth_records` row per thing charted, naming
+  the teeth, surfaces, treatment, status, visit, day, dentist and notes, never edited. Finishing a
+  plan adds a COMPLETED row pointing at it; a mistake is voided with a reason. The picture is a pure
+  function of the rows, so it can be replayed on any day.
+- **FDI numbering with a dentition.** 11–48 and 51–85; permanent, primary or mixed per patient.
+  Surfaces M, D, O/I, B, L; a bridge is one row over its abutments and pontic, a denture one row over
+  a jaw's teeth.
+- **The clinic's own treatments.** A catalogue seeded on first read — findings (caries, fracture,
+  impacted, missing) and work (fillings, sealant, root canal, crowns, veneer, implant, extraction,
+  bridge, dentures) — each with the symbol it draws. Renaming does not restate history; what a
+  treatment draws cannot change once it exists. One-tap quick-picks apply several at once, in one
+  transaction.
+- **Who may chart.** `dental:read`, `dental:write`, `dental:configure`. The front desk writes the
+  chart — the exception to §7.4 a dental practice needs — and a dentist reaches the whole chart of
+  a patient they have treated, a colleague's work included.
+- **A 3D jaw and a flat chart over the same data**, one selected tooth shared by both. The teeth
+  are sculpted in code to millimetre measurements and meshed in the browser; the gums scallop
+  around each neck and close over a lost tooth; treatments look like themselves, and an X-ray view
+  shows canals and implants. The 2D chart is the classic odontogram with the five-surface diagram,
+  and the fallback when WebGL is missing.
+- **The tooth's story beside it**: every row newest first, the form that charts the next thing, mark
+  done, void. A filter (to do, done, last charting day), a slider that replays the chart on each day
+  something was charted, and the teeth touched last time pulsing when the chart opens.
+- **A tooth's X-rays and photos.** An upload from the drawer names the teeth it shows — the tooth
+  being looked at, and any neighbours typed beside it — and belongs to the visit being charted, or
+  to the patient. The drawer shows every picture that names the tooth; the file list filters by
+  `tooth`, and a picture can be re-tagged.
+- **The catalogue has screens.** Admin → Dental chart lists the treatments and quick-picks, adds and
+  edits them, links a treatment to a price-list service, and retires rather than deletes. It is in
+  the navigation only when the clinic has the chart turned on.
+
+**Exit criteria:**
+
+1. The front desk charts what the dentist did on a tooth, against the visit, and the dentist sees
+   it on the chart and in the tooth's history at the next visit — in 3D and in 2D.
+2. Nothing on the chart is ever edited or deleted: plans are carried out by new rows, mistakes are
+   voided with a reason, and the chart as it stood on any charted day can be shown.
+3. Every route is in the OpenAPI catalogue, and every rule a row must meet is enforced on the server
+   with the field it concerns.
+
+**How it came out.**
+
+1. Met, in a browser against the running app. Signed in as the front desk: the seeded patient's
+   chart in 3D and 2D, tooth 11's history with the visit and the dentist, a composite on 24's M and O
+   charted against today's visit and drawn on the next render. Signed in as the dentist: the same
+   chart on the patient's page and on the visit, where the planned crown on 16 was marked done.
+2. Met. The integration suite carries out a plan once and is refused the second time, voids a row
+   once and keeps it on the record; in the browser, voiding the completion put the plan back to
+   planned. Replaying 22 August 2025 draws 11 with nothing on it and 46 already a bridge pontic.
+3. Met. Thirteen operations, each checked by the catalogue test. The server refuses an occlusal
+   surface on a front tooth, a tooth the dentition does not have, a visit of another patient, a date
+   in the future, a bridge with nothing to stand on, and a finding recorded as work.
+
+In the browser, as the administrator: the treatment list, a crown linked to a price-list service,
+a duplicate code refused under its field, and a quick-pick created. As the front desk: a PNG
+uploaded from tooth 16's drawer, tagged 16 and 17, stored in object storage, shown on both teeth and
+not on 15.
+
+**Found along the way:** `next dev` did not start. The instrumentation hook imported the server
+unconditionally, so the edge bundle tried to include argon2's native binding. It is now inside a
+`NEXT_RUNTIME === 'nodejs'` block, which the compiler can drop.
+
+**Not done, and stated plainly:**
+
+- **Which mark hides which is not decided.** `supersedes` in `domain/derive-chart.ts` returns false,
+  so every mark on a tooth is drawn. Whether an extraction hides what came before it, or a new crown
+  an old filling, is a clinical rule to be settled with the practice.
+- **Quick-picks are the clinic's only.** The model and the list query carry a dentist's own
+  presets, but the screen creates clinic-wide ones; nobody can create a personal one yet.
+- **A thumbnail is a download.** Each picture shown asks for a one-minute link and writes a line in
+  the audit log, like any download. There are no reduced-size previews.
+- **A mixed dentition is drawn in 2D only.** The 3D jaw draws one set at a time.
+- **The tooth meshes are built in the browser**, spread over animation frames, not shipped as
+  models built ahead of time. A slow device takes a few seconds the first time the 3D view opens.
+- **A bridge in 3D is its crowns**, with no connectors drawn between them; the 2D chart draws the
+  bar.
+- **On a visit's page, older rows name "a visit"** rather than its number: that page only knows its
+  own visit.
+- **No Playwright test yet**, and the chart's screens are in English on every locale, as the other
+  clinical screens are (Phase 8).
+- The mobile app and the patient portal do not show the chart.
+
 ### Sequencing rationale
 
 - **RBAC before features.** Every later phase calls `assertCan`; adding it afterwards means
@@ -3394,6 +3484,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0032 | The API client is typed from the contracts, not generated from OpenAPI | **Accepted** | `docs/adr/0032` — the client imports the Zod contracts and validates responses against them, because a round trip through JSON Schema loses the refinements that make a request valid |
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
+| 0035 | A tooth chart is a log, and the picture is derived from it | **Accepted** | `docs/adr/0035` — one `tooth_records` row per thing charted, never edited; a finished plan gets a COMPLETED row pointing at it, a mistake is voided with a reason; the chart is a pure function of the rows, replayable on any day; FDI numbering with a per-patient dentition; patient-wide access for a treating dentist, and the front desk may chart |
 
 ### The ones to settle next
 

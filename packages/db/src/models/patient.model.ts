@@ -2,6 +2,7 @@ import { Schema, type Model, type InferSchemaType } from 'mongoose'
 import {
   ALLERGY_SEVERITIES,
   BLOOD_TYPES,
+  DENTITIONS,
   GENDERS,
   emailKey,
   nameKey,
@@ -83,6 +84,12 @@ export const PatientSchema = new Schema(
         resolvedAt: { type: String, default: null },
       },
     ],
+
+    /**
+     * Which teeth the tooth chart draws (Phase 11). A child's chart changes as teeth are lost and
+     * replaced, so this is set by the clinic, never inferred from the date of birth.
+     */
+    dentition: { type: String, enum: DENTITIONS, default: 'PERMANENT' },
 
     // Folded copies for search and duplicate matching, kept current by searchKeys.
     search: {

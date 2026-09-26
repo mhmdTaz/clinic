@@ -139,6 +139,52 @@ export type FileMimeType = (typeof FILE_MIME_TYPES)[number]
 /** 25 MB, the default cap in section 12.3. Enforced in the presign policy, not just here. */
 export const MAX_FILE_BYTES = 25 * 1024 * 1024
 
+/**
+ * The tooth chart (Phase 11). What a mark on a tooth means for the patient: something found,
+ * something decided, something this clinic did, or something that was already in the mouth when
+ * the patient arrived. The colour follows: red is still to do, blue is done.
+ */
+export const TOOTH_RECORD_STATUSES = ['CONDITION', 'PLANNED', 'COMPLETED', 'EXISTING'] as const
+export type ToothRecordStatus = (typeof TOOTH_RECORD_STATUSES)[number]
+
+/**
+ * The five surfaces a filling or a lesion is charted on. O and I are the same face — occlusal on
+ * a back tooth, incisal on a front one — and B and L stand for facial and palatal as well.
+ */
+export const TOOTH_SURFACES = ['M', 'D', 'O', 'I', 'B', 'L'] as const
+export type ToothSurface = (typeof TOOTH_SURFACES)[number]
+
+/** Which set of teeth the chart shows. MIXED is a child between about six and twelve. */
+export const DENTITIONS = ['PERMANENT', 'PRIMARY', 'MIXED'] as const
+export type Dentition = (typeof DENTITIONS)[number]
+
+/** How a treatment is drawn. The catalogue names it; the symbol decides the picture. */
+export const DENTAL_SYMBOLS = [
+  'CROWN',
+  'ROOT_CANAL',
+  'FILLING',
+  'IMPLANT',
+  'EXTRACTION',
+  'MISSING',
+  'BRIDGE',
+  'DENTURE',
+  'VENEER',
+  'SEALANT',
+  'CARIES',
+  'FRACTURE',
+  'IMPACTED',
+  'OTHER',
+] as const
+export type DentalSymbol = (typeof DENTAL_SYMBOLS)[number]
+
+/** What a treatment is charted against: a whole tooth, some of its surfaces, a run of teeth, a jaw. */
+export const DENTAL_SCOPES = ['TOOTH', 'SURFACE', 'SPAN', 'ARCH'] as const
+export type DentalScope = (typeof DENTAL_SCOPES)[number]
+
+/** A tooth's part in work that spans several: the bridge's supports, the tooth it replaces. */
+export const TOOTH_ROLES = ['ABUTMENT', 'PONTIC', 'DENTURE_TOOTH'] as const
+export type ToothRole = (typeof TOOTH_ROLES)[number]
+
 /** How long the presigned URLs live (section 12.1): long enough to upload, short enough to leak. */
 export const UPLOAD_URL_SECONDS = 300
 export const DOWNLOAD_URL_SECONDS = 60
