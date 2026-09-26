@@ -594,6 +594,10 @@ export function createJawEngine(
   let active = true
   let badges: ReadonlyMap<string, HTMLElement> = new Map()
   let missingKey = ''
+  let dirty = true
+  const invalidate = () => {
+    dirty = true
+  }
 
   function applyMaterials() {
     for (const slot of slots.values()) {
@@ -677,6 +681,7 @@ export function createJawEngine(
     composer.setSize(width, height)
     camera.aspect = width / height
     camera.updateProjectionMatrix()
+    dirty = true
   }
   resize()
   const observer = new ResizeObserver(resize)
@@ -713,7 +718,10 @@ export function createJawEngine(
   const onMove = (event: PointerEvent) => {
     if (down) return
     const fdi = pick(event)
-    if (fdi !== hovered) hovered = fdi
+    if (fdi !== hovered) {
+      hovered = fdi
+      dirty = true
+    }
     const rect = container.getBoundingClientRect()
     callbacks.onHover(
       fdi,
@@ -722,6 +730,7 @@ export function createJawEngine(
     renderer.domElement.style.cursor = fdi ? 'pointer' : 'grab'
   }
   const onLeave = () => {
+    if (hovered) dirty = true
     hovered = null
     callbacks.onHover(null, null)
   }
@@ -735,13 +744,21 @@ export function createJawEngine(
   const outward = new THREE.Vector3()
   const toCamera = new THREE.Vector3()
   let frame = 0
+  // A still jaw is not redrawn. Ambient occlusion on a software renderer costs a whole frame, and
+  // drawing it sixty times a second for nothing starves the page it sits on — forms stop
+  // answering clicks. Something has to change (a drag, the damping settling after one, the mouth
+  // opening, the "changed today" pulse, a setter, a resize) before the next frame is drawn.
   function loop(now: number) {
     frame = requestAnimationFrame(loop)
     if (!active) return
-    open += (openTarget - open) * 0.12
+    const moving = controls.update()
+    const opening = Math.abs(openTarget - open) > 0.01
+    const pulsing = now < highlightUntil + 200
+    if (!dirty && !moving && !opening && !pulsing) return
+    dirty = false
+    open = opening ? open + (openTarget - open) * 0.12 : openTarget
     upperJaw.position.y = open / 2
     lowerJaw.position.y = -open / 2
-    controls.update()
     glow(now)
     composer.render()
 
@@ -790,17 +807,21 @@ export function createJawEngine(
         buildGums(true)
         buildGums(false)
       } else applyMaterials()
+      invalidate()
     },
     setSelected(fdi) {
       selected = fdi
+      invalidate()
     },
     setHighlight(fdis) {
       highlight = new Set(fdis)
       highlightUntil = performance.now() + 6000
+      invalidate()
     },
     setXray(on) {
       xray = on
       applyMaterials()
+      invalidate()
     },
     setOpen(on) {
       openTarget = on ? 12 : 0
@@ -817,13 +838,16 @@ export function createJawEngine(
       camera.position.set(place[0]!, place[1]!, place[2]!)
       controls.target.set(0, 0, 0)
       controls.update()
+      invalidate()
     },
     setActive(value) {
       active = value
       if (value) resize()
+      invalidate()
     },
     setBadges(elements) {
       badges = elements
+      invalidate()
     },
     dispose() {
       cancelAnimationFrame(frame)
