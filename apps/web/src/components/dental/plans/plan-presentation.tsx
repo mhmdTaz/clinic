@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import { CheckCircle2, X } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { DentalChart, PresignedUpload, StoredFile, TreatmentPlan } from '@clinic/contracts'
@@ -53,9 +52,13 @@ export function PlanPresentation({
   chart: DentalChart
   patient: { id: string; name: string }
   locale: string
+  /**
+   * Where Close and Done go. A full load, not a client transition: the patient page must show the
+   * plan as it now stands, not the copy the router kept from before it was signed.
+   */
   closeHref: string
 }) {
-  const t = useTranslations('dental.plans.present')
+  const t = useTranslations('dental.plans.presentation')
   const tDental = useTranslations('dental')
   const errorMessage = useErrorMessage()
   const fieldId = useId()
@@ -228,10 +231,10 @@ export function PlanPresentation({
             {tDental('view2d')}
           </Button>
         </div>
-        <Link href={closeHref} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+        <a href={closeHref} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
           <X aria-hidden="true" className="size-5" />
           {t('close')}
-        </Link>
+        </a>
       </header>
 
       <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
@@ -430,23 +433,17 @@ export function PlanPresentation({
             </section>
           ) : null}
 
-          {step === 'agreed' ? (
-            <Alert tone="success" className="flex flex-col gap-2">
-              <span className="font-medium">
-                {t('agreedBy', { name: plan.decision?.signedBy ?? '' })}
-              </span>
-              <Link href={closeHref} className={buttonVariants({ size: 'sm' })}>
+          {step === 'agreed' || step === 'declined' ? (
+            <div className="flex flex-col gap-3">
+              <Alert tone={step === 'agreed' ? 'success' : 'info'}>
+                {step === 'agreed'
+                  ? t('agreedBy', { name: plan.decision?.signedBy ?? '' })
+                  : t('declinedNote')}
+              </Alert>
+              <a href={closeHref} className={buttonVariants({ size: 'lg' })}>
                 {t('done')}
-              </Link>
-            </Alert>
-          ) : null}
-          {step === 'declined' ? (
-            <Alert tone="info" className="flex flex-col gap-2">
-              <span>{t('declinedNote')}</span>
-              <Link href={closeHref} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-                {t('done')}
-              </Link>
-            </Alert>
+              </a>
+            </div>
           ) : null}
         </aside>
       </div>

@@ -5,7 +5,7 @@ import { requirePortal } from '@/lib/auth/server-session'
 import type { RouteParams } from '@/lib/server/page-helpers'
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: (await getTranslations('dental.plans.present'))('pageTitle') }
+  return { title: (await getTranslations('dental.plans.presentation'))('pageTitle') }
 }
 
 export default async function PresentPlanPage({

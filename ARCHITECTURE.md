@@ -3417,8 +3417,16 @@ came back, and bills the work at the price that was agreed.
 missing price, a phase that does not exist, a row twice, and work that is not open; accepts it;
 follows a completion and a voided completion; bills the done item at 400.00 after a 20.00 discount
 and refuses the second attempt; refuses a second agreed plan for the same crown; and lists the
-agreed plan on recall for the front desk but not for a dentist. A Playwright journey covers drawing
-up, presenting, signing, completing and billing, recall and print.
+agreed plan on recall for the front desk but not for a dentist. Three Playwright journeys draw up a
+plan, present it, sign it on the canvas, complete the work on the chart and bill it once; find the
+seeded plan on recall and print it; and show a dentist the plans without a billing button. The full
+suite ran 95 of 95 green. In the browser: the plans card, presentation mode with the 3D jaw, and the
+print page with letterhead and flat chart were looked at; the print media styles were not.
+
+**Found along the way:** the presentation's messages were first put under `dental.plans.present`,
+which is also the Present button's label — the button showed the key. And leaving presentation mode
+by a client-side link showed the patient page from the router's cache, with the just-signed plan
+still a draft; Close and Done now load the page.
 
 **Not done, and stated plainly:**
 
