@@ -13,6 +13,7 @@ import { Alert, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle
 import { PageHeader } from '@/components/portal/page-header'
 import { AddendumForm } from '@/components/clinical/addendum-form'
 import { ChartBanner } from '@/components/clinical/chart-banner'
+import { DentalChartCard } from '@/components/dental/dental-chart-card'
 import { DiagnosisEditor } from '@/components/clinical/diagnosis-editor'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { NoteEditor } from '@/components/clinical/note-editor'
@@ -127,6 +128,18 @@ export default async function EncounterWorkspacePage({
           patientId={patient.id}
           banner={{ allergies: patient.allergies, chronicConditions: patient.chronicConditions }}
           canEdit={holds(actor, 'patient:update')}
+        />
+      ) : null}
+
+      {patient ? (
+        <DentalChartCard
+          actor={actor}
+          patientId={patient.id}
+          clinic={clinic}
+          locale={locale}
+          visits={[encounter]}
+          visitId={encounter.id}
+          editable={patient.isActive}
         />
       ) : null}
 

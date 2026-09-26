@@ -135,7 +135,31 @@
     "RANGE_INVERTED": "The start of the range is after its end.",
     "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once.",
     "INVALID_ICD10_CODE": "That is not an ICD-10 code.",
-    "INVALID_MEASUREMENT": "Use a number, with at most one decimal place."
+    "INVALID_MEASUREMENT": "Use a number, with at most one decimal place.",
+    "INVALID_TOOTH": "This is not a tooth number.",
+    "NOT_IN_DENTITION": "This tooth is not part of the patient’s chart. Change the dentition first.",
+    "ONE_TOOTH_ONLY": "This treatment is charted on one tooth at a time.",
+    "ROLE_NOT_ALLOWED": "Only a bridge or a denture gives teeth a role.",
+    "NOT_A_SPAN": "A bridge runs over neighbouring teeth in one jaw.",
+    "NEEDS_ABUTMENT": "A bridge needs at least one supporting tooth.",
+    "NEEDS_PONTIC": "A bridge needs a tooth it replaces.",
+    "SPAN_ROLES": "Every tooth of a bridge supports it or is replaced by it.",
+    "ONE_JAW_ONLY": "A denture belongs to one jaw.",
+    "ARCH_ROLES": "Every tooth of a denture is a denture tooth.",
+    "NOT_ALLOWED": "This does not apply here.",
+    "NO_OCCLUSAL_ON_FRONT_TOOTH": "A front tooth has an incisal edge (I), not an occlusal surface.",
+    "NO_INCISAL_ON_BACK_TOOTH": "A back tooth has an occlusal surface (O), not an incisal edge.",
+    "FINDING_IS_A_CONDITION": "A finding is recorded as a condition.",
+    "MISSING_IS_FOUND": "A missing tooth is either found missing or already known to be.",
+    "WORK_IS_NOT_A_CONDITION": "Treatment is planned, done here, or already existing — not a condition.",
+    "IN_THE_FUTURE": "The date cannot be in the future.",
+    "BEFORE_THE_PLAN": "Work cannot be done before it was planned.",
+    "NOT_THIS_PATIENTS_VISIT": "That visit belongs to another patient.",
+    "RETIRED": "This is no longer offered.",
+    "TREATMENT_UNAVAILABLE": "A treatment in this preset is no longer available.",
+    "FIXED": "This cannot be changed once the treatment exists.",
+    "INVALID_CODE": "Use capital letters, digits and underscores only.",
+    "TAKEN": "This is already in use."
   },
   "auth": {
     "login": {
@@ -249,7 +273,11 @@
     "UPLOAD_ALREADY_CONFIRMED": "That upload was already confirmed.",
     "UPLOAD_REJECTED": "That file is not the kind of file it was uploaded as.",
     "UPLOAD_FAILED": "The upload did not finish. Check your connection and try again.",
-    "FILE_NOT_AVAILABLE": "That file is not available to download."
+    "FILE_NOT_AVAILABLE": "That file is not available to download.",
+    "ALREADY_COMPLETED": "This planned work has already been done.",
+    "NOT_PLANNED": "Only planned work can be marked as done.",
+    "RECORD_VOIDED": "This record has been voided.",
+    "CODE_TAKEN": "Another treatment already uses this code."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -1914,6 +1942,163 @@
       "SUCCESS": "Succeeded",
       "FAILURE": "Failed",
       "DENIED": "Refused"
+    }
+  },
+  "dental": {
+    "title": "Tooth chart",
+    "view3d": "3D",
+    "view2d": "2D",
+    "viewLabel": "Chart view",
+    "noWebgl": "This device cannot show the 3D view. The 2D chart has everything the 3D view shows.",
+    "mixedIs2d": "A mixed dentition is shown on the 2D chart.",
+    "jawLabel": "3D model of the patient’s teeth",
+    "chartLabel": "Tooth chart, FDI numbering",
+    "hint": "Drag to rotate, scroll to zoom, click a tooth",
+    "sculpting": "Preparing the 3D teeth… {done} of {total}",
+    "views": {
+      "front": "Front",
+      "right": "Right side",
+      "upper": "Upper arch",
+      "lower": "Lower arch"
+    },
+    "openMouth": "Open mouth",
+    "closeMouth": "Close mouth",
+    "xray": "X-ray",
+    "normalView": "Normal view",
+    "legend": {
+      "done": "Done",
+      "todo": "To do"
+    },
+    "filters": {
+      "label": "Show",
+      "all": "Everything",
+      "todo": "To do only",
+      "done": "Done only",
+      "lastCharted": "Last charting day"
+    },
+    "dentition": {
+      "label": "Dentition",
+      "PERMANENT": "Adult",
+      "MIXED": "Mixed (child)",
+      "PRIMARY": "Baby teeth"
+    },
+    "sides": {
+      "right": "Patient’s right",
+      "left": "Patient’s left"
+    },
+    "jaws": {
+      "upper": "Upper jaw",
+      "lower": "Lower jaw"
+    },
+    "lastCharted": "Last charted on {date}: {teeth}",
+    "nothingYet": "Nothing has been charted for this patient yet.",
+    "replay": {
+      "label": "Chart as of {date}",
+      "today": "today",
+      "showing": "Showing the chart as it was at the end of {date}. Nothing can be charted while you look back.",
+      "backToToday": "Back to today"
+    },
+    "tooth": "Tooth {fdi} · {place} {name}",
+    "quadrants": {
+      "1": "upper right",
+      "2": "upper left",
+      "3": "lower left",
+      "4": "lower right"
+    },
+    "names": {
+      "1": "central incisor",
+      "2": "lateral incisor",
+      "3": "canine",
+      "4": "first premolar",
+      "5": "second premolar",
+      "6": "first molar",
+      "7": "second molar",
+      "8": "third molar"
+    },
+    "primaryNames": {
+      "1": "central incisor (baby)",
+      "2": "lateral incisor (baby)",
+      "3": "canine (baby)",
+      "4": "first molar (baby)",
+      "5": "second molar (baby)"
+    },
+    "symbols": {
+      "CROWN": "Crown",
+      "ROOT_CANAL": "Root canal",
+      "FILLING": "Filling",
+      "IMPLANT": "Implant",
+      "EXTRACTION": "Extraction",
+      "MISSING": "Missing",
+      "BRIDGE": "Bridge",
+      "DENTURE": "Denture",
+      "VENEER": "Veneer",
+      "SEALANT": "Sealant",
+      "CARIES": "Caries",
+      "FRACTURE": "Fracture",
+      "IMPACTED": "Impacted",
+      "OTHER": "Other"
+    },
+    "statuses": {
+      "CONDITION": "Found",
+      "PLANNED": "Planned",
+      "COMPLETED": "Done",
+      "EXISTING": "Already there"
+    },
+    "surfaces": {
+      "M": "Mesial",
+      "D": "Distal",
+      "O": "Occlusal",
+      "I": "Incisal",
+      "B": "Buccal / facial",
+      "L": "Lingual / palatal"
+    },
+    "roles": {
+      "ABUTMENT": "Supports the bridge",
+      "PONTIC": "Replaced by the bridge",
+      "DENTURE_TOOTH": "Denture tooth"
+    },
+    "panel": {
+      "pick": "Click a tooth to see everything done to it.",
+      "present": "In the mouth",
+      "absent": "Not in the mouth",
+      "quickPicks": "Quick-picks",
+      "add": "Chart something on this tooth",
+      "history": "History",
+      "showVoided": "Show voided",
+      "empty": "Nothing charted on this tooth yet.",
+      "more": "Show older",
+      "carriedOut": "Carried out",
+      "voided": "Voided",
+      "voidedBecause": "Voided: {reason}",
+      "aVisit": "a visit",
+      "chartedBy": "charted by {name}",
+      "markDone": "Mark as done",
+      "void": "Void"
+    },
+    "void": {
+      "title": "Void this record?",
+      "body": "It stays on the record, marked as voided, with your name and the reason. Use this for a mistake; it cannot be undone.",
+      "reason": "Why is it being voided?",
+      "reasonRequired": "Say why it is being voided.",
+      "confirm": "Void record"
+    },
+    "form": {
+      "treatment": "What",
+      "findings": "Findings",
+      "work": "Treatment",
+      "status": "Status",
+      "surfaces": "Surfaces",
+      "spanTo": "Bridge to tooth",
+      "choose": "Choose…",
+      "roleFor": "Role of tooth {tooth}",
+      "dentureTeeth": "Teeth the denture replaces",
+      "visit": "Visit",
+      "noVisit": "Not tied to a visit",
+      "date": "Date",
+      "notes": "Notes",
+      "notesPlaceholder": "What was done, materials, shade, anything the next visit should know",
+      "save": "Save to the chart",
+      "cancel": "Cancel"
     }
   }
 }
