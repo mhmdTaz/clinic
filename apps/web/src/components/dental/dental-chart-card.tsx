@@ -2,7 +2,12 @@ import { getTranslations } from 'next-intl/server'
 import { resolveFeatureFlags, type FeatureFlags } from '@clinic/config'
 import { localDateIn } from '@clinic/contracts'
 import { holds, type Actor } from '@clinic/core/access'
-import { getDentalChart, listQuickPicks, listTreatments } from '@clinic/core/dental'
+import {
+  getDentalChart,
+  listQuickPicks,
+  listTreatments,
+  openLabOrdersFor,
+} from '@clinic/core/dental'
 import { Card, CardContent, CardHeader, CardTitle } from '@clinic/ui'
 import { formatInstant } from '@/lib/format/dates'
 import { DentalChart } from './dental-chart'
@@ -36,10 +41,11 @@ export async function DentalChartCard({
   const flags = resolveFeatureFlags(clinic.featureFlags as Partial<FeatureFlags>)
   if (!flags.dental || !holds(actor, 'dental:read')) return null
 
-  const [chart, treatments, quickPicks, t] = await Promise.all([
+  const [chart, treatments, quickPicks, labOrders, t] = await Promise.all([
     getDentalChart(actor, patientId),
     listTreatments(actor),
     listQuickPicks(actor),
+    flags.labOrders ? openLabOrdersFor(actor, patientId) : [],
     getTranslations('dental'),
   ])
 
@@ -67,6 +73,8 @@ export async function DentalChartCard({
           defaultVisitId={visitId ?? todays?.id ?? null}
           today={today}
           canWrite={editable && holds(actor, 'dental:write')}
+          labOrders={labOrders}
+          voice={flags.dentalVoice}
           files={{
             canRead: holds(actor, 'file:read'),
             canUpload: editable && holds(actor, 'file:upload'),

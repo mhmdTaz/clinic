@@ -9,6 +9,7 @@ export const NAV_ICONS = [
   'chart-line',
   'clipboard-list',
   'contact',
+  'flask-conical',
   'folder',
   'heart-pulse',
   'key-round',
@@ -175,6 +176,15 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           permission: 'dental:read',
           minScope: 'CLINIC',
           flag: 'dental',
+        },
+        {
+          id: 'staff.dentalLab',
+          labelKey: 'nav.items.dentalLab',
+          href: '/staff/dental/lab',
+          icon: 'flask-conical',
+          permission: 'dental:read',
+          minScope: 'CLINIC',
+          flag: 'labOrders',
         },
         {
           id: 'staff.doctors',

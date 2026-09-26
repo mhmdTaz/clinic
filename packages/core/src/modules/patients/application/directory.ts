@@ -129,6 +129,7 @@ export interface PatientDentalFacts {
   id: string
   userId: string | null
   name: string
+  medicalRecordNo: string
   dentition: Dentition
   isActive: boolean
 }

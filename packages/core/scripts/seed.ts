@@ -29,6 +29,7 @@ import {
   ServiceModel,
   SpecialtyModel,
   SupplierModel,
+  LabOrderModel,
   ToothRecordModel,
   TreatmentPlanModel,
   UserModel,
@@ -195,6 +196,7 @@ async function seedClinic(
         isActive: true,
         // The demo is a dental practice's: the tooth chart is on (Phase 11).
         'featureFlags.dental': true,
+        'featureFlags.labOrders': true,
       },
       $setOnInsert: { permissionVersion: 1, branches: [], holidays: [] },
     },
@@ -907,7 +909,59 @@ async function seedDentalChart(
     })
   }
   await seedTreatmentPlan(clinicId, patient._id, today)
+  await seedLabOrder(clinicId, patient, today)
   return rows.length
+}
+
+/**
+ * The planned crown on 16 at a lab (Phase 13): sent five days ago, due in two, so the tooth
+ * drawer and the lab board have something on them.
+ */
+async function seedLabOrder(
+  clinicId: string,
+  patient: { _id: string; firstName: string; lastName: string; medicalRecordNo: string },
+  today: string,
+) {
+  const crown = await ToothRecordModel()
+    .findOne({
+      clinicId,
+      patientId: patient._id,
+      status: 'PLANNED',
+      'treatment.symbol': 'CROWN',
+      voidedAt: null,
+    })
+    .setOptions({ skipAudit: true })
+    .lean()
+  if (!crown?.treatment) return
+  const sentOn = daysAgo(today, 5)
+  const dueOn = daysAgo(today, -2)
+  await LabOrderModel().create({
+    _id: newId(),
+    clinicId,
+    patientId: patient._id,
+    patient: {
+      name: `${patient.firstName} ${patient.lastName}`,
+      medicalRecordNo: patient.medicalRecordNo,
+    },
+    toothRecordIds: [crown._id],
+    teeth: crown.teeth.map((tooth) => tooth.fdi),
+    work: [{ name: crown.treatment.name, symbol: crown.treatment.symbol }],
+    labName: 'Beirut Dental Lab',
+    sentOn,
+    dueOn,
+    status: 'SENT',
+    notes: 'PFM, shade A3. Opposing model enclosed.',
+    history: [
+      {
+        status: 'SENT',
+        at: new Date(`${sentOn}T12:00:00+03:00`),
+        by: SEEDED_BY,
+        note: null,
+        dueOn,
+      },
+    ],
+    createdBy: SEEDED_BY,
+  })
 }
 
 /**

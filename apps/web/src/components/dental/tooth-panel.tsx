@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FlaskConical } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import {
   AddToothRecordRequest,
@@ -8,6 +9,7 @@ import {
   issuePath,
   type DentalSymbol,
   type DentalTreatment,
+  type LabOrder,
   type QuickPick,
   type ToothRecord,
   type ToothRecordStatus,
@@ -34,6 +36,7 @@ import {
   cn,
 } from '@clinic/ui'
 import { ApiError, apiFetch } from '@/lib/api/client'
+import type { VoiceDraft } from '@/lib/dental/voice'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
 import { SymbolIcon } from './symbol-icon'
 import { ToothPictures } from './tooth-pictures'
@@ -83,6 +86,8 @@ export function ToothPanel({
   canWrite,
   files,
   onChanged,
+  labOrders = [],
+  draft = null,
 }: {
   patientId: string
   tooth: ToothState
@@ -98,6 +103,10 @@ export function ToothPanel({
   /** What the caller may do with documents: the pictures section follows file permissions. */
   files: { canRead: boolean; canUpload: boolean }
   onChanged: () => void
+  /** Open lab work naming this tooth (Phase 13). */
+  labOrders?: readonly LabOrder[]
+  /** What was said, when the tooth was charted by voice: opens the form filled in, unsaved. */
+  draft?: VoiceDraft | null
 }) {
   const t = useTranslations('dental')
   const errorMessage = useErrorMessage()
@@ -109,7 +118,7 @@ export function ToothPanel({
   const [cursor, setCursor] = useState<string | null>(null)
   const [showVoided, setShowVoided] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(Boolean(draft) && canWrite)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [voiding, setVoiding] = useState<ToothRecord | null>(null)
@@ -143,9 +152,10 @@ export function ToothPanel({
     [patientId, tooth.fdi, showVoided],
   )
 
+  // The form is left as it is: the panel is remounted for each tooth, and closing it here — on
+  // mount — threw away a voice draft the moment it opened.
   useEffect(() => {
     setRecords(null)
-    setAdding(false)
     setActionError(null)
     void load(null)
   }, [load])
@@ -204,6 +214,27 @@ export function ToothPanel({
         </p>
       </div>
 
+      {labOrders.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" aria-label={t('lab.onThisTooth')}>
+          {labOrders.map((order) => (
+            <li key={order.id}>
+              <Badge
+                tone={
+                  order.overdue ? 'danger' : order.status === 'RECEIVED' ? 'success' : 'warning'
+                }
+              >
+                <FlaskConical aria-hidden="true" className="size-3" />
+                {order.status === 'RECEIVED'
+                  ? t('lab.chipBack', { lab: order.labName })
+                  : order.overdue
+                    ? t('lab.chipLate', { lab: order.labName, date: order.dueOn })
+                    : t('lab.chipAway', { lab: order.labName, date: order.dueOn })}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {actionError ? <Alert tone="danger">{actionError}</Alert> : null}
 
       {canWrite ? (
@@ -224,8 +255,17 @@ export function ToothPanel({
               ))}
             </div>
           ) : null}
+          {adding && draft ? (
+            <Alert tone="info">
+              {t('voice.heard', { heard: draft.transcript })}
+              {draft.alternatives.length > 0
+                ? ` ${t('voice.alternatives', { names: draft.alternatives.join(', ') })}`
+                : ''}
+            </Alert>
+          ) : null}
           {adding ? (
             <AddRecordForm
+              initial={draft}
               patientId={patientId}
               tooth={tooth.fdi}
               sameJaw={sameJaw}
@@ -463,6 +503,7 @@ function AddRecordForm({
   today,
   onCancel,
   onSaved,
+  initial = null,
 }: {
   patientId: string
   tooth: string
@@ -474,17 +515,27 @@ function AddRecordForm({
   today: string
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** A voice draft to start from; the person saving it is the one who charts it. */
+  initial?: VoiceDraft | null
 }) {
   const t = useTranslations('dental')
   const errorMessage = useErrorMessage()
   const validationMessage = useValidationMessage()
   const active = treatments.filter((treatment) => treatment.isActive)
-  const [treatmentId, setTreatmentId] = useState(active[0]?.id ?? '')
-  const treatment = active.find((item) => item.id === treatmentId) ?? null
-  const [status, setStatus] = useState<ToothRecordStatus>(
-    treatment ? statusesFor(treatment.symbol)[0]! : 'COMPLETED',
+  const [treatmentId, setTreatmentId] = useState(
+    initial && active.some((item) => item.id === initial.treatmentId)
+      ? initial.treatmentId
+      : (active[0]?.id ?? ''),
   )
-  const [surfaces, setSurfaces] = useState<ToothSurface[]>([])
+  const treatment = active.find((item) => item.id === treatmentId) ?? null
+  const [status, setStatus] = useState<ToothRecordStatus>(() => {
+    const allowed = treatment
+      ? statusesFor(treatment.symbol)
+      : (['COMPLETED'] as ToothRecordStatus[])
+    // A status the treatment cannot have ("a filling found") falls back to its first.
+    return initial?.status && allowed.includes(initial.status) ? initial.status : allowed[0]!
+  })
+  const [surfaces, setSurfaces] = useState<ToothSurface[]>(initial ? [...initial.surfaces] : [])
   const [spanTo, setSpanTo] = useState<string>('')
   const [roles, setRoles] = useState<Record<string, ToothRole>>({})
   const [archTeeth, setArchTeeth] = useState<string[]>([tooth])

@@ -200,6 +200,13 @@ export const TREATMENT_PLAN_STATUSES = [
 ] as const
 export type TreatmentPlanStatus = (typeof TREATMENT_PLAN_STATUSES)[number]
 
+/**
+ * Lab work's round trip (Phase 13): sent to the lab, back in the clinic, fitted in the mouth. A
+ * piece that does not fit goes back as a REMAKE, with a new date, and comes back again.
+ */
+export const LAB_ORDER_STATUSES = ['SENT', 'RECEIVED', 'FITTED', 'REMAKE', 'CANCELLED'] as const
+export type LabOrderStatus = (typeof LAB_ORDER_STATUSES)[number]
+
 /** How long the presigned URLs live (section 12.1): long enough to upload, short enough to leak. */
 export const UPLOAD_URL_SECONDS = 300
 export const DOWNLOAD_URL_SECONDS = 60
@@ -272,6 +279,8 @@ export const NOTIFICATION_TYPES = [
   'STOCK_LOW',
   /** The audit chain failed verification. A tamper alert, and it cannot be switched off. */
   'AUDIT_CHAIN_BROKEN',
+  /** Tomorrow's patient is coming for lab work the lab has not sent back (Phase 13). */
+  'LAB_WORK_LATE',
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

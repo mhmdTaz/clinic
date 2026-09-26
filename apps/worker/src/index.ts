@@ -4,6 +4,7 @@ import { isEventName, type OutboxEnvelope } from '@clinic/events'
 import { bootstrapServer, connect, disconnect, flushAudit } from '@clinic/core/server'
 import { outboxRepository, watchOutbox, type OutboxWatcher } from '@clinic/core/outbox'
 import { handlerFor } from './handlers'
+import { sweepLabReminders } from './jobs/lab-reminders'
 import { sweepReminders } from './jobs/reminders'
 import { verifyAuditChainNightly } from './jobs/verify-chain'
 import { closeQueues, queue, schedule, startWorker } from './queues'
@@ -109,6 +110,13 @@ async function main(): Promise<void> {
       }
     }
 
+    if (job.name === 'lab-reminders') {
+      const result = await sweepLabReminders()
+      if (result.sent > 0) {
+        console.warn(`[worker] lab work: ${result.sent} late-work notice(s) sent`)
+      }
+    }
+
     if (job.name === 'appointment-reminders') {
       const result = await sweepReminders()
       if (result.sent > 0) {
@@ -133,9 +141,11 @@ async function main(): Promise<void> {
 
   await schedule('maintenance', 'outbox-backstop', BACKSTOP_EVERY_MS)
   await schedule('maintenance', 'appointment-reminders', REMINDER_EVERY_MS)
+  // The same tick and window as the appointment reminders: it reads the same diary.
+  await schedule('maintenance', 'lab-reminders', REMINDER_EVERY_MS)
   await schedule('maintenance', 'verify-audit-chain', CHAIN_VERIFY_EVERY_MS)
 
-  console.warn('[worker] relay, backstop, reminder sweep and chain verifier are running')
+  console.warn('[worker] relay, backstop, reminder sweeps and chain verifier are running')
 }
 
 async function shutdown(): Promise<void> {
