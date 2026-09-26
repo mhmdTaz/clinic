@@ -210,8 +210,24 @@ const INCISAL = new THREE.Color(0xc4cdd6)
 const CERVICAL = new THREE.Color(0xe0c89a)
 const ROOT = new THREE.Color(0xd4b987)
 
-/** One tooth, meshed. `crownOnly` cuts it at the neck: what a crown or an implant's crown is. */
-function build(spec: ToothSpec, crownOnly: boolean): THREE.BufferGeometry {
+/** A mesh as plain arrays: what a worker can hand back without copying. */
+export interface MeshArrays {
+  positions: Float32Array
+  normals: Float32Array
+  colors: Float32Array
+}
+
+/**
+ * One tooth, meshed. `crownOnly` cuts it at the neck: what a crown or an implant's crown is.
+ * Plain arrays and no DOM, so it runs in a worker as well as on the page.
+ */
+export function meshArrays(
+  upper: boolean,
+  primary: boolean,
+  position: number,
+  crownOnly: boolean,
+): MeshArrays {
+  const spec = specOf(upper, primary, position)
   cubes ??= new MarchingCubes(RES, new THREE.MeshBasicMaterial(), false, false, 150000)
   const mc = cubes
   mc.isolation = 0
@@ -272,6 +288,10 @@ function build(spec: ToothSpec, crownOnly: boolean): THREE.BufferGeometry {
     colors[v * 3 + 1] = tmp.g
     colors[v * 3 + 2] = tmp.b
   }
+  return { positions, normals, colors }
+}
+
+function toGeometry({ positions, normals, colors }: MeshArrays): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
@@ -294,7 +314,7 @@ export function toothGeometry(
   const key = keyOf(upper, primary, position, crownOnly)
   let geometry = cache.get(key)
   if (!geometry) {
-    geometry = build(specOf(upper, primary, position), crownOnly)
+    geometry = toGeometry(meshArrays(upper, primary, position, crownOnly))
     cache.set(key, geometry)
   }
   return geometry
@@ -302,22 +322,72 @@ export function toothGeometry(
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
+type Job = [upper: boolean, position: number, crownOnly: boolean]
+
 /**
- * Builds every mesh a dentition needs, one per frame, reporting progress. Built meshes are kept
- * for the life of the page, so switching back to the 3D view is instant.
+ * Sculpts on a worker thread. A tooth takes tens of milliseconds on a fast machine and several
+ * hundred on a slow one; on the page's own thread that is a page that stops answering clicks
+ * while the 3D view gets ready. Null when a worker cannot be started, and the caller falls back.
+ */
+async function sculptOnWorker(
+  primary: boolean,
+  jobs: readonly Job[],
+  onEach: () => void,
+): Promise<boolean> {
+  let worker: Worker
+  try {
+    worker = new Worker(new URL('./tooth-geometry.worker.ts', import.meta.url))
+  } catch {
+    return false
+  }
+  try {
+    for (const [upper, position, crownOnly] of jobs) {
+      const arrays = await new Promise<MeshArrays>((resolve, reject) => {
+        worker.onmessage = (event: MessageEvent<MeshArrays>) => resolve(event.data)
+        worker.onerror = (event) => reject(new Error(event.message))
+        worker.postMessage({ upper, primary, position, crownOnly })
+      })
+      cache.set(keyOf(upper, primary, position, crownOnly), toGeometry(arrays))
+      onEach()
+    }
+    return true
+  } catch {
+    return false
+  } finally {
+    worker.terminate()
+  }
+}
+
+/**
+ * Builds every mesh a dentition needs, reporting progress — on a worker when the browser allows
+ * one, otherwise one tooth per frame on the page. Built meshes are kept for the life of the page,
+ * so switching back to the 3D view is instant.
  */
 export async function prepareGeometry(
   primary: boolean,
   onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const positions = primary ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6, 7, 8]
-  const work: Array<[boolean, number, boolean]> = []
+  const work: Job[] = []
   for (const upper of [true, false]) {
     for (const position of positions) {
       work.push([upper, position, false], [upper, position, true])
     }
   }
-  let done = 0
+  let done = work.filter(([upper, position, crownOnly]) =>
+    cache.has(keyOf(upper, primary, position, crownOnly)),
+  ).length
+  onProgress?.(done, work.length)
+  const missing = work.filter(
+    ([upper, position, crownOnly]) => !cache.has(keyOf(upper, primary, position, crownOnly)),
+  )
+  const onWorker = await sculptOnWorker(primary, missing, () => {
+    done += 1
+    onProgress?.(done, work.length)
+  })
+  if (onWorker) return
+
+  done = 0
   for (const [upper, position, crownOnly] of work) {
     if (!cache.has(keyOf(upper, primary, position, crownOnly))) {
       toothGeometry(upper, primary, position, crownOnly)
