@@ -15,6 +15,7 @@ const { installPrescriptionScopeResolvers } = await import('../src/modules/presc
 const { installFileScopeResolvers } = await import('../src/modules/files')
 const { installBillingScopeResolvers } = await import('../src/modules/billing')
 const { installTicketScopeResolvers } = await import('../src/modules/support')
+const { installDentalScopeResolvers } = await import('../src/modules/dental')
 const { provideCareRelationship } = await import('../src/modules/access')
 const { rateLimiter } = await import('../src/modules/identity/infrastructure/rate-limiter')
 
@@ -32,6 +33,7 @@ beforeAll(async () => {
   installFileScopeResolvers()
   installBillingScopeResolvers()
   installTicketScopeResolvers()
+  installDentalScopeResolvers()
   provideCareRelationship(careRelationshipFromEncounters)
 })
 

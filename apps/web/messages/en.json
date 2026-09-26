@@ -1175,6 +1175,7 @@
     "doctors": "Doctors",
     "scheduling": "Scheduling",
     "clinical": "Clinical records",
+    "dental": "Dental chart",
     "files": "Files",
     "billing": "Billing",
     "inventory": "Inventory",
@@ -1260,6 +1261,11 @@
     "prescription": {
       "read": "View prescriptions",
       "issue": "Issue prescriptions"
+    },
+    "dental": {
+      "read": "View the tooth chart",
+      "write": "Chart treatments on teeth",
+      "configure": "Manage dental treatments and quick-picks"
     },
     "file": {
       "read": "View documents",

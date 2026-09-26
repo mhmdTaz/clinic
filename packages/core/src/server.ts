@@ -4,6 +4,7 @@ import { flushAudit, installAuditCapture } from './modules/audit'
 import { installAppointmentScopeResolvers } from './modules/appointments'
 import { installBillingScopeResolvers } from './modules/billing'
 import { careRelationshipFromEncounters, installEncounterScopeResolvers } from './modules/clinical'
+import { installDentalScopeResolvers } from './modules/dental'
 import { installDoctorScopeResolvers } from './modules/doctors'
 import { installFileScopeResolvers } from './modules/files'
 import { installPatientScopeResolvers } from './modules/patients'
@@ -33,6 +34,7 @@ export function bootstrapServer(): void {
   installFileScopeResolvers()
   installBillingScopeResolvers()
   installTicketScopeResolvers()
+  installDentalScopeResolvers()
   // "Is this patient one of mine?" is asked by authorisation and answered by visits; the two
   // modules never import each other, so the composition root is where they meet (ADR-0004).
   provideCareRelationship(careRelationshipFromEncounters)

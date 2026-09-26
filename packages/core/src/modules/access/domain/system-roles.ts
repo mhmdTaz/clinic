@@ -75,6 +75,10 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
         // Staff may read clinical records but never write them (section 7.4).
         'encounter:read',
         'prescription:read',
+        // The exception, and a deliberate one: in a dental practice the front desk charts the
+        // visit on the tooth chart after the dentist dictates it (ADR-0035).
+        'dental:read',
+        'dental:write',
         'file:read',
         'file:upload',
         'invoice:read',
@@ -124,6 +128,8 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
         'encounter:sign',
         'prescription:read',
         'prescription:issue',
+        'dental:read',
+        'dental:write',
         'file:read',
         'file:upload',
       ),

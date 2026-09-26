@@ -7,7 +7,10 @@ export {
   findPatientIdForUser,
   findPatientForScheduling,
   listPatientsByIds,
+  findPatientForCharting,
+  setPatientDentition,
   type PatientSchedulingFacts,
+  type PatientDentalFacts,
 } from './application/directory'
 export {
   getChartBanner,

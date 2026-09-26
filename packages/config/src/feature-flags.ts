@@ -8,6 +8,8 @@ export const FEATURE_FLAGS = {
   inventory: true,
   support: true,
   labOrders: false,
+  // The tooth chart. Off by default: a general practice has no use for a jaw on every patient.
+  dental: false,
   onlinePayments: false,
   patientSelfRegistration: false, // ADR-0006 is still open
 } as const

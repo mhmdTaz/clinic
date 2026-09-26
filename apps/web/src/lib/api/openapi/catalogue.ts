@@ -1,12 +1,14 @@
 import { z } from 'zod'
 import {
+  AcceptInvitationRequest,
   AccountStatement,
   AccountStatementQuery,
-  AcceptInvitationRequest,
   AddendumRequest,
+  AddToothRecordRequest,
   AdjustStockRequest,
   AnalyticsOverview,
   AnalyticsQuery,
+  ApplyQuickPickRequest,
   AppointmentDetail,
   AppointmentListQuery,
   AppointmentSummary,
@@ -28,6 +30,7 @@ import {
   ClinicOverview,
   ClinicProfileInput,
   ClinicSettings,
+  CompleteToothRecordRequest,
   ConfirmUploadRequest,
   ConsumptionResult,
   CreateDoctorRequest,
@@ -37,6 +40,10 @@ import {
   DailyReconciliation,
   DailyReconciliationQuery,
   DaySlots,
+  DentalChart,
+  DentalChartQuery,
+  DentalTreatment,
+  DentalTreatmentInput,
   DoctorAvailability,
   DoctorDetail,
   DoctorListQuery,
@@ -87,6 +94,8 @@ import {
   PrescriptionListQuery,
   PresignedUpload,
   PresignUploadRequest,
+  QuickPick,
+  QuickPickInput,
   ReceiveStockRequest,
   RecordConsumptionRequest,
   RecordPaymentRequest,
@@ -101,15 +110,16 @@ import {
   ResetPasswordRequest,
   RoleDetail,
   RoleListItem,
+  Service,
   ServiceInput,
   ServiceListQuery,
-  Service,
   SessionResult,
   SessionSummary,
   SessionUser,
   SetAllergiesRequest,
   SetAvailabilityRequest,
   SetConditionsRequest,
+  SetDentitionRequest,
   SetDiagnosesRequest,
   SetHolidaysRequest,
   SetLocaleRequest,
@@ -130,6 +140,8 @@ import {
   TicketListQuery,
   TicketSummary,
   TimeOffInput,
+  ToothRecord,
+  ToothRecordListQuery,
   UpdateBookingWindowRequest,
   UpdateBranchRequest,
   UpdateDoctorRequest,
@@ -147,6 +159,7 @@ import {
   UserSummary,
   VitalsInput,
   VoidInvoiceRequest,
+  VoidToothRecordRequest,
 } from '@clinic/contracts'
 
 /**
@@ -1065,5 +1078,101 @@ export const OPERATIONS: readonly Operation[] = [
     permission: 'ticket:reply',
     body: ReplyToTicketRequest,
     description: 'An internal note is staff-only and never shown to the patient.',
+  }),
+
+  // ── The tooth chart ─────────────────────────────────────────────────────────
+  GET('/api/v1/dental/treatments', 'What can be charted on a tooth', list(DentalTreatment), {
+    permission: 'dental:read',
+    description: 'The first read in a clinic with none writes the starting list (Phase 11).',
+  }),
+  POST('/api/v1/dental/treatments', 'Add a treatment', created(DentalTreatment), {
+    permission: 'dental:configure',
+    body: DentalTreatmentInput,
+  }),
+  PUT(
+    '/api/v1/dental/treatments/{treatmentId}',
+    'Rename, reprice or retire a treatment',
+    data(DentalTreatment),
+    {
+      permission: 'dental:configure',
+      body: DentalTreatmentInput,
+      description: 'Its symbol and scope are fixed: they decide what charted rows draw.',
+    },
+  ),
+  GET('/api/v1/dental/quick-picks', 'One-tap charting presets', list(QuickPick), {
+    permission: 'dental:read',
+  }),
+  POST('/api/v1/dental/quick-picks', 'Add a preset', created(QuickPick), {
+    permission: 'dental:configure',
+    body: QuickPickInput,
+  }),
+  PUT('/api/v1/dental/quick-picks/{quickPickId}', 'Change a preset', data(QuickPick), {
+    permission: 'dental:configure',
+    body: QuickPickInput,
+  }),
+  GET(
+    '/api/v1/patients/{patientId}/dental-chart',
+    'A patient’s tooth chart, as it stands or as it stood',
+    data(DentalChart),
+    {
+      permission: 'dental:read',
+      query: DentalChartQuery,
+      description: 'Derived from the tooth records; `asOf` replays it at the end of that day.',
+    },
+  ),
+  PUT(
+    '/api/v1/patients/{patientId}/dental-chart/dentition',
+    'Set which teeth the chart draws',
+    data(DentalChart),
+    {
+      permission: 'dental:write',
+      body: SetDentitionRequest,
+    },
+  ),
+  GET(
+    '/api/v1/patients/{patientId}/tooth-records',
+    'The tooth records behind the chart, newest first',
+    page(ToothRecord),
+    {
+      permission: 'dental:read',
+      query: ToothRecordListQuery,
+    },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/tooth-records',
+    'Chart something on one or more teeth',
+    created(ToothRecord),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: AddToothRecordRequest,
+      description: 'Rows are never edited afterwards; a mistake is voided (ADR-0035).',
+    },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/quick-picks/{quickPickId}/apply',
+    'Apply a preset to teeth',
+    created(z.array(ToothRecord)),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: ApplyQuickPickRequest,
+      description: 'Every row is checked first and they are written together, or not at all.',
+    },
+  ),
+  POST(
+    '/api/v1/tooth-records/{recordId}/complete',
+    'Mark planned work as done',
+    created(ToothRecord),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: CompleteToothRecordRequest,
+      description: 'Adds a COMPLETED row that points at the plan; the plan is unchanged.',
+    },
+  ),
+  POST('/api/v1/tooth-records/{recordId}/void', 'Void a tooth record', data(ToothRecord), {
+    permission: 'dental:write',
+    body: VoidToothRecordRequest,
   }),
 ]
