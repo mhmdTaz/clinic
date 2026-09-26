@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { LogOut } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { cn } from '@clinic/ui'
+import { signOutAndLeave } from '@/components/auth/sign-out-button'
 import { NavIcon } from './nav-icon'
 import { activeHref, type ShellNavSection } from './nav-utils'
 
@@ -23,6 +26,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname()
   const t = useTranslations('shell')
+  const tCommon = useTranslations('common')
+  const [signingOut, setSigningOut] = useState(false)
   const active = activeHref(
     pathname,
     sections.flatMap((section) => section.items.map((item) => item.href)),
@@ -75,6 +80,23 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+
+      {/* Also in the account menu, but a way out should not have to be looked for. */}
+      <div className="border-border shrink-0 border-t px-2 py-3 lg:px-3">
+        <button
+          type="button"
+          title={tCommon('signOut')}
+          disabled={signingOut}
+          onClick={() => {
+            setSigningOut(true)
+            void signOutAndLeave()
+          }}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex min-h-11 w-full items-center justify-center gap-3 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-60 lg:justify-start"
+        >
+          <LogOut aria-hidden="true" className="size-5 shrink-0" />
+          <span className="sr-only lg:not-sr-only lg:truncate">{tCommon('signOut')}</span>
+        </button>
+      </div>
     </aside>
   )
 }
