@@ -16,6 +16,7 @@ export {
   setBranchWorkingHours,
   setClinicHolidays,
   updateBookingWindow,
+  setClinicFeatureFlag,
 } from './application/manage-settings'
 export {
   hasBookableBranch,

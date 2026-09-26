@@ -84,3 +84,4 @@ export {
   DentalQuickPickSchema,
   type DentalQuickPickDoc,
 } from './dental-quick-pick.model'
+export { LabOrderModel, LabOrderSchema, type LabOrderDoc } from './lab-order.model'

@@ -221,18 +221,27 @@ export const patientRepository = {
     id: string
     userId: string | null
     name: string
+    medicalRecordNo: string
     dentition: Dentition
     isActive: boolean
   } | null> {
     const doc = (await PatientModel()
       .findOne({ clinicId, _id: patientId })
-      .select({ userId: 1, firstName: 1, lastName: 1, dentition: 1, isActive: 1 })
+      .select({
+        userId: 1,
+        firstName: 1,
+        lastName: 1,
+        medicalRecordNo: 1,
+        dentition: 1,
+        isActive: 1,
+      })
       .setOptions({ skipAudit: true })
       .lean()) as unknown as {
       _id: string
       userId?: string | null
       firstName: string
       lastName: string
+      medicalRecordNo: string
       dentition?: Dentition | null
       isActive?: boolean
     } | null
@@ -241,6 +250,7 @@ export const patientRepository = {
           id: doc._id,
           userId: doc.userId ?? null,
           name: `${doc.firstName} ${doc.lastName}`,
+          medicalRecordNo: doc.medicalRecordNo,
           dentition: doc.dentition ?? 'PERMANENT',
           isActive: doc.isActive ?? true,
         }

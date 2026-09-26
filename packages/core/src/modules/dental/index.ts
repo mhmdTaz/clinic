@@ -29,6 +29,16 @@ export {
   listOverduePlans,
   toTreatmentPlan,
 } from './application/plans'
+export {
+  createLabOrder,
+  listPatientLabOrders,
+  listLabOrders,
+  changeLabOrderStatus,
+  openLabOrdersFor,
+  labWorkAtLabFor,
+  setVoiceCharting,
+  toLabOrder,
+} from './application/lab'
 export { installDentalScopeResolvers, dentalResource } from './application/scope'
 export { deriveChart, supersedes, type ChartableRecord, type Mark } from './domain/derive-chart'
 export { chartingProblems, statusProblem } from './domain/rules'
@@ -45,6 +55,13 @@ export {
   chartOrder,
 } from './domain/fdi'
 export { DEFAULT_TREATMENTS } from './domain/defaults'
+export {
+  canMoveLabOrder,
+  nextLabStatuses,
+  isAtLab,
+  isOpenLabOrder,
+  isLabOrderOverdue,
+} from './domain/lab'
 export {
   isEditable as isPlanEditable,
   canPresent as canPresentPlan,

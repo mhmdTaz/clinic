@@ -34,6 +34,8 @@ const DEFAULTS: Readonly<Record<NotificationType, readonly NotificationChannel[]
   // A tamper alert goes both ways: the bell is the record, the email is what reaches somebody
   // who is not looking at the admin portal at 2am.
   AUDIT_CHAIN_BROKEN: ['IN_APP', 'EMAIL', 'PUSH'],
+  // The front desk has a day to chase the lab or move the patient: the bell, and the inbox.
+  LAB_WORK_LATE: ['IN_APP', 'EMAIL'],
 }
 
 /**

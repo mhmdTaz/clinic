@@ -23,6 +23,7 @@ import {
   TOOTH_RECORD_STATUSES,
   TOOTH_ROLES,
   TREATMENT_PLAN_STATUSES,
+  LAB_ORDER_STATUSES,
   TOOTH_SURFACES,
   USER_STATUSES,
 } from '@clinic/config'
@@ -50,6 +51,7 @@ import {
   ToothRecordStatus,
   ToothRole,
   TreatmentPlanStatus,
+  LabOrderStatus,
   ToothSurface,
   UserStatus,
 } from '@clinic/contracts'
@@ -85,6 +87,7 @@ describe('contracts and config list the same values', () => {
     ['dental scopes', DentalScope.options, DENTAL_SCOPES],
     ['tooth roles', ToothRole.options, TOOTH_ROLES],
     ['treatment plan statuses', TreatmentPlanStatus.options, TREATMENT_PLAN_STATUSES],
+    ['lab order statuses', LabOrderStatus.options, LAB_ORDER_STATUSES],
   ])('%s', (_name, contract, config) => {
     expect([...contract]).toEqual([...config])
   })
