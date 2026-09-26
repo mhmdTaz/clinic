@@ -473,6 +473,8 @@ export function meshArrays(
     const x = ((i - hs) / hs) * hx
     const y = cy + ((j - hs) / hs) * hy
     const z = ((k - hs) / hs) * hz
+    // A crown alone is cut at the neck: below it there is nothing to evaluate.
+    if (crownOnly && y < -0.6) return 0.3 - y
     const d = f(x, y, z)
     return crownOnly ? smax(d, 0.3 - y, 0.4) : d
   }

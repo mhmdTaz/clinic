@@ -128,13 +128,16 @@ test.describe('the tooth chart', () => {
   })
 
   test('the 3D jaw draws, and the flat chart is one click away', async ({ browser }) => {
+    // Sculpting every tooth on a CI runner's software renderer takes a while; the default 30 s
+    // would end the test while it was still waiting for the jaw.
+    test.setTimeout(150_000)
     const patientId = await seededPatientId('Fakhoury')
     const page = await signedInAs(browser, 'staff@clinic.local', '3d')
     await page.goto(`/staff/patients/${patientId}`)
 
     const jaw = page.getByRole('application', { name: /3D model/ })
     await expect(jaw.getByText('Drag to rotate, scroll to zoom, click a tooth')).toBeVisible({
-      timeout: 60_000,
+      timeout: 110_000,
     })
     await expect(jaw.locator('canvas')).toBeVisible()
 
