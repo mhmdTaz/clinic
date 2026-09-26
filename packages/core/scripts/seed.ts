@@ -698,6 +698,11 @@ async function seedDentalChart(
   const today = localDateIn('Asia/Beirut')
   const doctorRef = { id: doctor._id, name: `${doctorUser.firstName} ${doctorUser.lastName}` }
   const visit = async (day: string, complaint: string) => {
+    // Half past nine that morning — but never later than now: a seed run before then must not
+    // leave a visit in the future, where it would read as the newest one on the diary.
+    const started = new Date(
+      Math.min(new Date(`${day}T09:30:00+03:00`).getTime(), Date.now() - 60_000),
+    )
     const id = newId()
     await EncounterModel().create({
       _id: id,
@@ -714,8 +719,8 @@ async function seedDentalChart(
       doctor: { name: doctorRef.name },
       encounterType: 'PROCEDURE',
       chiefComplaint: complaint,
-      startedAt: new Date(`${day}T09:30:00+03:00`),
-      endedAt: new Date(`${day}T10:15:00+03:00`),
+      startedAt: started,
+      endedAt: new Date(started.getTime() + 45 * 60_000),
       status: 'COMPLETED',
       createdBy: SEEDED_BY,
     })
