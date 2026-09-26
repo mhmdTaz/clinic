@@ -21,20 +21,110 @@ export interface ToothSpec {
   D: number
   CH: number
   RL: number
-  roots: Root[]
+  roots: RootSpec[]
   f: (x: number, y: number, z: number) => number
   /** How strongly (0–1) a point of a back tooth's chewing surface lies in a fissure. */
   groove: (x: number, z: number) => number
 }
 
-/** A root: from, to, radius at the neck, radius at the apex, and how flattened it is side to side. */
-type Root = readonly [
-  readonly [number, number, number],
-  readonly [number, number, number],
-  number,
-  number,
-  number,
-]
+/**
+ * A root, in the tooth's own frame: +x distal, +z toward the lips or cheek, y = 0 at the neck.
+ * It runs along a curved centreline from where it leaves the crown (or the root trunk it shares
+ * with its neighbours) to its apex; its cross-section is an ellipse, `rx` mesiodistally by `rz`
+ * buccolingually at the top, tapering to the rounded apex. A flattened root carries a shallow
+ * developmental groove down each flat side.
+ */
+export interface RootSpec {
+  /** The centreline, top to apex. The first point is where the root joins the crown or trunk. */
+  path: ReadonlyArray<readonly [number, number, number]>
+  rx: number
+  rz: number
+  apex: number
+  groove: number
+  /** A box around the root, so the field skips it far away. */
+  box: readonly [number, number, number, number, number, number]
+}
+
+/**
+ * A root from `top` to `apex`, its apical third bent `bend` millimetres distally — most roots
+ * curve toward the back of the mouth at the tip — sampled as a short polyline.
+ */
+function makeRoot(
+  top: readonly [number, number, number],
+  apex: readonly [number, number, number],
+  options: { rx: number; rz: number; bend?: number; apex?: number; groove?: number },
+): RootSpec {
+  const bend = options.bend ?? 0
+  const path: Array<[number, number, number]> = []
+  const steps = 7
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    path.push([
+      top[0] + (apex[0] - top[0]) * t + bend * Math.pow(t, 2.2),
+      top[1] + (apex[1] - top[1]) * t,
+      top[2] + (apex[2] - top[2]) * t,
+    ])
+  }
+  const r = Math.max(options.rx, options.rz) + 1
+  const xs = path.map((q) => q[0])
+  const ys = path.map((q) => q[1])
+  const zs = path.map((q) => q[2])
+  return {
+    path,
+    rx: options.rx,
+    rz: options.rz,
+    apex: options.apex ?? 0.6,
+    groove: options.groove ?? 0,
+    box: [
+      Math.min(...xs) - r,
+      Math.max(...xs) + r,
+      Math.min(...ys) - r,
+      Math.max(...ys) + r,
+      Math.min(...zs) - r,
+      Math.max(...zs) + r,
+    ],
+  }
+}
+
+/** The signed distance to a root: its elliptical, tapering section, grooved, capped at the apex. */
+function rootDistance(x: number, y: number, z: number, root: RootSpec): number {
+  const [x0, x1, y0, y1, z0, z1] = root.box
+  if (x < x0 || x > x1 || y < y0 || y > y1 || z < z0 || z > z1) return 4
+  const path = root.path
+  const n = path.length - 1
+  let best = 1e9
+  for (let i = 0; i < n; i++) {
+    const a = path[i]!
+    const b = path[i + 1]!
+    const bx = b[0] - a[0]
+    const by = b[1] - a[1]
+    const bz = b[2] - a[2]
+    const l2 = bx * bx + by * by + bz * bz
+    let h = ((x - a[0]) * bx + (y - a[1]) * by + (z - a[2]) * bz) / l2
+    h = h < 0 ? 0 : h > 1 ? 1 : h
+    const t = (i + h) / n
+    // Nearly parallel-sided through the cervical third, then narrowing to a rounded apex.
+    const taper = 1 - Math.pow(t, 2.1)
+    const rx = root.apex + (root.rx - root.apex) * taper
+    const rz = root.apex + (root.rz - root.apex) * taper
+    const dx = x - a[0] - bx * h
+    const dy = y - a[1] - by * h
+    const dz = z - a[2] - bz * h
+    const small = Math.min(rx, rz)
+    let d = (Math.sqrt((dx / rx) ** 2 + (dz / rz) ** 2 + (dy / small) ** 2) - 1) * small
+    if (root.groove > 0) {
+      // Down the flat sides, away from the neck and short of the apex.
+      d +=
+        root.groove *
+        Math.exp(-((dz / (0.38 * rz)) ** 2)) *
+        sm(0.35, 0.85, Math.abs(dx) / rx) *
+        sm(0.05, 0.25, t) *
+        (1 - sm(0.75, 0.95, t))
+    }
+    if (d < best) best = d
+  }
+  return best
+}
 
 const sm = (a: number, b: number, x: number) => {
   let t = (x - a) / (b - a)
@@ -52,24 +142,6 @@ function ell(x: number, y: number, z: number, a: number, b: number, c: number) {
   const k0 = L3(x / a, y / b, z / c)
   const k1 = L3(x / (a * a), y / (b * b), z / (c * c))
   return k1 < 1e-9 ? -Math.min(a, b, c) : (k0 * (k0 - 1)) / k1
-}
-
-function cone(
-  x: number,
-  y: number,
-  z: number,
-  a: readonly number[],
-  b: readonly number[],
-  r1: number,
-  r2: number,
-) {
-  const bx = b[0]! - a[0]!
-  const by = b[1]! - a[1]!
-  const bz = b[2]! - a[2]!
-  const l2 = bx * bx + by * by + bz * bz
-  let h = ((x - a[0]!) * bx + (y - a[1]!) * by + (z - a[2]!) * bz) / l2
-  h = h < 0 ? 0 : h > 1 ? 1 : h
-  return L3(x - a[0]! - bx * h, y - a[1]! - by * h, z - a[2]! - bz * h) - (r1 + (r2 - r1) * h)
 }
 
 /**
@@ -115,28 +187,24 @@ const grooveOf = (x: number, z: number, cusps: readonly Cusp[], k: number): numb
 export function specOf(upper: boolean, primary: boolean, position: number): ToothSpec {
   const [W, D, CH, RL] = dimsOf(upper, primary, position)
   const kind = kindOf(primary, position)
-  let roots: Root[]
+  let roots: RootSpec[] = []
   let f: ToothSpec['f']
   let groove: ToothSpec['groove'] = () => 0
 
+  // A multi-rooted tooth's roots leave a shared root trunk; `trunk` is how deep it runs before
+  // they divide, and its section at the neck. Zero for a single root, which leaves the crown itself.
+  let trunk = { depth: 0, a: 0, b: 0 }
   const rootsD = (x: number, y: number, z: number) => {
     let d = 1e9
-    for (const r of roots) {
-      const xs = r[4]
-      d = smin(
-        d,
-        cone(
-          x * xs,
-          y,
-          z,
-          [r[0][0] * xs, r[0][1], r[0][2]],
-          [r[1][0] * xs, r[1][1], r[1][2]],
-          r[2],
-          r[3],
-        ),
-        1.0,
-      )
+    if (trunk.depth > 0) {
+      const t = sm(0, trunk.depth, -y)
+      let c = section(x, z, trunk.a * (1 - 0.12 * t), trunk.b * (1 - 0.1 * t), 0, 2.2)
+      c = smax(c, y - 0.8, 0.6)
+      // The furcation: the trunk's floor arches up between the roots.
+      c = smax(c, -(y + trunk.depth), 1.2)
+      d = c
     }
+    for (const root of roots) d = smin(d, rootDistance(x, y, z, root), 1.4)
     return d
   }
 
@@ -146,10 +214,23 @@ export function specOf(upper: boolean, primary: boolean, position: number): Toot
   // or cheek, +y rises from the neck (y = 0) to the tip (y = CH), and x runs along the arch.
   const a0 = W / 2
   const b0 = D / 2
+  // Which way is distal in this frame: +x, by convention. The engine mirrors the teeth of one
+  // side, so every root curves toward the back of the mouth on both.
 
   if (kind === 'inc' || kind === 'can') {
     const canine = kind === 'can'
-    roots = [[[0, 2, 0], [0, -RL, -0.4], 0.36 * D, 0.55, 1.25]]
+    // One root, conical, a little distal at the apex. A lower incisor's is flattened side to side
+    // and grooved; a canine's is the longest in the mouth, broad buccolingually and grooved too.
+    const lowerIncisor = !upper && !canine && !primary
+    roots = [
+      makeRoot([0, 0.8, 0], [primary ? 0.2 : 0.3, -RL, -0.2 * b0], {
+        rx: a0 * (lowerIncisor ? 0.55 : primary ? 0.55 : 0.62),
+        rz: b0 * (canine ? 0.92 : lowerIncisor ? 0.95 : 0.85),
+        bend: primary ? 0.5 : canine ? 0.9 : position === 2 ? 1.3 : 0.7,
+        apex: primary ? 0.4 : 0.8,
+        groove: primary ? 0 : canine ? 0.45 : lowerIncisor ? 0.4 : 0.15,
+      }),
+    ]
     // Where the biting edge is. A central incisor's is nearly straight with sharp corners; a
     // lateral's corners are rounded off; a canine rises to one cusp with a slope either side.
     const edge = (x: number) => {
@@ -179,16 +260,38 @@ export function specOf(upper: boolean, primary: boolean, position: number): Toot
       // The canine's labial ridge.
       if (canine)
         c = smin(c, ell(x, y - 0.55 * CH, z - (zc + b * 0.72), a0 * 0.3, CH * 0.42, 0.9), 1.2)
-      return smin(c, rootsD(x, y, z), 2.0)
+      c = smax(c, -y - 0.3, 0.8)
+      return smin(c, rootsD(x, y, z), 1.6)
     }
   } else if (kind === 'pre') {
-    const two = upper && position === 4
-    roots = two
-      ? [
-          [[0, 1, 0.18 * D], [0.3, -RL, 0.3 * D], 0.24 * D, 0.45, 1.5],
-          [[0, 1, -0.18 * D], [0.3, -RL * 0.95, -0.3 * D], 0.24 * D, 0.45, 1.5],
-        ]
-      : [[[0, 2, 0], [0.3, -RL, 0], 0.3 * D, 0.5, 1.5]]
+    // An upper first premolar's root divides halfway down into a buccal and a palatal root. An
+    // upper second's is one root, flattened and grooved; a lower premolar's, one conical root.
+    if (upper && position === 4) {
+      const split = RL * 0.45
+      trunk = { depth: split, a: a0 * 0.72, b: b0 * 0.82 }
+      roots = [
+        makeRoot([0, -split + 1.2, 0.3 * b0], [0.2, -RL, 0.45 * b0], {
+          rx: a0 * 0.5,
+          rz: b0 * 0.38,
+          bend: 0.6,
+        }),
+        makeRoot([0, -split + 1.2, -0.3 * b0], [0.1, -RL * 0.95, -0.52 * b0], {
+          rx: a0 * 0.48,
+          rz: b0 * 0.36,
+          bend: 0.3,
+        }),
+      ]
+    } else {
+      roots = [
+        makeRoot([0, 0.8, 0], [0.3, -RL, 0], {
+          rx: a0 * (upper ? 0.55 : 0.68),
+          rz: b0 * (upper ? 0.82 : 0.75),
+          bend: upper ? 0.8 : 0.6,
+          apex: 0.5,
+          groove: upper ? 0.45 : 0.15,
+        }),
+      ]
+    }
     // A tall buccal cusp and a lingual one — nearly as tall on an upper premolar, small on a lower.
     const lingual = upper ? 0.6 : position === 4 ? 2.4 : 1.4
     const cusps: Cusp[] = [
@@ -205,19 +308,56 @@ export function specOf(upper: boolean, primary: boolean, position: number): Toot
       const b = b0 * (0.84 + 0.16 * sm(-0.05, 0.35, u) - 0.12 * sm(0.55, 1, u))
       let c = section(x, z, a, b, 0, 2.2)
       c = smax(c, (y - cuspHeight(x, z, cusps, 0.35)) * 0.72, 0.4)
-      return smin(c, rootsD(x, y, z), 1.8)
+      c = smax(c, -y - 0.3, 0.8)
+      return smin(c, rootsD(x, y, z), 1.6)
     }
     groove = (x, z) => grooveOf(x, z, cusps, 0.35)
   } else {
+    // A molar's roots leave a short trunk and then divide. Upper: the broad mesiobuccal root
+    // curving distally, a smaller distobuccal, and the longest, the palatal, flaring toward the
+    // palate. Lower: a mesial and a distal root, both wide buccolingually and grooved, the mesial
+    // one curved. The further back the tooth, the closer its roots; a wisdom tooth's are fused.
+    // A primary molar's roots are thin and widely flared, holding room for the premolar beneath.
+    const spread = primary ? 1.45 : position === 6 ? 1 : position === 7 ? 0.75 : 0.45
+    const depth = primary ? 1.4 : position === 8 ? RL * 0.55 : upper ? 4 : 3
+    trunk = { depth, a: a0 * 0.8, b: b0 * 0.8 }
+    const top = -depth + 1.2
+    const thin = primary ? 0.72 : 1
     roots = upper
       ? [
-          [[0.22 * W, 1, 0.22 * D], [0.3 * W, -RL, 0.34 * D], 0.17 * D, 0.5, 1.2],
-          [[-0.22 * W, 1, 0.22 * D], [-0.28 * W, -RL * 0.9, 0.32 * D], 0.16 * D, 0.5, 1.2],
-          [[0, 1, -0.2 * D], [0, -RL * 1.02, -0.42 * D], 0.2 * D, 0.6, 1],
+          makeRoot([-0.42 * a0, top, 0.42 * b0], [-0.3 * a0 * spread, -RL, 0.6 * b0 * spread], {
+            rx: a0 * 0.24 * thin,
+            rz: b0 * 0.32 * thin,
+            bend: 1.3,
+            groove: primary ? 0 : 0.25,
+          }),
+          makeRoot(
+            [0.42 * a0, top, 0.42 * b0],
+            [0.55 * a0 * spread, -RL * 0.88, 0.55 * b0 * spread],
+            {
+              rx: a0 * 0.2 * thin,
+              rz: b0 * 0.24 * thin,
+              bend: 0.3,
+            },
+          ),
+          makeRoot([0, top, -0.42 * b0], [0.05 * a0, -RL * 1.04, -0.95 * b0 * spread], {
+            rx: a0 * 0.27 * thin,
+            rz: b0 * 0.26 * thin,
+          }),
         ]
       : [
-          [[0.25 * W, 1, 0], [0.3 * W, -RL, 0], 0.3 * D, 0.5, 2.2],
-          [[-0.25 * W, 1, 0], [-0.32 * W, -RL * 0.92, 0], 0.28 * D, 0.5, 2.2],
+          makeRoot([-0.45 * a0, top, 0], [-0.4 * a0 * spread, -RL, 0], {
+            rx: a0 * 0.22 * thin,
+            rz: b0 * 0.74 * thin,
+            bend: 1.4,
+            groove: primary ? 0 : 0.35,
+          }),
+          makeRoot([0.45 * a0, top, 0], [0.62 * a0 * spread, -RL * 0.92, 0], {
+            rx: a0 * 0.2 * thin,
+            rz: b0 * 0.66 * thin,
+            bend: 0.4,
+            groove: primary ? 0 : 0.25,
+          }),
         ]
     const s = 0.72
     // Cusp tips, as fractions of the crown's half-width and half-depth, and how far below the
@@ -244,7 +384,8 @@ export function specOf(upper: boolean, primary: boolean, position: number): Toot
             [0.5, -0.5, 0],
             [-0.5, -0.5, 0.2],
           ]
-    const cusps: Cusp[] = layout.map(([cx, cz, drop]) => [cx * a0, cz * b0, CH - drop, s])
+    // The layout is written with mesial at +x; the frame has distal there, so it is mirrored.
+    const cusps: Cusp[] = layout.map(([cx, cz, drop]) => [-cx * a0, cz * b0, CH - drop, s])
     // The marginal ridges; on an upper molar, the oblique ridge across the table as well.
     cusps.push([0.86 * a0, 0, CH - 1.4, 1.7], [-0.86 * a0, 0, CH - 1.6, 1.7])
     f = (x, y, z) => {
@@ -256,13 +397,15 @@ export function specOf(upper: boolean, primary: boolean, position: number): Toot
       let top = cuspHeight(x, z, cusps, 0.45)
       if (upper) {
         // The oblique ridge, from the mesiolingual cusp to the distobuccal.
-        const t = Math.max(0, Math.min(1, ((x - 0.42 * a0) * -0.92 + (z + 0.5 * b0)) / 1.2 / b0))
-        const rx = 0.42 * a0 + (-0.5 * a0 - 0.42 * a0) * t
+        const mx = -x
+        const t = Math.max(0, Math.min(1, ((mx - 0.42 * a0) * -0.92 + (z + 0.5 * b0)) / 1.2 / b0))
+        const rx = -(0.42 * a0 + (-0.5 * a0 - 0.42 * a0) * t)
         const rz = -0.5 * b0 + (0.5 * b0 + 0.5 * b0) * t
         top = smax(top, CH - 1.1 - 1.4 * Math.hypot(x - rx, z - rz), 0.4)
       }
       c = smax(c, (y - top) * 0.7, 0.45)
-      return smin(c, rootsD(x, y, z), 2.2)
+      c = smax(c, -y - 0.3, 0.8)
+      return smin(c, rootsD(x, y, z), 1.6)
     }
     groove = (x, z) => grooveOf(x, z, cusps, 0.45)
   }
@@ -297,6 +440,8 @@ export interface MeshArrays {
   positions: Float32Array
   normals: Float32Array
   colors: Float32Array
+  /** How radiopaque each point is, for the X-ray view: enamel most, root dentin less. */
+  density: Float32Array
 }
 
 /**
@@ -324,14 +469,40 @@ export function meshArrays(
   mc.reset()
   const hs = RES / 2
   const field = mc.field
-  for (let k = 0; k < RES; k++) {
+  const at = (i: number, j: number, k: number) => {
+    const x = ((i - hs) / hs) * hx
+    const y = cy + ((j - hs) / hs) * hy
     const z = ((k - hs) / hs) * hz
+    const d = f(x, y, z)
+    return crownOnly ? smax(d, 0.3 - y, 0.4) : d
+  }
+  // Only the thin shell around the surface decides the mesh. The field is sampled first on a grid
+  // a quarter as fine; a voxel whose nearest coarse sample is clearly inside or outside takes that
+  // value, and only those near the surface are evaluated exactly — most of a tooth's volume is
+  // skipped, which is most of the sculpting time.
+  const STEP = 4
+  const cn = Math.ceil((RES - 1) / STEP) + 1
+  const coarse = new Float32Array(cn * cn * cn)
+  for (let ck = 0; ck < cn; ck++) {
+    for (let cj = 0; cj < cn; cj++) {
+      for (let ci = 0; ci < cn; ci++) {
+        coarse[ci + cj * cn + ck * cn * cn] = at(
+          Math.min(ci * STEP, RES - 1),
+          Math.min(cj * STEP, RES - 1),
+          Math.min(ck * STEP, RES - 1),
+        )
+      }
+    }
+  }
+  // Safely more than a coarse cell's diagonal, in millimetres, over the field's worst stretch.
+  const margin = 2.2 * STEP * (Math.max(hx, hy, hz) / hs)
+  for (let k = 0; k < RES; k++) {
+    const ck = Math.round(k / STEP)
     for (let j = 0; j < RES; j++) {
-      const y = cy + ((j - hs) / hs) * hy
+      const cj = Math.round(j / STEP)
       for (let i = 0; i < RES; i++) {
-        const x = ((i - hs) / hs) * hx
-        let d = f(x, y, z)
-        if (crownOnly) d = smax(d, 0.3 - y, 0.4)
+        const near = coarse[Math.round(i / STEP) + cj * cn + ck * cn * cn]!
+        const d = Math.abs(near) > margin ? near : at(i, j, k)
         field[i + j * RES + k * RES * RES] = -d
       }
     }
@@ -344,6 +515,7 @@ export function meshArrays(
   const positions = new Float32Array(n * 3)
   const normals = new Float32Array(n * 3)
   const colors = new Float32Array(n * 3)
+  const density = new Float32Array(n)
   const enamel = spec.primary ? ENAMEL_PRIMARY : kind === 'can' ? ENAMEL_CANINE : ENAMEL
   const front = kind === 'inc' || kind === 'can'
   const tmp = new THREE.Color()
@@ -375,18 +547,20 @@ export function meshArrays(
       }
     }
     tmp.multiplyScalar(mottle(x, y, z))
+    density[v] = 0.6 + 0.4 * sm(-0.4, 0.9, y)
     colors[v * 3] = tmp.r
     colors[v * 3 + 1] = tmp.g
     colors[v * 3 + 2] = tmp.b
   }
-  return { positions, normals, colors }
+  return { positions, normals, colors, density }
 }
 
-function toGeometry({ positions, normals, colors }: MeshArrays): THREE.BufferGeometry {
+function toGeometry({ positions, normals, colors, density }: MeshArrays): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  geometry.setAttribute('density', new THREE.BufferAttribute(density, 1))
   geometry.computeBoundingSphere()
   return geometry
 }

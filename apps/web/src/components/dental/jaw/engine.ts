@@ -134,6 +134,7 @@ interface Slot {
   planned: THREE.Mesh
   implant: THREE.Mesh
   canals: THREE.Mesh[]
+  pulp: THREE.Mesh[]
   decay: THREE.Mesh[]
   anchor: THREE.Object3D
   visual: ToothVisual | null
@@ -350,12 +351,37 @@ export function createJawEngine(
     0xff4a40,
     0.13,
   )
+  // On a radiograph enamel is the brightest thing in the mouth and root dentin a step darker; the
+  // tooth geometry carries a density per vertex that scales the X-ray tone.
   const xrTooth = new THREE.MeshBasicMaterial({
-    color: 0x7c8792,
+    color: 0x8e99a4,
     transparent: true,
     opacity: 0.6,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+  })
+  xrTooth.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute float density;\nvarying float vDensity;\nvoid main() {')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vDensity = density;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'varying float vDensity;\nvoid main() {')
+      .replace(
+        'vec4 diffuseColor = vec4( diffuse, opacity );',
+        'vec4 diffuseColor = vec4( diffuse * vDensity, opacity );',
+      )
+  }
+  xrTooth.customProgramCacheKey = () => 'xray-density'
+  // The pulp is soft tissue inside the tooth, so it shows dark: drawn after the teeth, it
+  // multiplies down what is behind it rather than adding to it.
+  const xrPulp = new THREE.MeshBasicMaterial({
+    color: 0x6a6a6a,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.OneMinusSrcColorFactor,
   })
   const xrDense = new THREE.MeshBasicMaterial({ color: 0xf4f7fa })
   const xrSoft = new THREE.MeshBasicMaterial({
@@ -367,6 +393,7 @@ export function createJawEngine(
   })
   const implantShape = implantGeometry()
   const decayShape = new THREE.SphereGeometry(1, 16, 10)
+  const pulpChamber = new THREE.SphereGeometry(1, 20, 14)
 
   // Roots are for the X-ray view. Outside it, a plane per jaw cuts them off just inside the gum,
   // which is a closed shape, so the cut is never seen: a model shows gum, not bone and root tips.
@@ -466,6 +493,9 @@ export function createJawEngine(
           ),
         )
         group.position.set(point.x, yOcclusal + (upper ? CH : -CH), point.z)
+        // A tooth's own frame has distal at +x. One side of each jaw sees that mirrored, so its
+        // teeth are flipped — roots curve toward the back of the mouth on both sides.
+        if (upper ? s > 0 : s < 0) group.scale.x = -1
         jaw.add(group)
 
         const fdi = `${quadrant}${position}`
@@ -516,16 +546,47 @@ export function createJawEngine(
         picks.push(natural, ghostMesh, prosthetic, shell)
 
         const spec = specOf(upper, primary, position)
-        const canals = spec.roots.map((root) => {
-          const path = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(0, CH * 0.3, 0),
-            new THREE.Vector3(root[0][0], root[0][1] - 1, root[0][2]),
-            new THREE.Vector3(root[1][0] * 0.95, root[1][1] * 0.93, root[1][2] * 0.95),
-          ])
-          const canal = new THREE.Mesh(new THREE.TubeGeometry(path, 40, 0.45, 10), gutta)
+        // Each canal runs from the pulp chamber down its root's centreline, stopping short of the
+        // apex. Filled, it is gutta-percha; untreated, it is pulp, dark on the X-ray.
+        const chamberY = CH * (spec.kind === 'mol' ? 0.18 : spec.kind === 'pre' ? 0.25 : 0.3)
+        const canalPaths = spec.roots.map(
+          (root) =>
+            new THREE.CatmullRomCurve3([
+              new THREE.Vector3(0, chamberY, 0),
+              ...root.path
+                .slice(0, -1)
+                .map(
+                  (q, i, all) =>
+                    new THREE.Vector3(q[0], i === all.length - 1 ? q[1] + 0.8 : q[1], q[2]),
+                ),
+            ]),
+        )
+        const canals = canalPaths.map((path) => {
+          const canal = new THREE.Mesh(new THREE.TubeGeometry(path, 48, 0.42, 10), gutta)
           group.add(canal)
           return canal
         })
+        const pulp = [
+          ...canalPaths.map(
+            (path) => new THREE.Mesh(new THREE.TubeGeometry(path, 48, 0.32, 8), xrPulp),
+          ),
+          (() => {
+            const chamber = new THREE.Mesh(pulpChamber, xrPulp)
+            const front = spec.kind === 'inc' || spec.kind === 'can'
+            chamber.scale.set(
+              spec.W * (front ? 0.14 : spec.kind === 'pre' ? 0.17 : 0.25),
+              CH * (front ? 0.34 : 0.2),
+              spec.D * (front ? 0.13 : 0.2),
+            )
+            chamber.position.y = chamberY
+            return chamber
+          })(),
+        ]
+        for (const mesh of pulp) {
+          mesh.renderOrder = 2
+          mesh.visible = false
+          group.add(mesh)
+        }
         const spots = [
           [0.5, 0.93, 0.1, 0.9, 0.35, 0.7],
           [-1.0, 0.92, -0.3, 0.7, 0.3, 0.55],
@@ -560,6 +621,7 @@ export function createJawEngine(
           planned,
           implant,
           canals,
+          pulp,
           decay: spots,
           anchor,
           visual: null,
@@ -827,6 +889,9 @@ export function createJawEngine(
         canal.material = xray ? xrDense : gutta
         canal.visible = xray && v?.rootCanal === 'done' && !v.absent && !v.replacedBy
       }
+      for (const part of slot.pulp) {
+        part.visible = xray && v?.rootCanal !== 'done' && !v?.absent && !v?.replacedBy
+      }
       slot.planned.visible = !xray && Boolean(v?.planned) && !v?.absent
       for (const spot of slot.decay) spot.visible = !xray && Boolean(v?.caries) && !v?.absent
       slot.ghost.visible = !xray && Boolean(v?.absent)
@@ -1084,6 +1149,7 @@ export function createJawEngine(
         slot.enamel.dispose()
         slot.ceramic.dispose()
         for (const canal of slot.canals) canal.geometry.dispose()
+        for (const part of slot.pulp) if (part.geometry !== pulpChamber) part.geometry.dispose()
       }
       // Tooth meshes are shared by every chart on the page and kept for the next one.
       for (const material of [
@@ -1103,6 +1169,8 @@ export function createJawEngine(
       titaniumOf.l?.dispose()
       implantShape.dispose()
       decayShape.dispose()
+      pulpChamber.dispose()
+      xrPulp.dispose()
       stipple.dispose()
       pmrem.dispose()
       BACKGROUND.dispose()
