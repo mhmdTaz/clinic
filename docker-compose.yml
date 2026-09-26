@@ -74,11 +74,15 @@ services:
       retries: 20
 
   minio:
-    # quay.io, not Docker Hub: MinIO prunes old RELEASE tags from Hub, and this pin stopped
-    # being pullable there — locally it kept working only because the image was already cached,
-    # which is exactly the kind of drift a pinned tag is supposed to prevent.
-    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+    # The same MinIO release, from Bitnami's archive. MinIO no longer serves its images publicly:
+    # quay.io answers 401 and the Docker Hub repository is gone, so the old pins stopped pulling
+    # on every fresh machine — CI included — while a cached image hid it locally. Bitnami's
+    # entrypoint is bypassed so the server runs exactly as the upstream image did, as root, on
+    # the same volume.
+    image: bitnamilegacy/minio:2024.12.18
     container_name: clinic-minio
+    user: '0'
+    entrypoint: ['minio']
     command: ['server', '/data', '--console-address', ':9001']
     environment:
       MINIO_ROOT_USER: clinic
@@ -95,8 +99,9 @@ services:
       retries: 20
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z
+    image: bitnamilegacy/minio-client:2024.11.21
     container_name: clinic-minio-init
+    user: '0'
     depends_on:
       minio:
         condition: service_healthy
