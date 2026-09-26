@@ -3380,6 +3380,57 @@ unconditionally, so the edge bundle tried to include argon2's native binding. It
   clinical screens are (Phase 8).
 - The mobile app and the patient portal do not show the chart.
 
+### Phase 12 — A plan the patient can say yes to · after v1 · 🔸
+
+The chart knows what is planned. The patient still has to be shown it — in what order, for how much
+— and has to agree before most of it is done; the practice then chases those who agreed and never
+came back, and bills the work at the price that was agreed.
+
+- **Treatment plans** (ADR-0036). A `treatment_plans` document per plan: phases, and items that
+  each point at a PLANNED row of the chart. Draft → presented → agreed (a name and a drawn
+  signature, kept as a consent document) or declined; cancelled with a reason. Editing a presented
+  plan sends it back to draft.
+- **Priced from the price list.** A treatment linked to a service prices itself; any item can be
+  given another price, a quantity and a discount. Lines are rounded once and summed as an invoice's
+  are (ADR-0027), with the same functions. The seed prices the dental treatments.
+- **The chart says what is done.** Completing or voiding a planned row rewrites every plan holding
+  it from the log: done on which day, in which visit, or dropped. An agreed plan completes itself
+  when the last item is done, and reopens if that work is voided.
+- **Billed by a person, once.** Done work in an agreed plan goes on a visit's invoice at the agreed
+  price from the plan, by somebody with `invoice:create`; the item is claimed in the same
+  transaction as the invoice line.
+- **Presentation mode** — the whole screen, for a tablet facing the patient: the jaw with only this
+  plan's work to do on it, the phases, prices that can be hidden, and the patient's signature.
+- **A plan on paper.** A print page laid out for A4 — letterhead, the flat chart, the priced phases,
+  the signature — printed or saved as PDF by the browser. The portal's chrome is hidden in print.
+- **Recall.** Staff → Plan recall lists agreed plans with work left, longest-waiting first, by
+  default only for patients with nothing booked, with a booking button on each row.
+
+**Exit criteria:**
+
+1. A plan is drawn up from the chart's planned work, shown to the patient, and agreed with a
+   signature; its figures match what an invoice of the same lines would say.
+2. Work done on the chart moves the plan, and done work is billed from it at the agreed price, once.
+3. The front desk can list the agreed plans nobody has come back for, and book the patient in.
+
+**How it came out, so far.** The integration suite prices a plan from the price list, refuses a
+missing price, a phase that does not exist, a row twice, and work that is not open; accepts it;
+follows a completion and a voided completion; bills the done item at 400.00 after a 20.00 discount
+and refuses the second attempt; refuses a second agreed plan for the same crown; and lists the
+agreed plan on recall for the front desk but not for a dentist. A Playwright journey covers drawing
+up, presenting, signing, completing and billing, recall and print.
+
+**Not done, and stated plainly:**
+
+- **No invoice line is offered from the tooth drawer.** Completing planned work there makes the item
+  billable; the line is added from the plan card, not from a prompt at the moment of completion.
+- **Prices are shown to anyone who reads the chart.** Every role that does also holds `service:read`
+  by default; a role given the chart without it would still see the plan's prices.
+- **One page of plans on a patient** (twenty), with the truncation notice beyond it.
+- **`defaultQuantity`** prices a bridge per unit and anything else as one; the practice may want a
+  denture priced per tooth.
+- The mobile app and the patient portal do not show plans.
+
 ### Sequencing rationale
 
 - **RBAC before features.** Every later phase calls `assertCan`; adding it afterwards means
@@ -3485,6 +3536,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
 | 0035 | A tooth chart is a log, and the picture is derived from it | **Accepted** | `docs/adr/0035` — one `tooth_records` row per thing charted, never edited; a finished plan gets a COMPLETED row pointing at it, a mistake is voided with a reason; the chart is a pure function of the rows, replayable on any day; FDI numbering with a per-patient dentition; patient-wide access for a treating dentist, and the front desk may chart |
+| 0036 | A plan owns the price and the answer; the chart owns the work | **Accepted** | `docs/adr/0036` — `treatment_plans` items point at PLANNED chart rows; prices are snapshots rounded as on an invoice; whether an item is done is rewritten from the chart log on every completion or void; one agreed plan per piece of work; done work is billed by a person with `invoice:create`, once |
 
 ### The ones to settle next
 
