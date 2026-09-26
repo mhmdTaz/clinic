@@ -152,9 +152,10 @@ export function ToothPanel({
     [patientId, tooth.fdi, showVoided],
   )
 
+  // The form is left as it is: the panel is remounted for each tooth, and closing it here — on
+  // mount — threw away a voice draft the moment it opened.
   useEffect(() => {
     setRecords(null)
-    setAdding(false)
     setActionError(null)
     void load(null)
   }, [load])
