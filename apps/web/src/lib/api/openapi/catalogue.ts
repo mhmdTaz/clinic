@@ -152,6 +152,13 @@ import {
   PlanItemBilled,
   OverduePlan,
   OverduePlansQuery,
+  LabOrder,
+  CreateLabOrderRequest,
+  ChangeLabOrderStatusRequest,
+  PatientLabOrderQuery,
+  LabOrderListQuery,
+  SetVoiceChartingRequest,
+  VoiceChartingSetting,
   UpdateBookingWindowRequest,
   UpdateBranchRequest,
   UpdateDoctorRequest,
@@ -1245,4 +1252,38 @@ export const OPERATIONS: readonly Operation[] = [
     permission: 'dental:read',
     query: OverduePlansQuery,
   }),
+
+  // ── Lab work and voice charting ─────────────────────────────────────────────
+  GET(
+    '/api/v1/patients/{patientId}/lab-orders',
+    'A patient’s lab work, newest first',
+    page(LabOrder),
+    { permission: 'dental:read', query: PatientLabOrderQuery },
+  ),
+  POST('/api/v1/patients/{patientId}/lab-orders', 'Send work to the lab', created(LabOrder), {
+    permission: 'dental:write',
+    idempotent: true,
+    body: CreateLabOrderRequest,
+  }),
+  GET('/api/v1/lab-orders', 'The clinic’s lab board, soonest due first', page(LabOrder), {
+    permission: 'dental:read',
+    query: LabOrderListQuery,
+    description: 'Needs the chart at clinic scope.',
+  }),
+  POST(
+    '/api/v1/lab-orders/{orderId}/status',
+    'Take lab work in, fit it, send it back or cancel it',
+    data(LabOrder),
+    { permission: 'dental:write', body: ChangeLabOrderStatusRequest },
+  ),
+  PUT(
+    '/api/v1/dental/voice-charting',
+    'Turn voice charting on or off',
+    data(VoiceChartingSetting),
+    {
+      permission: 'dental:configure',
+      body: SetVoiceChartingRequest,
+      description: 'Turning it on must be acknowledged (ADR-0037).',
+    },
+  ),
 ]

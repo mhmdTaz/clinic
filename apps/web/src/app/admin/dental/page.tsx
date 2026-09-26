@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/portal/page-header'
 import { requirePortal } from '@/lib/auth/server-session'
 import { QuickPickDialog } from './quick-pick-dialog'
 import { TreatmentDialog } from './treatment-dialog'
+import { VoiceChartingSetting } from './voice-charting-setting'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('admin.dental')
@@ -34,7 +35,8 @@ export default async function DentalSettingsPage() {
     getTranslations('admin.dental'),
     getTranslations('dental'),
   ])
-  const enabled = resolveFeatureFlags(clinic.featureFlags as Partial<FeatureFlags>).dental
+  const flags = resolveFeatureFlags(clinic.featureFlags as Partial<FeatureFlags>)
+  const enabled = flags.dental
   const serviceName = new Map(services.map((service) => [service.id, service.name]))
   const treatmentName = new Map(treatments.map((treatment) => [treatment.id, treatment.name]))
   const serviceOptions = services.map((service) => ({ id: service.id, name: service.name }))
@@ -56,6 +58,15 @@ export default async function DentalSettingsPage() {
       )}
 
       <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('voice.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <VoiceChartingSetting enabled={flags.dentalVoice} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>{t('treatments.title')}</CardTitle>

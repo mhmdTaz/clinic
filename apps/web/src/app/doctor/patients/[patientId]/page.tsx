@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/portal/page-header'
 import { ChartBanner } from '@/components/clinical/chart-banner'
 import { DentalChartCard } from '@/components/dental/dental-chart-card'
 import { TreatmentPlansCard } from '@/components/dental/plans/treatment-plans-card'
+import { LabOrdersCard } from '@/components/dental/lab/lab-orders-card'
 import { DocumentsCard } from '@/components/clinical/documents-card'
 import { EncounterList } from '@/components/clinical/encounter-list'
 import { PrescriptionsCard } from '@/components/clinical/prescriptions-card'
@@ -106,6 +107,14 @@ export default async function PatientChartPage({ params }: { params: RouteParams
         locale={locale}
         visits={encounters.items}
         basePath={`/doctor/patients/${patient.id}/plans`}
+        editable={patient.isActive}
+      />
+
+      <LabOrdersCard
+        actor={actor}
+        patientId={patient.id}
+        clinic={clinic}
+        locale={locale}
         editable={patient.isActive}
       />
 

@@ -3,14 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useTranslations } from 'next-intl'
-import type { DentalChart as Chart, DentalTreatment, Dentition, QuickPick } from '@clinic/contracts'
+import type {
+  DentalChart as Chart,
+  DentalTreatment,
+  Dentition,
+  LabOrder,
+  QuickPick,
+} from '@clinic/contracts'
 import { Alert, Button, Label, Select, Skeleton, cn } from '@clinic/ui'
 import { apiFetch } from '@/lib/api/client'
+import type { VoiceDraft } from '@/lib/dental/voice'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
 import { useRouter } from '@/lib/navigation/use-router'
 import { Odontogram2D } from './odontogram-2d'
 import { ToothPanel, type Visit } from './tooth-panel'
 import { filterTeeth, type ChartFilter } from './tooth-visual'
+import { VoiceButton } from './voice-button'
 
 // three.js and the tooth meshes arrive only when somebody opens the 3D view.
 const Jaw3D = dynamic(() => import('./jaw-3d').then((module) => module.Jaw3D), {
@@ -56,6 +64,8 @@ export function DentalChart({
   today,
   canWrite,
   files,
+  labOrders = [],
+  voice = false,
 }: {
   patientId: string
   chart: Chart
@@ -66,6 +76,10 @@ export function DentalChart({
   today: string
   canWrite: boolean
   files: { canRead: boolean; canUpload: boolean }
+  /** The patient's open lab work (Phase 13): a chip on each tooth it names. */
+  labOrders?: readonly LabOrder[]
+  /** The clinic has turned voice charting on (ADR-0037). */
+  voice?: boolean
 }) {
   const t = useTranslations('dental')
   const router = useRouter()
@@ -83,6 +97,8 @@ export function DentalChart({
   const [past, setPast] = useState<Chart | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [savingDentition, setSavingDentition] = useState(false)
+  // A voice draft, keyed so a second sentence about the same tooth opens a fresh form.
+  const [draft, setDraft] = useState<(VoiceDraft & { key: number }) | null>(null)
 
   // Read after mount: the server has no window, and a mismatch would flash the wrong view.
   useEffect(() => {
@@ -227,6 +243,16 @@ export function DentalChart({
           </Select>
         </div>
 
+        {voice && canWrite && !replaying ? (
+          <VoiceButton
+            treatments={treatments}
+            onDraft={(heard) => {
+              setSelected(heard.fdi)
+              setDraft({ ...heard, key: Date.now() })
+            }}
+          />
+        ) : null}
+
         <div className="text-muted-foreground ml-auto flex flex-wrap items-center gap-3 text-xs">
           <span className="inline-flex items-center gap-1">
             <span aria-hidden="true" className="inline-block h-3 w-3 rounded-full bg-[#185FA5]" />
@@ -324,7 +350,7 @@ export function DentalChart({
           <aside className="bg-card rounded-lg border p-4" aria-live="polite">
             {selectedTooth ? (
               <ToothPanel
-                key={`${selectedTooth.fdi}-${asOf ?? 'now'}`}
+                key={`${selectedTooth.fdi}-${asOf ?? 'now'}-${draft?.fdi === selectedTooth.fdi ? draft.key : ''}`}
                 patientId={patientId}
                 tooth={selectedTooth}
                 toothLabel={toothLabel}
@@ -336,7 +362,12 @@ export function DentalChart({
                 today={today}
                 canWrite={canWrite && !replaying}
                 files={{ canRead: files.canRead, canUpload: files.canUpload && !replaying }}
-                onChanged={() => router.refresh()}
+                onChanged={() => {
+                  setDraft(null)
+                  router.refresh()
+                }}
+                labOrders={labOrders.filter((order) => order.teeth.includes(selectedTooth.fdi))}
+                draft={draft?.fdi === selectedTooth.fdi && !replaying ? draft : null}
               />
             ) : (
               <p className="text-muted-foreground text-sm">{t('panel.pick')}</p>
