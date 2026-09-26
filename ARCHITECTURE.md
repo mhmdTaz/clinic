@@ -3439,6 +3439,59 @@ still a draft; Close and Done now load the page.
   denture priced per tooth.
 - The mobile app and the patient portal do not show plans.
 
+### Phase 13 — The lab and the voice · after v1 · 🔸
+
+Two things a dental practice does every day that the app did not know about: crowns, bridges and
+dentures are made by a lab, and have to be back before the patient is; and a dentist with gloves
+on would rather say what they did than type it.
+
+- **Lab orders.** A `lab_orders` document per piece of work sent out, pointing at the chart rows it
+  is made for, with the lab, the day sent and the day promised. SENT → RECEIVED → FITTED, with
+  REMAKE for work that went back (with the lab's new date) and CANCELLED with a reason; every move is
+  a line in the order's history. Late is worked out on read, from the clinic's today.
+- **Where it shows.** A lab card on the patient page sends planned work a lab makes and moves it on;
+  a chip on the tooth in the chart drawer says "at Beirut Dental Lab, due Thursday"; Staff → Lab
+  work lists everything not finished, soonest due first, late marked.
+- **A day's warning.** The worker's lab sweep reads tomorrow's diary each tick, and for a patient
+  whose work is still at the lab, tells the front desk — the chart permission at clinic scope, so
+  not a doctor who reads only their own patients. Keyed by appointment and order, so it is sent
+  once however often the sweep runs. `usersHolding` gained a minimum scope for this.
+- **Voice charting** (ADR-0037). "Sixteen MOD composite done" fills in the tooth's form — tooth,
+  surfaces, treatment, status — for a person to check and save; nothing is written from speech.
+  Off by default: the administrator turns it on after acknowledging that the browser's speech
+  service sends audio to the browser maker. English only.
+- The seed turns lab orders on for the demo clinic and has the planned crown on 16 at a lab.
+
+**Exit criteria:**
+
+1. Lab work is sent for planned work on the chart, followed to fitted or back for a remake, and
+   seen on the tooth and on a clinic-wide board, late work marked.
+2. The front desk is told, a day ahead and once, about lab work not back for a booked patient.
+3. Voice charting is off until turned on knowingly, and produces a draft, never a record.
+
+**How it came out, so far.** The integration suite sends a crown to a lab, refuses to fit it before
+it is back, sends it back for a remake with a new date, fits it, and reads the five moves in its
+history; refuses work of another patient's, voided work, a future send date and a due date before
+it; shows late work on the board to the front desk and refuses the board to a dentist; and refuses
+to turn voice charting on without the acknowledgement, or for anyone without `dental:configure`.
+The worker's suite sends the late-work notice once to the front desk and not to a dentist, and
+says nothing about work that is back or before the day. The parser's tests cover the sentence it
+was built for, numbers and surfaces written every way, front and back teeth, statuses, a tie
+between two crowns, and no draft without a tooth or a treatment. Playwright journeys cover the
+board, the chip, received and fitted, sending work, and a spoken sentence — through a stand-in for
+the browser's speech service — becoming a saved row.
+
+**Not done, and stated plainly:**
+
+- **Recognition runs in the browser's cloud service.** On-device recognition is the upgrade path
+  (ADR-0037); until then the switch says where the audio goes.
+- **One tooth per sentence.** A span — a bridge "from 45 to 47" — is not parsed.
+- **The lab chip is on the drawer, not on the jaw.** The 2D and 3D pictures do not mark teeth with
+  lab work.
+- **No lab directory.** A lab is a name typed with suggestions from the patient's own orders; there
+  is no list of labs with their contacts.
+- Lab work and voice are in English on every locale, as the other clinical screens are.
+
 ### Sequencing rationale
 
 - **RBAC before features.** Every later phase calls `assertCan`; adding it afterwards means
@@ -3545,6 +3598,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
 | 0035 | A tooth chart is a log, and the picture is derived from it | **Accepted** | `docs/adr/0035` — one `tooth_records` row per thing charted, never edited; a finished plan gets a COMPLETED row pointing at it, a mistake is voided with a reason; the chart is a pure function of the rows, replayable on any day; FDI numbering with a per-patient dentition; patient-wide access for a treating dentist, and the front desk may chart |
 | 0036 | A plan owns the price and the answer; the chart owns the work | **Accepted** | `docs/adr/0036` — `treatment_plans` items point at PLANNED chart rows; prices are snapshots rounded as on an invoice; whether an item is done is rewritten from the chart log on every completion or void; one agreed plan per piece of work; done work is billed by a person with `invoice:create`, once |
+| 0037 | Voice charting is a draft, and the clinic chooses where the audio goes | **Accepted** | `docs/adr/0037` — a spoken sentence fills in the charting form for a person to save, never a row on its own; refuses rather than guesses; off by default, turned on by an administrator who acknowledges that the browser's speech service sends audio to the browser maker, on the audit log; on-device recognition is the upgrade path |
 
 ### The ones to settle next
 
