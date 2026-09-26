@@ -140,6 +140,45 @@ export const toothRecordRepository = {
     return doc ? toRecord(doc) : null
   },
 
+  async findByIds(
+    clinicId: string,
+    recordIds: readonly string[],
+  ): Promise<Map<string, StoredToothRecord>> {
+    if (recordIds.length === 0) return new Map()
+    const docs = (await ToothRecordModel()
+      .find({ clinicId, _id: { $in: [...recordIds] } })
+      .select({ notes: 0 })
+      .lean()) as unknown as ToothRecordRow[]
+    return new Map(docs.map((doc) => [doc._id, toRecord(doc)]))
+  },
+
+  /**
+   * For each planned row asked about, the live row that carried it out — with the day and the
+   * visit, which is what a treatment plan shows and bills against.
+   */
+  async completionDetailsOf(
+    clinicId: string,
+    plannedIds: readonly string[],
+  ): Promise<Map<string, { recordId: string; performedOn: string; encounterId: string | null }>> {
+    if (plannedIds.length === 0) return new Map()
+    const docs = (await ToothRecordModel()
+      .find({ clinicId, completesRecordId: { $in: [...plannedIds] }, voidedAt: null })
+      .select({ completesRecordId: 1, performedOn: 1, encounterId: 1 })
+      .setOptions({ skipAudit: true })
+      .lean()) as unknown as Array<{
+      _id: string
+      completesRecordId: string
+      performedOn: string
+      encounterId?: string | null
+    }>
+    return new Map(
+      docs.map((doc) => [
+        doc.completesRecordId,
+        { recordId: doc._id, performedOn: doc.performedOn, encounterId: doc.encounterId ?? null },
+      ]),
+    )
+  },
+
   /** Who a row belongs to, for an access decision. Not a view of the chart. */
   async findAccessFacts(
     clinicId: string,

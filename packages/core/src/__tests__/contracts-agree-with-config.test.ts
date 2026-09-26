@@ -22,6 +22,7 @@ import {
   SLOT_MINUTE_OPTIONS,
   TOOTH_RECORD_STATUSES,
   TOOTH_ROLES,
+  TREATMENT_PLAN_STATUSES,
   TOOTH_SURFACES,
   USER_STATUSES,
 } from '@clinic/config'
@@ -48,6 +49,7 @@ import {
   SLOT_MINUTES,
   ToothRecordStatus,
   ToothRole,
+  TreatmentPlanStatus,
   ToothSurface,
   UserStatus,
 } from '@clinic/contracts'
@@ -82,6 +84,7 @@ describe('contracts and config list the same values', () => {
     ['dental symbols', DentalSymbol.options, DENTAL_SYMBOLS],
     ['dental scopes', DentalScope.options, DENTAL_SCOPES],
     ['tooth roles', ToothRole.options, TOOTH_ROLES],
+    ['treatment plan statuses', TreatmentPlanStatus.options, TREATMENT_PLAN_STATUSES],
   ])('%s', (_name, contract, config) => {
     expect([...contract]).toEqual([...config])
   })

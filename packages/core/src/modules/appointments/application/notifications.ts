@@ -71,3 +71,16 @@ export async function appointmentsStartingBetween(
       reason: appointment.reason,
     }))
 }
+
+/**
+ * When each of these patients is next booked in, for a recall list that should not chase somebody
+ * who is already coming. Bookkeeping for another module's use case, which has already decided the
+ * caller may see these patients; it names no appointment and no doctor.
+ */
+export function nextAppointmentsFor(
+  clinicId: string,
+  patientIds: readonly string[],
+  now: Date = new Date(),
+): Promise<Map<string, Date>> {
+  return appointmentRepository.nextStartFor(clinicId, patientIds, now)
+}

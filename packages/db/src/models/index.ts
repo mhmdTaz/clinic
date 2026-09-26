@@ -75,6 +75,11 @@ export {
 } from './dental-treatment.model'
 export { ToothRecordModel, ToothRecordSchema, type ToothRecordDoc } from './tooth-record.model'
 export {
+  TreatmentPlanModel,
+  TreatmentPlanSchema,
+  type TreatmentPlanDoc,
+} from './treatment-plan.model'
+export {
   DentalQuickPickModel,
   DentalQuickPickSchema,
   type DentalQuickPickDoc,

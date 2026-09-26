@@ -16,6 +16,19 @@ export {
   createQuickPick,
   updateQuickPick,
 } from './application/catalogue'
+export {
+  listTreatmentPlans,
+  getTreatmentPlan,
+  createTreatmentPlan,
+  updateTreatmentPlan,
+  presentTreatmentPlan,
+  acceptTreatmentPlan,
+  declineTreatmentPlan,
+  cancelTreatmentPlan,
+  billPlanItem,
+  listOverduePlans,
+  toTreatmentPlan,
+} from './application/plans'
 export { installDentalScopeResolvers, dentalResource } from './application/scope'
 export { deriveChart, supersedes, type ChartableRecord, type Mark } from './domain/derive-chart'
 export { chartingProblems, statusProblem } from './domain/rules'
@@ -32,4 +45,15 @@ export {
   chartOrder,
 } from './domain/fdi'
 export { DEFAULT_TREATMENTS } from './domain/defaults'
+export {
+  isEditable as isPlanEditable,
+  canPresent as canPresentPlan,
+  canDecide as canDecidePlan,
+  canCancel as canCancelPlan,
+  canBill as canBillPlan,
+  statusAfterProgress,
+  itemState,
+  defaultQuantity,
+  describeWork,
+} from './domain/plan'
 // NOT exported: the repositories.

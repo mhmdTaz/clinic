@@ -24,6 +24,7 @@ import {
   type NewToothRecord,
   type StoredToothRecord,
 } from '../infrastructure/tooth-record.repository'
+import { syncPlansFor } from './plans'
 import { patientForChart } from './scope'
 
 /**
@@ -255,6 +256,8 @@ export async function completeToothRecord(
     doctor: who.doctor,
     recordedBy: personOf(actor),
   })
+  // A plan with this work in it now has one item done, and may be finished.
+  await syncPlansFor(actor.clinicId, planned.id)
   return toToothRecord(record)
 }
 
@@ -275,6 +278,9 @@ export async function voidToothRecord(
     at: now,
   })
   if (!voided) throw new ConflictError('RECORD_VOIDED', 'This record has already been voided.')
+  // Voiding planned work drops it from any plan; voiding a completion reopens the planned item.
+  const planned = voided.status === 'PLANNED' ? voided.id : voided.completesRecordId
+  if (planned) await syncPlansFor(actor.clinicId, planned)
   return toToothRecord(voided)
 }
 
