@@ -40,9 +40,20 @@
 }
 
 @layer theme {
+  /*
+   * color-scheme travels with each palette. Without it the browser draws its own parts of a
+   * control — the date and time pickers' icons, select popups, scrollbars, autofill — for a light
+   * page even on the dark palette: near-black icons on a near-black field (audit F07). Set beside
+   * the colours, an explicit data-theme overrides the system's choice for both at once.
+   */
+  :root {
+    color-scheme: light;
+  }
+
   :root[data-theme='dark'],
   :root:not([data-theme='light']) {
     @media (prefers-color-scheme: dark) {
+      color-scheme: dark;
       --color-background: oklch(17% 0.015 255);
       --color-foreground: oklch(96% 0.005 250);
       --color-muted: oklch(24% 0.018 255);
@@ -59,6 +70,7 @@
   }
 
   :root[data-theme='dark'] {
+    color-scheme: dark;
     --color-background: oklch(17% 0.015 255);
     --color-foreground: oklch(96% 0.005 250);
     --color-muted: oklch(24% 0.018 255);
