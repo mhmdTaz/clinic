@@ -3394,6 +3394,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0032 | The API client is typed from the contracts, not generated from OpenAPI | **Accepted** | `docs/adr/0032` — the client imports the Zod contracts and validates responses against them, because a round trip through JSON Schema loses the refinements that make a request valid |
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
+| 0035 | A transitive fix is patched only where its parent was read | **Accepted** | `docs/adr/0035` — `image-size@2` for Metro with a patch passing bytes instead of a path, `uuid@11` for `xcode`, both scoped overrides validated by a byte-identical bundle; `decode-uri-component` left at one moderate advisory because every fix is ESM-only |
 
 ### The ones to settle next
 
