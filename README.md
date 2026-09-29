@@ -47,6 +47,17 @@ pnpm dev                      # http://localhost:3000
 
 Or in one step, from a clean clone: `pnpm setup && pnpm dev`.
 
+`pnpm infra:up` checks first that nothing outside this stack holds the ports it publishes, and
+names what does — it never stops anything. It then requires both one-shot initialisers (the
+replica set, the storage bucket) to have **succeeded**, and waits for every service to be
+healthy; MongoDB counts as healthy only once `rs.status()` answers. Running it again is safe.
+
+**If port 27018 is taken** (another project's MongoDB, say), move this one: in `.env` set
+`MONGO_PORT` to a free port and change the port in **both** `MONGODB_URI` and
+`MONGODB_AUDIT_URI` to match — the app reads the first, the audit writer the second, and
+`infra:up` warns if either disagrees with `MONGO_PORT`. On an existing volume the replica set is
+re-pointed at the new port; the data is untouched.
+
 The background worker runs separately, in a second terminal:
 
 ```bash
@@ -61,13 +72,13 @@ without it is delivery: confirmations, reminders and ticket notifications queue 
 Open **http://localhost:3000** — not `127.0.0.1`. Sign-in requests from any origin other than
 `APP_URL` are refused as cross-site.
 
-| URL                              | What                                                       |
-| -------------------------------- | ---------------------------------------------------------- |
-| http://localhost:3000            | Sign in                                                    |
-| http://localhost:3000/api/health | Readiness JSON (503 only when MongoDB is down)             |
-| http://localhost:8025            | Mailpit — every email the app sends, including reset links |
-| http://localhost:9001            | MinIO console (`clinic` / `clinic-dev-secret`)             |
-| `mongodb://localhost:27018`      | MongoDB (**not** 27017 — see `docs/adr/0015`)              |
+| URL                              | What                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| http://localhost:3000            | Sign in                                                     |
+| http://localhost:3000/api/health | Readiness JSON (503 only when MongoDB is down)              |
+| http://localhost:8025            | Mailpit — every email the app sends, including reset links  |
+| http://localhost:9001            | MinIO console (`clinic` / `clinic-dev-secret`)              |
+| `mongodb://localhost:27018`      | MongoDB (**not** 27017 — see `docs/adr/0015`; `MONGO_PORT`) |
 
 ## Seeded users
 
