@@ -116,4 +116,27 @@ describe('country options', () => {
     expect(options.find((option) => option.value === 'LB')?.label).toBe('Lebanon')
     expect(options.some((option) => ['EU', 'UN', 'ZZ'].includes(option.value))).toBe(false)
   })
+
+  // Audit F04: Germany was offered as DD and DE, Serbia as CS, RS and YU.
+  it('offers each country once, under its current code only', () => {
+    const options = countryOptions('en')
+    const labels = options.map((option) => option.label)
+    expect(new Set(labels).size).toBe(labels.length)
+    expect(new Set(options.map((option) => option.value)).size).toBe(options.length)
+    for (const old of ['DD', 'UK', 'CS', 'YU', 'SU', 'ZR', 'AN']) {
+      expect(options.some((option) => option.value === old)).toBe(false)
+    }
+    expect(options.filter((option) => option.label === 'Germany').map((o) => o.value)).toEqual([
+      'DE',
+    ])
+  })
+
+  it('keeps a retired stored country visible and labelled, rather than silently replacing it', () => {
+    const options = countryOptions('en', 'YU', (code) => `${code} (former)`)
+    expect(options[0]).toEqual({ value: 'YU', label: 'YU (former)' })
+    expect(options.filter((option) => option.value === 'YU')).toHaveLength(1)
+    // A current or renamed stored code needs nothing extra: it is already a choice.
+    expect(countryOptions('en', 'LB')).toBe(countryOptions('en'))
+    expect(countryOptions('en', 'UK')).toBe(countryOptions('en'))
+  })
 })

@@ -26,9 +26,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ClinicSettingsPage() {
   const actor = await requirePortal('admin')
-  const [settings, t, locale] = await Promise.all([
+  const [settings, t, tCommon, locale] = await Promise.all([
     getClinicSettings(actor),
     getTranslations('admin.clinic'),
+    getTranslations('common'),
     getLocale(),
   ])
   const canEdit = holds(actor, 'clinic:update')
@@ -45,7 +46,9 @@ export default async function ClinicSettingsPage() {
           <CardContent>
             <ClinicProfileForm
               settings={settings}
-              countries={countryOptions(locale)}
+              countries={countryOptions(locale, settings.address.country, (code) =>
+                tCommon('formerCountry', { code }),
+              )}
               timezones={timezoneOptions(settings.timezone)}
               currencies={currencyOptions(locale)}
               locales={localeOptions(locale)}

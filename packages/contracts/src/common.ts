@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EmailAddress } from './auth'
+import { RETIRED_COUNTRIES, canonicalCountry, isCountryCode } from './countries'
 
 /**
  * Building blocks shared by every contract. Closed sets mirror the unions in @clinic/config;
@@ -89,29 +90,24 @@ export function isTimeZone(value: string): boolean {
 
 export const IanaTimezone = z.string().min(1).max(64).refine(isTimeZone, 'INVALID_TIMEZONE')
 
-/** Codes the runtime names that are not countries: the EU, the UN, pseudo-locales, "Unknown". */
-export const NON_COUNTRY_REGIONS: ReadonlySet<string> = new Set([
-  'EU',
-  'EZ',
-  'QO',
-  'UN',
-  'XA',
-  'XB',
-  'ZZ',
-])
-
-/** ISO 3166-1 alpha-2, checked against the runtime's own list of regions. */
-export function isRegionCode(value: string): boolean {
-  if (!/^[A-Z]{2}$/.test(value) || NON_COUNTRY_REGIONS.has(value)) return false
-  try {
-    const name = new Intl.DisplayNames(['en'], { type: 'region' }).of(value)
-    return Boolean(name) && name !== value
-  } catch {
-    return false
-  }
-}
-
-export const CountryCode = z.string().trim().toUpperCase().refine(isRegionCode, 'INVALID_COUNTRY')
+/**
+ * A country, as ISO 3166-1 alpha-2 (audit F04; the list and its reasons are in ./countries). An old
+ * code for a country that still exists is read as its current code. A code that no longer means
+ * one country — Yugoslavia, the Soviet Union — is refused with its own issue, because only a
+ * person can say which country the address is in now.
+ */
+export const CountryCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .transform(canonicalCountry)
+  .superRefine((code, context) => {
+    if (isCountryCode(code)) return
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: RETIRED_COUNTRIES.has(code) ? 'RETIRED_COUNTRY' : 'INVALID_COUNTRY',
+    })
+  })
 export const nullableCountry = z.preprocess(blankToNull, CountryCode.nullable())
 
 /** An amount as a decimal string, "45.00" — a JSON number cannot hold cents exactly (9.2). */
