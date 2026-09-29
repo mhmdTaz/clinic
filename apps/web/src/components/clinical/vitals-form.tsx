@@ -1,12 +1,19 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { VitalsInput, issueCode, issuePath, type Vitals } from '@clinic/contracts'
+import {
+  VitalsInput,
+  issueCode,
+  issuePath,
+  type EncounterDetail,
+  type Vitals,
+} from '@clinic/contracts'
 import { Alert, Button, Input, Label, Spinner } from '@clinic/ui'
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage, useValidationMessage } from '@/lib/i18n/use-error-message'
 import { useRouter } from '@/lib/navigation/use-router'
+import { useDraftSection } from './encounter-drafts'
 
 /** Decimal measurements keep their decimal; the rest are whole numbers by nature. */
 const FIELDS = [
@@ -22,6 +29,23 @@ const FIELDS = [
 ] as const
 
 type FieldName = (typeof FIELDS)[number]['name']
+type Values = Record<FieldName, string>
+
+const valuesOf = (vitals: Vitals | null): Values =>
+  Object.fromEntries(
+    FIELDS.map((field) => [field.name, String(vitals?.[field.name] ?? '')]),
+  ) as Values
+
+const same = (a: Values, b: Values) => FIELDS.every((field) => a[field.name] === b[field.name])
+
+/** Fields untouched here follow the server from `before` to `after`; typed ones stay. */
+const rebase = (draft: Values, before: Values, after: Values): Values =>
+  Object.fromEntries(
+    FIELDS.map((field) => [
+      field.name,
+      draft[field.name] === before[field.name] ? after[field.name] : draft[field.name],
+    ]),
+  ) as Values
 
 /**
  * What was measured during the visit (D6).
@@ -46,17 +70,40 @@ export function VitalsForm({
   const validationMessage = useValidationMessage()
   const fieldId = useId()
 
-  const stored = Object.fromEntries(
-    FIELDS.map((field) => [field.name, String(vitals?.[field.name] ?? '')]),
-  ) as Record<FieldName, string>
-
-  const [values, setValues] = useState(stored)
+  const server = valuesOf(vitals)
+  /** The server's copy as last confirmed — by a save here or by a newer render. */
+  const [baseline, setBaseline] = useState(server)
+  const [rendered, setRendered] = useState(server)
+  const [values, setValues] = useState(server)
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({})
   const [general, setGeneral] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [pending, setPending] = useState(false)
+  const inFlight = useRef<Promise<boolean> | null>(null)
 
-  const dirty = FIELDS.some((field) => values[field.name] !== stored[field.name])
+  if (!same(server, rendered)) {
+    setRendered(server)
+    if (!same(server, baseline)) {
+      setValues(rebase(values, baseline, server))
+      setBaseline(server)
+    }
+  }
+
+  const dirty = !readOnly && !same(values, baseline)
+
+  const drafts = useDraftSection(
+    'vitals',
+    { dirty, saving: pending },
+    {
+      save: () => save(),
+      focus: () => {
+        const first = FIELDS.find((field) => values[field.name] !== baseline[field.name])
+        const target = document.getElementById(`${fieldId}-${first?.name ?? FIELDS[0].name}`)
+        target?.scrollIntoView({ block: 'center' })
+        target?.focus()
+      },
+    },
+  )
 
   function report(details: ReadonlyArray<{ field: string; issue: string }>): boolean {
     const placed: Partial<Record<FieldName, string>> = {}
@@ -70,34 +117,49 @@ export function VitalsForm({
     return other
   }
 
-  async function save() {
+  function save(): Promise<boolean> {
+    if (inFlight.current) return inFlight.current
+    if (!dirty) return Promise.resolve(true)
     setGeneral(null)
     setSaved(false)
     setErrors({})
 
-    const parsed = VitalsInput.safeParse(values)
+    const submitted = values
+    const parsed = VitalsInput.safeParse(submitted)
     if (!parsed.success) {
       const other = report(
         parsed.error.issues.map((issue) => ({ field: issuePath(issue), issue: issueCode(issue) })),
       )
       if (other) setGeneral(errorMessage(new ApiError(400, 'VALIDATION_FAILED', '')))
-      return
+      return Promise.resolve(false)
     }
 
-    setPending(true)
-    try {
-      await apiFetch(`/api/v1/encounters/${encounterId}/vitals`, {
-        method: 'POST',
-        body: parsed.data,
-      })
-      setSaved(true)
-      router.refresh()
-    } catch (caught) {
-      const other = caught instanceof ApiError ? report(caught.details) : true
-      if (other) setGeneral(errorMessage(caught))
-    } finally {
-      setPending(false)
-    }
+    const run = (async () => {
+      setPending(true)
+      try {
+        const encounter = await apiFetch<EncounterDetail>(
+          `/api/v1/encounters/${encounterId}/vitals`,
+          { method: 'POST', body: parsed.data },
+        )
+        // "036.6" is stored as 36.6: what was sent and not touched since becomes the server's.
+        const stored = valuesOf(encounter.vitals)
+        setValues((current) => rebase(current, submitted, stored))
+        setBaseline(stored)
+        drafts.confirmed(encounter)
+        setSaved(true)
+        router.refresh()
+        return true
+      } catch (caught) {
+        const other = caught instanceof ApiError ? report(caught.details) : true
+        if (other) setGeneral(errorMessage(caught))
+        return false
+      } finally {
+        setPending(false)
+        inFlight.current = null
+      }
+    })()
+    inFlight.current = run
+    return run
   }
 
   return (
@@ -138,7 +200,9 @@ export function VitalsForm({
             {pending ? tCommon('saving') : t('save')}
           </Button>
           {dirty && !pending ? (
-            <span className="text-muted-foreground text-xs">{tCommon('unsaved')}</span>
+            <span className="text-muted-foreground text-xs" role="status">
+              {tCommon('unsaved')}
+            </span>
           ) : null}
         </div>
       )}

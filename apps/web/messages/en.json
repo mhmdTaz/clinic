@@ -239,6 +239,7 @@
     "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands.",
     "NO_SLOT_TODAY": "That doctor has no open time left today. Book a later appointment instead.",
     "NOTE_ALREADY_SIGNED": "This note has been signed and can no longer be changed. Add an addendum instead.",
+    "NOTE_CHANGED": "This visit was changed after you opened it — perhaps in another tab or on another device. Review the latest version before signing.",
     "NOTE_NOT_SIGNED": "A draft is still editable — an addendum belongs to a signed note.",
     "NOTE_IS_EMPTY": "There is nothing in this note to sign.",
     "ENCOUNTER_EXISTS": "That appointment already has a visit recorded against it.",
@@ -1469,9 +1470,29 @@
       "signWarning": "Once signed, the text of this note cannot be changed by anyone — including you. Corrections are added underneath as addenda.",
       "signature": "Signature",
       "signConfirm": "Sign the note",
+      "signBlocked": "Save your changes before signing.",
+      "signBlockedDescription": "Signing freezes what has been saved, and some of what is on screen has not been saved yet.",
+      "sectionSaving": "{section} (saving…)",
+      "goToSection": "Go to {section}",
+      "signingSaved": "You are signing the note as it was last saved:",
+      "reviewLatest": "Load the latest version",
       "addendum": "Add an addendum",
       "addendumHint": "A correction or an addition. It appears beneath the signed note.",
       "addAddendum": "Add the addendum"
+    },
+    "drafts": {
+      "leaveTitle": "Leave without saving?",
+      "leaveDescription": "These parts of the visit have changes that are not saved yet:",
+      "stay": "Stay on this page",
+      "discardAndLeave": "Discard and leave",
+      "saveAndLeave": "Save and leave",
+      "saving": "Saving…",
+      "sections": {
+        "note": "Clinical note",
+        "vitals": "Vitals",
+        "diagnoses": "Diagnoses",
+        "addendum": "Addendum"
+      }
     },
     "vitals": {
       "save": "Save vitals",

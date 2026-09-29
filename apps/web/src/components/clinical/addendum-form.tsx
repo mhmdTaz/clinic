@@ -1,12 +1,13 @@
 'use client'
 
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslations } from 'next-intl'
 import { AddendumRequest } from '@clinic/contracts'
 import { Alert, Button, Label, Spinner, Textarea } from '@clinic/ui'
 import { ApiError, apiFetch } from '@/lib/api/client'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
 import { useRouter } from '@/lib/navigation/use-router'
+import { useDraftSection } from './encounter-drafts'
 
 /**
  * The only way to change a signed record (D9, ADR-0024): text appended beneath it, never over
@@ -21,29 +22,56 @@ export function AddendumForm({ encounterId }: { encounterId: string }) {
   const [body, setBody] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const inFlight = useRef<Promise<boolean> | null>(null)
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  // An addendum being written is a draft like any other: leaving asks first (audit F02).
+  useDraftSection(
+    'addendum',
+    { dirty: body.trim() !== '', saving: pending },
+    {
+      save: () => add(),
+      focus: () => {
+        const target = document.getElementById(`${fieldId}-addendum`)
+        target?.scrollIntoView({ block: 'center' })
+        target?.focus()
+      },
+    },
+  )
+
+  function add(): Promise<boolean> {
+    if (inFlight.current) return inFlight.current
+    const run = (async () => {
+      setPending(true)
+      setError(null)
+      try {
+        const parsed = AddendumRequest.safeParse({ body })
+        if (!parsed.success) throw new ApiError(400, 'VALIDATION_FAILED', '')
+        await apiFetch(`/api/v1/encounters/${encounterId}/addendum`, {
+          method: 'POST',
+          body: parsed.data,
+        })
+        setBody('')
+        router.refresh()
+        return true
+      } catch (caught) {
+        setError(errorMessage(caught))
+        return false
+      } finally {
+        setPending(false)
+        inFlight.current = null
+      }
+    })()
+    inFlight.current = run
+    return run
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setPending(true)
-    setError(null)
-    try {
-      const parsed = AddendumRequest.safeParse({ body })
-      if (!parsed.success) throw new ApiError(400, 'VALIDATION_FAILED', '')
-      await apiFetch(`/api/v1/encounters/${encounterId}/addendum`, {
-        method: 'POST',
-        body: parsed.data,
-      })
-      setBody('')
-      router.refresh()
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setPending(false)
-    }
+    void add()
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-2">
+    <form onSubmit={submit} className="flex flex-col gap-2">
       {error ? <Alert tone="danger">{error}</Alert> : null}
       <Label htmlFor={`${fieldId}-addendum`}>{t('addendum')}</Label>
       <Textarea

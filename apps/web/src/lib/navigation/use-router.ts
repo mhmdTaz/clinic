@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useRouter as useNextRouter } from 'next/navigation'
+import { guardNavigation, hasUnsavedWork } from './navigation-guard'
 
 /** How long a refresh may take to render before the page is reloaded instead. */
 const RENDER_TIMEOUT_MS = 2500
@@ -21,12 +22,23 @@ function renderId(): string | null {
  * request id; if the stamp has not changed by the timeout, the page reloads, so a saved change is
  * never shown as though it had not happened. Outside the portal shell there is no stamp, and
  * refresh() behaves exactly like Next.js's.
+ *
+ * Two things a reload must never do (audit F02): throw away a draft in another part of the page,
+ * and navigate past an unsaved-changes guard. So while anything on screen is unsaved, the fallback
+ * asks for one more refresh instead of reloading — the section that was just saved already shows
+ * what the server answered, and the rest of the page keeps what was typed. push, replace and back
+ * go through the same guard as a clicked link.
  */
 export function useRouter(): ReturnType<typeof useNextRouter> {
   const router = useNextRouter()
   return useMemo(
     () => ({
       ...router,
+      push: (...args: Parameters<typeof router.push>) =>
+        guardNavigation(() => router.push(...args)),
+      replace: (...args: Parameters<typeof router.replace>) =>
+        guardNavigation(() => router.replace(...args)),
+      back: () => guardNavigation(() => router.back()),
       refresh: () => {
         const before = renderId()
         router.refresh()
@@ -34,8 +46,9 @@ export function useRouter(): ReturnType<typeof useNextRouter> {
         const deadline = Date.now() + RENDER_TIMEOUT_MS
         const check = () => {
           if (renderId() !== before) return
-          if (Date.now() >= deadline) window.location.reload()
-          else window.setTimeout(check, POLL_MS)
+          if (Date.now() < deadline) window.setTimeout(check, POLL_MS)
+          else if (hasUnsavedWork()) router.refresh()
+          else window.location.reload()
         }
         window.setTimeout(check, POLL_MS)
       },
