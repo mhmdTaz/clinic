@@ -8,6 +8,7 @@ import type {
   Holiday,
   WorkingHours,
 } from '@clinic/contracts'
+import { storedCountry } from '@clinic/contracts'
 import type { Clinic, ClinicSessionInfo } from '../domain/clinic'
 
 interface BranchRecord {
@@ -126,7 +127,8 @@ export const clinicRepository = {
         line1: doc.address?.line1 ?? null,
         line2: doc.address?.line2 ?? null,
         city: doc.address?.city ?? null,
-        country: doc.address?.country ?? null,
+        // An old code for a country that still exists reads as its current one (F04).
+        country: storedCountry(doc.address?.country),
       },
       branches: (doc.branches ?? []).map((branch) => {
         const { address: _address, ...detail } = branchOf(branch)
@@ -150,7 +152,8 @@ export const clinicRepository = {
         line1: doc.address?.line1 ?? null,
         line2: doc.address?.line2 ?? null,
         city: doc.address?.city ?? null,
-        country: doc.address?.country ?? null,
+        // An old code for a country that still exists reads as its current one (F04).
+        country: storedCountry(doc.address?.country),
       },
       timezone: doc.timezone ?? 'UTC',
       currency: doc.currency ?? 'USD',

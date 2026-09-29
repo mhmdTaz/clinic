@@ -2,11 +2,35 @@
 
 Four portals — admin, staff, doctor, patient — behind one login.
 
-**Current state: Phase 2 (Clinic setup and directories).** On top of Phase 1's sign-in,
-permission engine and portal shells: clinic settings (profile, locations, opening hours,
-closures), user management, a roles and permissions editor that changes access with no deploy,
-the patient directory with duplicate warnings, and doctor onboarding with specialties.
-[`ARCHITECTURE.md`](./ARCHITECTURE.md) is the blueprint; the phased plan is section 17.
+**Current state: Phases 1–13 of section 17 are merged.** What works, end to end, in the web portals
+and — for patients and doctors — over the REST API the mobile app uses:
+
+| Area                  | What is there                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Identity and access   | Sign-in, sessions and devices, invitations, password reset, lockout; roles and permissions editable with no deploy; four portals                             |
+| Clinic setup          | Profile, locations, opening hours, closures, booking window; users; the patient directory with duplicate warnings; doctors                                   |
+| Scheduling            | Staff and patient booking, walk-ins, rescheduling and cancelling with the clinic's cutoff, check-in to completion, reminders                                 |
+| Clinical record       | Visits with a SOAP note, vitals and ICD-10 diagnoses; signing, addenda, sharing with the patient; prescriptions (PDF); attachments                           |
+| Billing and stock     | Bills, partial payments, refunds, reconciliation; inventory intake, consumption during a visit, write-offs                                                   |
+| Dental                | A tooth chart kept as a log (2D and 3D, FDI numbering), treatment plans priced and followed into billing, lab orders, opt-in voice charting (ADRs 0035–0037) |
+| Support and oversight | Support tickets, notifications, analytics, the audit explorer with its tamper-evident chain                                                                  |
+| API                   | Every portal capability as REST under `/api/v1`, described by an OpenAPI document that a test checks against every route                                     |
+
+Each portal's home page leads with that role's next step: the front desk sees today's queue, a
+doctor their day and the notes still to sign, a patient their next appointment and anything
+owed. [`ARCHITECTURE.md`](./ARCHITECTURE.md) is the blueprint; the phased plan is section 17.
+
+**Clinical notes are saved explicitly and never autosaved** (ADR-0024). While the note, vitals or
+diagnoses hold anything unsaved, the visit cannot be signed — the signing dialog says which part
+and takes you there — and leaving the page asks _Save and leave_, _Discard and leave_ or _Stay_.
+Reloading or closing the tab gets the browser's own warning. A signature names the revision the
+doctor was shown; if anything was saved since (another tab, the phone), the server refuses it
+with `NOTE_CHANGED` rather than sign content nobody reviewed.
+
+**Not yet shown to be ready:** native iOS/Android behaviour on a device, a Hermes release build of
+the app (see ADR-0038), load at a real clinic's volume, a full accessibility audit (screen
+readers, 200% zoom, every flow by keyboard), and the Arabic interface, which is incomplete and
+hidden from the language choice. Passing API tests is not evidence for any of these.
 
 ## Running it locally
 
@@ -23,6 +47,17 @@ pnpm dev                      # http://localhost:3000
 
 Or in one step, from a clean clone: `pnpm setup && pnpm dev`.
 
+`pnpm infra:up` checks first that nothing outside this stack holds the ports it publishes, and
+names what does — it never stops anything. It then requires both one-shot initialisers (the
+replica set, the storage bucket) to have **succeeded**, and waits for every service to be
+healthy; MongoDB counts as healthy only once `rs.status()` answers. Running it again is safe.
+
+**If port 27018 is taken** (another project's MongoDB, say), move this one: in `.env` set
+`MONGO_PORT` to a free port and change the port in **both** `MONGODB_URI` and
+`MONGODB_AUDIT_URI` to match — the app reads the first, the audit writer the second, and
+`infra:up` warns if either disagrees with `MONGO_PORT`. On an existing volume the replica set is
+re-pointed at the new port; the data is untouched.
+
 The background worker runs separately, in a second terminal:
 
 ```bash
@@ -37,13 +72,13 @@ without it is delivery: confirmations, reminders and ticket notifications queue 
 Open **http://localhost:3000** — not `127.0.0.1`. Sign-in requests from any origin other than
 `APP_URL` are refused as cross-site.
 
-| URL                              | What                                                       |
-| -------------------------------- | ---------------------------------------------------------- |
-| http://localhost:3000            | Sign in                                                    |
-| http://localhost:3000/api/health | Readiness JSON (503 only when MongoDB is down)             |
-| http://localhost:8025            | Mailpit — every email the app sends, including reset links |
-| http://localhost:9001            | MinIO console (`clinic` / `clinic-dev-secret`)             |
-| `mongodb://localhost:27018`      | MongoDB (**not** 27017 — see `docs/adr/0015`)              |
+| URL                              | What                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| http://localhost:3000            | Sign in                                                     |
+| http://localhost:3000/api/health | Readiness JSON (503 only when MongoDB is down)              |
+| http://localhost:8025            | Mailpit — every email the app sends, including reset links  |
+| http://localhost:9001            | MinIO console (`clinic` / `clinic-dev-secret`)              |
+| `mongodb://localhost:27018`      | MongoDB (**not** 27017 — see `docs/adr/0015`; `MONGO_PORT`) |
 
 ## Seeded users
 
@@ -105,11 +140,20 @@ packages/core      ALL business logic. Zero framework imports.
   modules/identity   credentials, lockout, sessions, resets, invitations, accounts
   modules/access     permission catalogue, policy engine, roles editor, portals, navigation
   modules/session    turns a verified user into a signed-in session
-  modules/clinic     profile, locations, opening hours, closures
+  modules/clinic     profile, locations, opening hours, closures, booking window
   modules/users      user management: invites, roles, suspension, forced resets
   modules/patients   the patient directory, registration, duplicate warnings
   modules/doctors    doctor onboarding and the specialty vocabulary
-  modules/audit      audit recorder and capture
+  modules/scheduling calendar arithmetic, slots, the reservation grid (pure)
+  modules/appointments booking, walk-ins, the appointment lifecycle
+  modules/clinical   visits, notes, vitals, diagnoses, signing
+  modules/prescriptions, files   prescriptions and their PDFs; attachments in object storage
+  modules/billing    bills, payments, refunds, reconciliation
+  modules/inventory  stock, consumption, write-offs
+  modules/support, notifications   tickets; in-app, email and push delivery
+  modules/analytics, audit, audit-explorer   reporting; the audit recorder and its chain
+  modules/dental     the tooth chart, treatment plans, lab work, voice drafts
+  modules/outbox, idempotency   reliable delivery; retried requests answered once
 packages/db        Mongoose models, plugins, migrations
 packages/contracts Zod schemas shared by server, web and the mobile app
 packages/api-client The typed client both apps use: cookies for the browser, Bearer for a phone

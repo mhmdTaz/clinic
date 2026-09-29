@@ -1,6 +1,7 @@
 export * from './envelope'
 export * from './validation'
 export * from './common'
+export * from './countries'
 export * from './money'
 export * from './quantity'
 export * from './health'

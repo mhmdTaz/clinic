@@ -198,7 +198,10 @@ export async function bookAppointment(
     internalNote: input.internalNote,
     branchId: input.branchId,
   })
-  return toAppointmentDetail(appointment, { includeInternalNote: true })
+  return toAppointmentDetail(appointment, {
+    includeInternalNote: true,
+    window: bookingWindowOf(prepared.clinic.bookingSettings),
+  })
 }
 
 /** A patient books their own appointment (P5), inside the clinic's window (ADR-0022). */
@@ -242,5 +245,8 @@ export async function bookOwnAppointment(
     branchId: null,
   })
   // A patient never sees the staff note, and there is none on a booking they made.
-  return toAppointmentDetail(appointment, { includeInternalNote: false })
+  return toAppointmentDetail(appointment, {
+    includeInternalNote: false,
+    window: bookingWindowOf(prepared.clinic.bookingSettings),
+  })
 }

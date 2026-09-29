@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import type { DaySlots } from '@clinic/contracts'
-import { Alert, Button, Spinner } from '@clinic/ui'
+import { Alert, Button, Spinner, cn } from '@clinic/ui'
 import { apiFetch } from '@/lib/api/client'
-import { formatCalendarDate, formatTimeOfDay } from '@/lib/format/dates'
+import { formatCalendarDate, formatDayHeading, formatTimeOfDay } from '@/lib/format/dates'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
 
 /**
@@ -14,6 +14,11 @@ import { useErrorMessage } from '@/lib/i18n/use-error-message'
  * a time that looks free in a stale list is the one way a double booking reaches the confirm
  * step (section 8.7). The server settles the race regardless (ADR-0013), but the patient should
  * not be told to pick again for a time that was already gone when it was drawn.
+ *
+ * A range is shown one day at a time (audit F05): a row of the days that have open times, and the
+ * times of the day chosen. Every day at once was 92 buttons on a phone, with the confirm button
+ * 2,300 pixels below the first of them. A chosen time that is no longer offered when the list is
+ * asked again — someone else took it — is cleared rather than left selected.
  */
 export function SlotPicker({
   doctorId,
@@ -35,7 +40,7 @@ export function SlotPicker({
   onChange: (startsAt: string | null) => void
   locale: string
   timeZone: string
-  /** Headings for each day — for a range. A single day is already named by the form. */
+  /** Pick a day, then a time — for a range. A single day is already named by the form. */
   showDates?: boolean
   /** Changing this asks again — after a refused booking, the list must be redrawn. */
   reloadKey?: number
@@ -46,6 +51,9 @@ export function SlotPicker({
   const [days, setDays] = useState<DaySlots[] | null>(null)
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<unknown>(null)
+  const [chosenDay, setChosenDay] = useState<string | null>(null)
+  const selection = useRef({ value, onChange })
+  selection.current = { value, onChange }
 
   useEffect(() => {
     if (!doctorId) {
@@ -63,6 +71,9 @@ export function SlotPicker({
       .then((result) => {
         if (!current) return
         setDays(result)
+        const chosen = selection.current.value
+        const stillOpen = result.some((day) => day.slots.some((slot) => slot.startsAt === chosen))
+        if (chosen && !stillOpen) selection.current.onChange(null)
       })
       .catch((caught: unknown) => {
         if (!current) return
@@ -91,44 +102,84 @@ export function SlotPicker({
 
   const error = failure === null ? null : errorMessage(failure)
   const withSlots = (days ?? []).filter((day) => day.slots.length > 0)
+  // The day on show: the one chosen, else the one holding the chosen time, else the first open.
+  const dayOfValue = withSlots.find((day) => day.slots.some((slot) => slot.startsAt === value))
+  const shown = showDates
+    ? (withSlots.find((day) => day.date === chosenDay) ?? dayOfValue ?? withSlots[0])
+    : null
+  const visible = showDates ? (shown ? [shown] : []) : withSlots
 
+  // The days are their own group, beside the times rather than among them: a day is not a time,
+  // and "the first open time" must never be a day.
   return (
-    <div
-      role="group"
-      aria-label={t('groupLabel')}
-      aria-busy={pending || undefined}
-      className="flex flex-col gap-3"
-    >
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-      {!error && withSlots.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t('none')}</p>
+    <div className="flex flex-col gap-3">
+      {showDates && withSlots.length > 0 ? (
+        <div role="group" aria-label={t('days')} className="flex gap-2 overflow-x-auto pb-1">
+          {withSlots.map((day) => {
+            const current = day.date === shown?.date
+            return (
+              <Button
+                key={day.date}
+                size="sm"
+                variant={current ? 'secondary' : 'outline'}
+                aria-pressed={current}
+                className={cn(
+                  'h-auto shrink-0 flex-col gap-0 py-1.5',
+                  current && 'ring-primary ring-2',
+                )}
+                aria-label={t('dayOption', {
+                  date: formatCalendarDate(day.date, locale, 'full'),
+                  count: day.slots.length,
+                })}
+                onClick={() => setChosenDay(day.date)}
+              >
+                <span className="text-sm font-medium">{formatDayHeading(day.date, locale)}</span>
+                <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                  {t('count', { count: day.slots.length })}
+                </span>
+              </Button>
+            )
+          })}
+        </div>
       ) : null}
 
-      {withSlots.map((day) => (
-        <div key={day.date} className="flex flex-col gap-2">
-          {showDates ? (
-            <p className="text-sm font-medium">{formatCalendarDate(day.date, locale, 'full')}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            {day.slots.map((slot) => {
-              const time = formatTimeOfDay(slot.startsAt, locale, timeZone)
-              const selected = slot.startsAt === value
-              return (
-                <Button
-                  key={slot.startsAt}
-                  size="sm"
-                  variant={selected ? 'primary' : 'outline'}
-                  aria-pressed={selected}
-                  className="tabular-nums"
-                  onClick={() => onChange(selected ? null : slot.startsAt)}
-                >
-                  {time}
-                </Button>
-              )
-            })}
+      <div
+        role="group"
+        aria-label={t('groupLabel')}
+        aria-busy={pending || undefined}
+        className="flex flex-col gap-3"
+      >
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {!error && withSlots.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t('none')}</p>
+        ) : null}
+
+        {visible.map((day) => (
+          <div key={day.date} className="flex flex-col gap-2">
+            {showDates ? (
+              <p className="text-sm font-medium">{formatCalendarDate(day.date, locale, 'full')}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {day.slots.map((slot) => {
+                const time = formatTimeOfDay(slot.startsAt, locale, timeZone)
+                const selected = slot.startsAt === value
+                return (
+                  <Button
+                    key={slot.startsAt}
+                    size="sm"
+                    variant={selected ? 'primary' : 'outline'}
+                    aria-pressed={selected}
+                    className="tabular-nums"
+                    onClick={() => onChange(selected ? null : slot.startsAt)}
+                  >
+                    {time}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

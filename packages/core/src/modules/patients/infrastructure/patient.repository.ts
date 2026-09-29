@@ -2,6 +2,7 @@ import { PatientModel, newId, nextFormatted } from '@clinic/db'
 import { escapeRegex } from '@clinic/config'
 import type { Dentition } from '@clinic/config'
 import type { BloodType, Gender, PatientInput, PersonRef } from '@clinic/contracts'
+import { storedCountry } from '@clinic/contracts'
 import { afterCursor, decodeCursor, encodeCursor, type Page } from '../../../pagination'
 import { sessionOf, type Transaction } from '../../../transaction'
 import type { MatchKeys } from '../domain/duplicates'
@@ -92,7 +93,8 @@ function toPatient(doc: PatientRecord): StoredPatient {
     address: {
       line1: doc.address?.line1 ?? null,
       city: doc.address?.city ?? null,
-      country: doc.address?.country ?? null,
+      // An old code for a country that still exists reads as its current one (F04).
+      country: storedCountry(doc.address?.country),
     },
     emergencyContacts: (doc.emergencyContacts ?? []).map((contact) => ({
       name: contact.name,

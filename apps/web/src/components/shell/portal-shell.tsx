@@ -43,6 +43,7 @@ export async function PortalShell({
       href: item.href,
       icon: item.icon,
       label: t(item.labelKey),
+      activeFor: item.activeFor,
     })),
   }))
   const items = sections.flatMap((section) => section.items)

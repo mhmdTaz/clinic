@@ -93,6 +93,14 @@ export const EncounterSchema = new Schema(
     ],
 
     createdBy: { type: PersonRefSchema, default: null },
+
+    /**
+     * Bumped by every write to the draft — note, sharing, vitals, diagnoses. Signing names the
+     * revision it read, in the filter, so a note that changed after the doctor last looked at it
+     * is refused rather than signed unseen. Missing on visits written before it existed; the
+     * repository reads that as 0.
+     */
+    revision: { type: Number, default: 0 },
   },
   { timestamps: true, collection: 'encounters' },
 )
@@ -104,8 +112,9 @@ EncounterSchema.plugin(auditCapture, {
   model: 'Encounter',
   phiRead: true,
   // The signature hash is derived from content that is already diffed; the addenda are
-  // append-only and each carries its own author and time.
-  ignoredPaths: ['note.signatureHash', 'note.addenda'],
+  // append-only and each carries its own author and time. The revision is a counter of the
+  // changes the diff already records.
+  ignoredPaths: ['note.signatureHash', 'note.addenda', 'revision'],
 })
 
 EncounterSchema.index({ clinicId: 1, patientId: 1, startedAt: -1 }) // the chart timeline

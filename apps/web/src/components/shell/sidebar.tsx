@@ -30,7 +30,7 @@ export function Sidebar({
   const [signingOut, setSigningOut] = useState(false)
   const active = activeHref(
     pathname,
-    sections.flatMap((section) => section.items.map((item) => item.href)),
+    sections.flatMap((section) => section.items),
   )
 
   return (

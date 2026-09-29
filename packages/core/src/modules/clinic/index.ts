@@ -6,7 +6,11 @@ export {
   getClinicLetterhead,
   type ClinicLetterhead,
 } from './application/get-clinic-facts'
-export { getSchedulingFacts, type SchedulingFacts } from './application/get-scheduling-facts'
+export {
+  findBookingWindow,
+  getSchedulingFacts,
+  type SchedulingFacts,
+} from './application/get-scheduling-facts'
 export {
   getBookingWindow,
   getClinicSettings,

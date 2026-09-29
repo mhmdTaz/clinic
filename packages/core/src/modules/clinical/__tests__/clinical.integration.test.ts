@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
-import { AuditLogModel, DoctorModel, PatientModel, newId } from '@clinic/db'
+import { AuditLogModel, DoctorModel, EncounterModel, PatientModel, newId } from '@clinic/db'
 import {
   TEST_PASSWORD,
   createUser,
@@ -17,10 +17,13 @@ import {
   listEncounters,
   listMyPatients,
   openEncounter,
+  recordVitals,
+  setDiagnoses,
   signNote,
   updateEncounter,
   verifyNoteSignature,
 } from '../index'
+import { encounterRepository } from '../infrastructure/encounter.repository'
 
 const clinicId = () => env().CLINIC_ID
 
@@ -175,6 +178,163 @@ describe('the encounter workspace', () => {
         chiefComplaint: null,
       }),
     ).rejects.toMatchObject({ code: 'ENCOUNTER_EXISTS' })
+  })
+})
+
+/**
+ * Audit F01: a doctor saved A, typed B, signed — and A was frozen while B vanished. The screen now
+ * refuses to sign with unsaved edits; these are the server's half of the same promise. What is
+ * signed is exactly the revision the doctor last saw, or nothing.
+ */
+describe('signing what was seen, and only that', () => {
+  async function draftVisit() {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    const opened = await openEncounter(doctor, {
+      patientId: patient.id,
+      appointmentId: null,
+      encounterType: 'CONSULTATION',
+      chiefComplaint: null,
+    })
+    return { doctor, opened }
+  }
+
+  it('moves the revision on with every saved change to the draft', async () => {
+    const { doctor, opened } = await draftVisit()
+    expect(opened.revision).toBe(0)
+
+    const noted = await updateEncounter(doctor, opened.id, { note: { subjective: 'A' } })
+    expect(noted.revision).toBe(1)
+    const shared = await updateEncounter(doctor, opened.id, { isNoteVisibleToPatient: true })
+    expect(shared.revision).toBe(2)
+    const measured = await recordVitals(doctor, opened.id, {
+      heightCm: null,
+      weightKg: null,
+      temperatureC: '36.6',
+      systolicMmHg: null,
+      diastolicMmHg: null,
+      heartRateBpm: null,
+      respiratoryRate: null,
+      oxygenSaturation: null,
+      bloodGlucose: null,
+    })
+    expect(measured.revision).toBe(3)
+    const coded = await setDiagnoses(doctor, opened.id, {
+      diagnoses: [
+        {
+          code: 'J06.9',
+          description: 'Upper respiratory infection',
+          isPrimary: true,
+          isChronic: false,
+          notes: null,
+        },
+      ],
+    })
+    expect(coded.revision).toBe(4)
+  })
+
+  it('signs exactly the saved text when the revision is current', async () => {
+    const { doctor, opened } = await draftVisit()
+    await updateEncounter(doctor, opened.id, { note: { subjective: 'A' } })
+    const latest = await updateEncounter(doctor, opened.id, { note: { subjective: 'B' } })
+
+    const signed = await signNote(doctor, opened.id, {
+      signature: 'Dr Nour Saliba',
+      expectedRevision: latest.revision,
+    })
+    expect(signed.note.status).toBe('SIGNED')
+    expect(signed.note.subjective).toBe('B')
+    expect(await verifyNoteSignature(doctor, opened.id)).toEqual({ signed: true, intact: true })
+  })
+
+  it('refuses a signature on a revision that is no longer current, and changes nothing', async () => {
+    const { doctor, opened } = await draftVisit()
+    const seen = await updateEncounter(doctor, opened.id, { note: { subjective: 'A' } })
+    // Another tab, or another device, saves after this screen last loaded.
+    await updateEncounter(doctor, opened.id, { note: { subjective: 'Written elsewhere' } })
+
+    await expect(
+      signNote(doctor, opened.id, { signature: 'Dr Nour Saliba', expectedRevision: seen.revision }),
+    ).rejects.toMatchObject({ code: 'NOTE_CHANGED', status: 409 })
+
+    const after = await getEncounter(doctor, opened.id)
+    expect(after.note.status).toBe('DRAFT')
+    expect(after.note.subjective).toBe('Written elsewhere')
+    expect(after.note.signedAt).toBeNull()
+  })
+
+  it('does not freeze content that changed between the read and the write', async () => {
+    const { doctor, opened } = await draftVisit()
+    const seen = await updateEncounter(doctor, opened.id, { note: { subjective: 'A' } })
+    await updateEncounter(doctor, opened.id, { note: { subjective: 'B' } })
+
+    // The repository's filter is the atomic half: a stale revision matches nothing.
+    const signed = await encounterRepository.sign(env().CLINIC_ID, opened.id, seen.revision, {
+      signedAt: new Date(),
+      signedBy: { id: doctor.userId, name: 'Dr Nour Saliba' },
+      signatureHash: 'irrelevant',
+    })
+    expect(signed).toBeNull()
+    expect((await getEncounter(doctor, opened.id)).note.status).toBe('DRAFT')
+  })
+
+  it('still signs for a client that does not send a revision', async () => {
+    const { doctor, opened } = await draftVisit()
+    await updateEncounter(doctor, opened.id, { note: { subjective: 'Only version' } })
+    const signed = await signNote(doctor, opened.id, { signature: 'Dr Nour Saliba' })
+    expect(signed.note.subjective).toBe('Only version')
+  })
+
+  it('treats a visit saved before revisions existed as revision 0', async () => {
+    const { doctor, opened } = await draftVisit()
+    await updateEncounter(doctor, opened.id, { note: { subjective: 'Old record' } })
+    await EncounterModel()
+      .updateOne({ _id: opened.id, clinicId: env().CLINIC_ID }, { $unset: { revision: '' } })
+      .setOptions({ skipAudit: true })
+
+    const legacy = await getEncounter(doctor, opened.id)
+    expect(legacy.revision).toBe(0)
+    const signed = await signNote(doctor, opened.id, {
+      signature: 'Dr Nour Saliba',
+      expectedRevision: 0,
+    })
+    expect(signed.note.status).toBe('SIGNED')
+  })
+
+  it('still refuses a second signature as already signed, not as changed', async () => {
+    const { doctor, opened } = await draftVisit()
+    const saved = await updateEncounter(doctor, opened.id, { note: { subjective: 'A' } })
+    await signNote(doctor, opened.id, { signature: 'Dr Nour Saliba', expectedRevision: 1 })
+    await expect(
+      signNote(doctor, opened.id, {
+        signature: 'Dr Nour Saliba',
+        expectedRevision: saved.revision,
+      }),
+    ).rejects.toMatchObject({ code: 'NOTE_ALREADY_SIGNED' })
+  })
+})
+
+describe('a doctor’s unfinished notes (audit F08)', () => {
+  it('lists only the notes still waiting for a signature', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    const signed = await visitWithSignedNote(doctor, patient.id)
+    const draft = await openEncounter(doctor, {
+      patientId: patient.id,
+      appointmentId: null,
+      encounterType: 'CONSULTATION',
+      chiefComplaint: 'Follow-up',
+    })
+
+    const unsigned = await everyPage((page) =>
+      listEncounters(doctor, { noteStatus: 'DRAFT', ...page }),
+    )
+    const ids = unsigned.map((encounter) => encounter.id)
+    expect(ids).toContain(draft.id)
+    expect(ids).not.toContain(signed.id)
+    expect(unsigned.every((encounter) => encounter.noteStatus === 'DRAFT')).toBe(true)
   })
 })
 

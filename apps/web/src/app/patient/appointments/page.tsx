@@ -4,7 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { localDateIn } from '@clinic/contracts'
 import { holds } from '@clinic/core/access'
 import { listAppointments } from '@clinic/core/appointments'
-import { getClinicSessionInfo } from '@clinic/core/clinic'
+import { getClinicProfile, getClinicSessionInfo } from '@clinic/core/clinic'
 import { buttonVariants } from '@clinic/ui'
 import { EmptyState } from '@/components/portal/empty-state'
 import { PageHeader } from '@/components/portal/page-header'
@@ -26,8 +26,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PatientAppointmentsPage() {
   const actor = await requirePortal('patient')
-  const [clinic, locale, t, tScheduling] = await Promise.all([
+  const [clinic, profile, locale, t, tScheduling] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
+    // The number to call once a change is too late to make online; not every patient role may
+    // read the clinic's profile, and then the card says to contact the clinic instead.
+    holds(actor, 'clinic:read') ? getClinicProfile(actor) : null,
     getLocale(),
     getTranslations('patient.appointments'),
     getTranslations('scheduling'),
@@ -80,6 +83,7 @@ export default async function PatientAppointmentsPage() {
             appointment={appointment}
             locale={locale}
             timeZone={clinic.timezone}
+            clinicPhone={profile?.contact.phone ?? null}
           />
         ) : null
       }

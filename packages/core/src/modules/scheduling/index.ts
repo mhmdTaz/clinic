@@ -16,6 +16,7 @@ export { gridCellIds, floorToGrid, sitsOnGrid } from './domain/grid'
 export {
   bookingRefusal,
   bookingWindowOf,
+  changeableOnlineUntil,
   withinCancellationWindow,
   type BookingRefusal,
   type BookingWindow,

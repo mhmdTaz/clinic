@@ -24,10 +24,7 @@ export function TopBar({
   const pathname = usePathname()
   const t = useTranslations('shell')
   const homeHref = portals.find((option) => option.key === portal)?.href ?? null
-  const active = activeHref(
-    pathname,
-    items.map((item) => item.href),
-  )
+  const active = activeHref(pathname, items)
   const current = items.find((item) => item.href === active)
 
   return (
@@ -52,8 +49,16 @@ export function TopBar({
               <li aria-hidden="true" className="text-muted-foreground">
                 /
               </li>
-              <li aria-current="page" className="truncate font-medium">
-                {current.label}
+              <li className="truncate font-medium">
+                {/* The section a detail page sits in is a way back to it; only the section's own
+                    page is "the current page". */}
+                {pathname === current.href ? (
+                  <span aria-current="page">{current.label}</span>
+                ) : (
+                  <Link href={current.href} className="hover:underline">
+                    {current.label}
+                  </Link>
+                )}
               </li>
             </>
           ) : null}

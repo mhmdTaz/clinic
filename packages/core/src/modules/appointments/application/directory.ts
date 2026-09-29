@@ -2,8 +2,15 @@ import type { AppointmentDetail, AppointmentListQuery, AppointmentSummary } from
 import { NotFoundError } from '../../../errors'
 import { pageLimit, type Page } from '../../../pagination'
 import { assertCan, type Actor } from '../../access'
-import { getClinicFacts } from '../../clinic'
-import { instantOf, nextDate } from '../../scheduling'
+import { findBookingWindow, getClinicFacts } from '../../clinic'
+import {
+  bookingWindowOf,
+  changeableOnlineUntil,
+  instantOf,
+  nextDate,
+  type BookingWindow,
+} from '../../scheduling'
+import { holdsSlot } from '../domain/status'
 import {
   appointmentRepository,
   type StoredAppointment,
@@ -12,7 +19,18 @@ import { appointmentListScope, appointmentResource, readsWholeClinic } from './s
 
 const iso = (date: Date | null) => (date ? date.toISOString() : null)
 
-export function toAppointmentSummary(appointment: StoredAppointment): AppointmentSummary {
+/**
+ * The clinic's self-service window, which every summary carries the consequence of. A fact about
+ * the clinic rather than a read of its settings, so no clinic:read is asked of a patient for it.
+ */
+export async function selfServiceWindow(clinicId: string): Promise<BookingWindow> {
+  return bookingWindowOf(await findBookingWindow(clinicId))
+}
+
+export function toAppointmentSummary(
+  appointment: StoredAppointment,
+  window: BookingWindow,
+): AppointmentSummary {
   return {
     id: appointment.id,
     number: appointment.number,
@@ -30,16 +48,19 @@ export function toAppointmentSummary(appointment: StoredAppointment): Appointmen
     doctor: { id: appointment.doctorId, name: appointment.doctor.name },
     branchId: appointment.branchId,
     reason: appointment.reason,
+    changeableOnlineUntil: holdsSlot(appointment.status)
+      ? changeableOnlineUntil(appointment.startsAt, window).toISOString()
+      : null,
   }
 }
 
 /** `internalNote` is staff-only, so a patient reading their own appointment never receives it. */
 export function toAppointmentDetail(
   appointment: StoredAppointment,
-  options: { includeInternalNote: boolean },
+  options: { includeInternalNote: boolean; window: BookingWindow },
 ): AppointmentDetail {
   return {
-    ...toAppointmentSummary(appointment),
+    ...toAppointmentSummary(appointment, options.window),
     internalNote: options.includeInternalNote ? appointment.internalNote : null,
     checkedInAt: iso(appointment.checkedInAt),
     startedAt: iso(appointment.startedAt),
@@ -68,7 +89,10 @@ export async function listAppointments(
   query: Omit<AppointmentListQuery, 'limit'> & { limit?: number },
 ): Promise<Page<AppointmentSummary>> {
   const scope = await appointmentListScope(actor)
-  const clinic = await getClinicFacts(actor.clinicId)
+  const [clinic, window] = await Promise.all([
+    getClinicFacts(actor.clinicId),
+    selfServiceWindow(actor.clinicId),
+  ])
 
   const from = instantOf(query.from, '00:00', clinic.timezone)
   const to = instantOf(nextDate(query.to), '00:00', clinic.timezone)
@@ -85,7 +109,10 @@ export async function listAppointments(
     },
     { cursor: query.cursor, limit: pageLimit(query.limit) },
   )
-  return { items: page.items.map(toAppointmentSummary), nextCursor: page.nextCursor }
+  return {
+    items: page.items.map((appointment) => toAppointmentSummary(appointment, window)),
+    nextCursor: page.nextCursor,
+  }
 }
 
 export async function getAppointment(
@@ -106,5 +133,8 @@ export async function getAppointment(
   )
 
   const includeInternalNote = readsWholeClinic(actor) || actor.doctorId === appointment.doctorId
-  return toAppointmentDetail(appointment, { includeInternalNote })
+  return toAppointmentDetail(appointment, {
+    includeInternalNote,
+    window: await selfServiceWindow(actor.clinicId),
+  })
 }

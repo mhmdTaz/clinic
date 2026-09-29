@@ -201,6 +201,14 @@ export const AppointmentSummary = z.object({
   doctor: z.object({ id: z.string(), name: z.string() }),
   branchId: z.string().nullable(),
   reason: z.string().nullable(),
+  /**
+   * The last moment the patient may cancel or reschedule this appointment themselves, from the
+   * clinic's cutoff (ADR-0022); null once it no longer holds its time. The server computes it so
+   * that no client keeps its own copy of a rule the clinic can change — a screen only compares it
+   * with the clock, and the server still refuses a change that arrives after it. The clinic's own
+   * staff are not bound by it.
+   */
+  changeableOnlineUntil: Instant.nullable(),
 })
 export type AppointmentSummary = z.infer<typeof AppointmentSummary>
 

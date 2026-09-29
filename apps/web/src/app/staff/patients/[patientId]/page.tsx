@@ -72,6 +72,7 @@ export default async function PatientPage({
     tScheduling,
     tClinical,
     tBilling,
+    tCommon,
     locale,
   ] = await Promise.all([
     getClinicSessionInfo(actor.clinicId),
@@ -91,6 +92,7 @@ export default async function PatientPage({
     getTranslations('scheduling'),
     getTranslations('clinical.encounters'),
     getTranslations('billing.invoice'),
+    getTranslations('common'),
     getLocale(),
   ])
   const name = `${patient.firstName} ${patient.lastName}`
@@ -186,7 +188,9 @@ export default async function PatientPage({
           <CardContent>
             <EditPatientForm
               patient={patient}
-              countries={countryOptions(locale)}
+              countries={countryOptions(locale, patient.address.country, (code) =>
+                tCommon('formerCountry', { code }),
+              )}
               today={localDateIn(clinic.timezone)}
               readOnly={!canUpdate || !patient.isActive}
             />

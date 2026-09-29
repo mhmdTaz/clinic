@@ -23,6 +23,7 @@ import {
   appointmentStatusLabel,
   formatWhen,
   isCancellable,
+  isPastOnlineCutoff,
   pastAppointments,
   relativeDay,
   upcomingAppointments,
@@ -143,6 +144,10 @@ export default function PatientAppointments() {
                         disabled={offline || (cancelling !== null && cancelling !== appointment.id)}
                         onPress={() => askToCancel(appointment)}
                       />
+                    ) : isPastOnlineCutoff(appointment) ? (
+                      <Muted>
+                        {`Changes in the app closed at ${formatWhen(appointment.changeableOnlineUntil ?? appointment.startsAt, zone)}. To change or cancel it now, please call the clinic.`}
+                      </Muted>
                     ) : null}
                   </Card>
                 ))}

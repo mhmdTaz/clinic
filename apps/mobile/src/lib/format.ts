@@ -194,12 +194,25 @@ export function pastAppointments(
 /**
  * Whether to offer cancelling from the app.
  *
- * The **server decides**; this only avoids offering a button that will be refused. Duplicating
- * the clinic's cancellation window here would be a second copy of a rule the clinic can change at
- * runtime, and the two would drift — so the check is deliberately coarse: has it started yet.
+ * The **server decides**; this only avoids offering a button that will be refused. The clinic's
+ * cutoff is not copied here — it can change at runtime, and the two would drift. The server sends
+ * its consequence instead, `changeableOnlineUntil`, and this only compares it with the clock (audit
+ * F06: a patient used to learn about the cutoff only from the refusal).
  */
 export const isCancellable = (appointment: AppointmentSummary, now: Date = new Date()): boolean =>
-  STILL_HAPPENING.has(appointment.status) && startsAtOf(appointment) >= now.getTime()
+  STILL_HAPPENING.has(appointment.status) &&
+  startsAtOf(appointment) >= now.getTime() &&
+  !isPastOnlineCutoff(appointment, now)
+
+/** Still ahead, but too close to change from the app: the patient has to call the clinic. */
+export const isPastOnlineCutoff = (
+  appointment: AppointmentSummary,
+  now: Date = new Date(),
+): boolean =>
+  STILL_HAPPENING.has(appointment.status) &&
+  startsAtOf(appointment) >= now.getTime() &&
+  appointment.changeableOnlineUntil !== null &&
+  now.getTime() > Date.parse(appointment.changeableOnlineUntil)
 
 /** A week at a time: far enough to find something, short enough to read on a phone. */
 export const BOOKING_WEEK_DAYS = 7

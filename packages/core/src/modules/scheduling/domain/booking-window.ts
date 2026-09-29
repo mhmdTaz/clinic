@@ -34,11 +34,16 @@ export function bookingRefusal(
   return null
 }
 
+/** The last moment a patient may cancel or reschedule their own appointment online. */
+export function changeableOnlineUntil(startsAt: Date, window: BookingWindow): Date {
+  return new Date(startsAt.getTime() - window.cancellationCutoffHours * HOUR)
+}
+
 /** Whether a patient may still cancel or reschedule their own appointment. */
 export function withinCancellationWindow(
   startsAt: Date,
   window: BookingWindow,
   now: Date = new Date(),
 ): boolean {
-  return startsAt.getTime() - now.getTime() >= window.cancellationCutoffHours * HOUR
+  return now.getTime() <= changeableOnlineUntil(startsAt, window).getTime()
 }

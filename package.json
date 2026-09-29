@@ -19,9 +19,9 @@
     "format:check": "prettier --check .",
     "audit": "pnpm audit --prod --audit-level high",
     "graph": "depcruise packages apps --config .dependency-cruiser.cjs",
-    "infra:up": "docker compose up -d --wait",
+    "infra:up": "node scripts/infra-up.mjs",
     "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v && docker compose up -d --wait",
+    "infra:reset": "docker compose down -v && node scripts/infra-up.mjs",
     "db:migrate": "pnpm --filter @clinic/db migrate:up",
     "db:seed": "pnpm --filter @clinic/core seed",
     "db:backup": "pnpm --filter @clinic/db backup",
@@ -46,7 +46,12 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": ">=8.5.23"
+      "postcss": ">=8.5.23",
+      "metro>image-size": "^2.0.4",
+      "xcode>uuid": "^11.1.1"
+    },
+    "patchedDependencies": {
+      "metro@0.87.0": "patches/metro@0.87.0.patch"
     }
   }
 }

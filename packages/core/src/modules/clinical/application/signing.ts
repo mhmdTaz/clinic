@@ -1,5 +1,5 @@
 import type { AddendumRequest, EncounterDetail, SignNoteRequest } from '@clinic/contracts'
-import { BusinessRuleError, NotFoundError } from '../../../errors'
+import { BusinessRuleError, ConflictError, NotFoundError } from '../../../errors'
 import { recordAudit } from '../../audit'
 import { assertCan, type Actor } from '../../access'
 import { hasContent, noteContentHash } from '../domain/note'
@@ -30,6 +30,13 @@ async function loadForSigning(actor: Actor, encounterId: string) {
   return facts
 }
 
+function noteChanged(): ConflictError {
+  return new ConflictError(
+    'NOTE_CHANGED',
+    'This visit was changed after you opened it. Review the latest version before signing.',
+  )
+}
+
 export async function signNote(
   actor: Actor,
   encounterId: string,
@@ -44,20 +51,31 @@ export async function signNote(
   // Read the content that is about to be frozen, so the hash is of what was actually signed.
   const encounter = await encounterRepository.findById(actor.clinicId, encounterId)
   if (!encounter) throw new NotFoundError('Encounter')
+  // The doctor chose to sign what they saw. If that is no longer what is stored, they have not
+  // seen what they would be signing.
+  if (input.expectedRevision !== undefined && input.expectedRevision !== encounter.revision) {
+    throw noteChanged()
+  }
   if (!hasContent(encounter.note)) {
     throw new BusinessRuleError('NOTE_IS_EMPTY', 'There is nothing in this note to sign.')
   }
 
   const signedBy = { id: actor.userId, name: input.signature.trim() }
-  const signed = await encounterRepository.sign(actor.clinicId, encounterId, {
+  const signed = await encounterRepository.sign(actor.clinicId, encounterId, encounter.revision, {
     signedAt: now,
     signedBy,
     signatureHash: noteContentHash(encounter.note, signedBy.name, now),
   })
-  // The filter carried the precondition, so a null here is someone else's signature landing
-  // first — not a lost update (section 8.15).
+  // The filter carried both preconditions, so a null here is one of two writes landing first:
+  // someone else's signature, or a save after the content above was read. Neither is a lost
+  // update (section 8.15); which one it was is re-read, not guessed.
   if (!signed) {
-    throw new BusinessRuleError('NOTE_ALREADY_SIGNED', 'This note has already been signed.')
+    const current = await encounterRepository.findAccessFacts(actor.clinicId, encounterId)
+    if (!current) throw new NotFoundError('Encounter')
+    if (current.noteStatus === 'SIGNED') {
+      throw new BusinessRuleError('NOTE_ALREADY_SIGNED', 'This note has already been signed.')
+    }
+    throw noteChanged()
   }
 
   await recordAudit({
@@ -70,6 +88,7 @@ export async function signNote(
       number: signed.number,
       patientId: signed.patientId,
       signatureHash: signed.note.signatureHash,
+      revision: encounter.revision,
     },
   })
 

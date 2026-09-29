@@ -113,7 +113,13 @@ export async function getMyNavigation(actor: Actor, requested?: PortalKey): Prom
     sections: visibleNavigation(portal, actor.permissions, flags).map((section) => ({
       id: section.id,
       labelKey: section.labelKey,
-      items: section.items.map(({ id, labelKey, href, icon }) => ({ id, labelKey, href, icon })),
+      items: section.items.map(({ id, labelKey, href, icon, activeFor }) => ({
+        id,
+        labelKey,
+        href,
+        icon,
+        ...(activeFor ? { activeFor: [...activeFor] } : {}),
+      })),
     })),
   }
 }

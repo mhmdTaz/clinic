@@ -207,3 +207,31 @@ describe('archiving', () => {
     expect(restored.isActive).toBe(true)
   })
 })
+
+/**
+ * Audit F04. Addresses saved while the country list came from Intl may hold codes that are no
+ * longer current. The ones that still mean one country are read as that country; the rest are
+ * read exactly as stored, so a form can show them and a person can correct them.
+ */
+describe('countries stored under an old code', () => {
+  async function storedWith(country: string) {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { patient: created } = await registerPatient(staff, patient())
+    await PatientModel()
+      .updateOne(
+        { _id: created.id, clinicId: clinicId() },
+        { $set: { 'address.country': country } },
+      )
+      .setOptions({ skipAudit: true })
+    return getPatient(staff, created.id)
+  }
+
+  it('reads a renamed code as the current one', async () => {
+    expect((await storedWith('UK')).address.country).toBe('GB')
+    expect((await storedWith('DD')).address.country).toBe('DE')
+  })
+
+  it('reads a code that no longer means one country exactly as stored', async () => {
+    expect((await storedWith('YU')).address.country).toBe('YU')
+  })
+})

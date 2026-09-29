@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  NOTIFICATION_TYPES,
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
   BLOOD_TYPES,
@@ -22,7 +23,8 @@ import {
   setPath,
 } from '@/components/forms/auto-form-values'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
-import { countryOptions } from '@/lib/format/regions'
+import { countryName, countryOptions } from '@/lib/format/regions'
+import { isLocked } from '@clinic/core/notifications'
 import messages from '../../../messages/en.json'
 
 const text = (path: string) => getPath(messages, path)
@@ -110,10 +112,54 @@ describe('calendar dates', () => {
   })
 })
 
+describe('notices that cannot be switched off', () => {
+  // Audit F09: the audit-integrity alert borrowed the cancellation's "closed door".
+  it('say why, each in its own words', () => {
+    const locked = NOTIFICATION_TYPES.filter(isLocked)
+    expect(locked.length).toBeGreaterThan(0)
+    const reasons = locked.map((type) => text(`notifications.preferences.alwaysOnBecause.${type}`))
+    expect(reasons.every((reason) => typeof reason === 'string')).toBe(true)
+    expect(new Set(reasons).size).toBe(reasons.length)
+    expect(text('notifications.preferences.alwaysOn')).not.toMatch(/door|appointment/i)
+  })
+})
+
 describe('country options', () => {
   it('lists real countries by name, and none of the pseudo-regions', () => {
     const options = countryOptions('en')
     expect(options.find((option) => option.value === 'LB')?.label).toBe('Lebanon')
     expect(options.some((option) => ['EU', 'UN', 'ZZ'].includes(option.value))).toBe(false)
+  })
+
+  // Audit F04: Germany was offered as DD and DE, Serbia as CS, RS and YU.
+  it('offers each country once, under its current code only', () => {
+    const options = countryOptions('en')
+    const labels = options.map((option) => option.label)
+    expect(new Set(labels).size).toBe(labels.length)
+    expect(new Set(options.map((option) => option.value)).size).toBe(options.length)
+    for (const old of ['DD', 'UK', 'CS', 'YU', 'SU', 'ZR', 'AN']) {
+      expect(options.some((option) => option.value === old)).toBe(false)
+    }
+    expect(options.filter((option) => option.label === 'Germany').map((o) => o.value)).toEqual([
+      'DE',
+    ])
+  })
+
+  it('keeps a retired stored country visible and labelled, rather than silently replacing it', () => {
+    const options = countryOptions('en', 'YU', (code) => `${code} (former)`)
+    expect(options[0]).toEqual({ value: 'YU', label: 'YU (former)' })
+    expect(options.filter((option) => option.value === 'YU')).toHaveLength(1)
+    // A current or renamed stored code needs nothing extra: it is already a choice.
+    expect(countryOptions('en', 'LB')).toBe(countryOptions('en'))
+    expect(countryOptions('en', 'UK')).toBe(countryOptions('en'))
+  })
+
+  it('names a stored country without turning a retired code into a current country', () => {
+    expect(countryName('LB', 'en')).toBe('Lebanon')
+    expect(countryName('UK', 'en')).toBe('United Kingdom')
+    expect(countryName('YU', 'en')).toBe('YU')
+    expect(countryName('SU', 'en')).toBe('SU')
+    expect(countryName('AN', 'en')).toBe('AN')
+    expect(countryName(null, 'en')).toBeNull()
   })
 })

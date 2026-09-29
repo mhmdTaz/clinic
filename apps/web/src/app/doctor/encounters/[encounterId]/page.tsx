@@ -16,6 +16,7 @@ import { ChartBanner } from '@/components/clinical/chart-banner'
 import { DentalChartCard } from '@/components/dental/dental-chart-card'
 import { DiagnosisEditor } from '@/components/clinical/diagnosis-editor'
 import { DocumentsCard } from '@/components/clinical/documents-card'
+import { EncounterDrafts } from '@/components/clinical/encounter-drafts'
 import { NoteEditor } from '@/components/clinical/note-editor'
 import { PrescriptionBuilder } from '@/components/clinical/prescription-builder'
 import { PrescriptionsCard } from '@/components/clinical/prescriptions-card'
@@ -94,7 +95,7 @@ export default async function EncounterWorkspacePage({
   const canSign = holds(actor, 'encounter:sign') && mine
 
   return (
-    <>
+    <EncounterDrafts revision={encounter.revision} note={encounter.note}>
       <PageHeader
         title={encounter.patient.name}
         subtitle={t('subtitle', {
@@ -287,6 +288,6 @@ export default async function EncounterWorkspacePage({
           </Link>
         </p>
       </div>
-    </>
+    </EncounterDrafts>
   )
 }

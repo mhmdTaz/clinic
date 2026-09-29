@@ -3,6 +3,8 @@ export interface ShellNavItem {
   href: string
   icon: string
   label: string
+  /** Paths beneath which this item is the current one although it does not link there. */
+  activeFor?: readonly string[]
 }
 
 export interface ShellNavSection {
@@ -11,16 +13,26 @@ export interface ShellNavSection {
   items: ShellNavItem[]
 }
 
+const within = (pathname: string, prefix: string) =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`)
+
 /**
- * The most specific item containing the current path. Plain prefix matching would light
- * up a portal's home on every page beneath it; exact matching would light up nothing on
- * a detail page.
+ * The href of the most specific item containing the current path. Plain prefix matching would
+ * light up a portal's home on every page beneath it; exact matching would light up nothing on a
+ * detail page. An item's `activeFor` paths count as its own, so a page with no item of its own is
+ * placed under the one it belongs to rather than under the portal's home.
  */
-export function activeHref(pathname: string, hrefs: readonly string[]): string | null {
-  let best: string | null = null
-  for (const href of hrefs) {
-    const contains = pathname === href || pathname.startsWith(`${href}/`)
-    if (contains && (best === null || href.length > best.length)) best = href
+export function activeHref(
+  pathname: string,
+  items: ReadonlyArray<Pick<ShellNavItem, 'href' | 'activeFor'>>,
+): string | null {
+  let best: { href: string; length: number } | null = null
+  for (const item of items) {
+    for (const prefix of [item.href, ...(item.activeFor ?? [])]) {
+      if (within(pathname, prefix) && (best === null || prefix.length > best.length)) {
+        best = { href: item.href, length: prefix.length }
+      }
+    }
   }
-  return best
+  return best?.href ?? null
 }

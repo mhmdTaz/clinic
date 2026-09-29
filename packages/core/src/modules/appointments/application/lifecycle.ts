@@ -17,7 +17,7 @@ import {
 } from '../infrastructure/appointment.repository'
 import { canTransition, holdsSlot } from '../domain/status'
 import { prepareBooking } from './booking'
-import { toAppointmentDetail } from './directory'
+import { selfServiceWindow, toAppointmentDetail } from './directory'
 import { appointmentResource, readsWholeClinic } from './scope'
 
 async function load(
@@ -120,9 +120,10 @@ async function transition(
   return updated
 }
 
-function detailFor(actor: Actor, appointment: StoredAppointment): AppointmentDetail {
+async function detailFor(actor: Actor, appointment: StoredAppointment): Promise<AppointmentDetail> {
   return toAppointmentDetail(appointment, {
     includeInternalNote: readsWholeClinic(actor) || actor.doctorId === appointment.doctorId,
+    window: await selfServiceWindow(actor.clinicId),
   })
 }
 

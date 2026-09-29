@@ -77,6 +77,8 @@ export interface StoredEncounter {
   vitals: StoredVitals | null
   diagnoses: StoredDiagnosis[]
   createdBy: PersonRef | null
+  /** Which write of the draft this is; signing names it (see `sign`). */
+  revision: number
 }
 
 interface EncounterRecord {
@@ -115,6 +117,7 @@ interface EncounterRecord {
     notes: string | null
   }>
   createdBy: PersonRef | null
+  revision?: number
 }
 
 /** A vitals block where every measurement is empty was never recorded. */
@@ -178,8 +181,12 @@ function toEncounter(doc: EncounterRecord): StoredEncounter {
       notes: entry.notes ?? null,
     })),
     createdBy: doc.createdBy ?? null,
+    revision: doc.revision ?? 0,
   }
 }
+
+/** A visit written before the counter existed has no field at all, which is revision 0. */
+const atRevision = (revision: number) => (revision === 0 ? { $in: [0, null] } : revision)
 
 /**
  * Newest visit first, the id breaking ties. `startedAt` is always set, which keyset paging needs:
@@ -292,6 +299,7 @@ export const encounterRepository = {
       doctorId?: string
       appointmentIds?: readonly string[]
       status?: EncounterStatus
+      noteStatus?: NoteStatus
       from?: Date
       to?: Date
       signedOnly?: boolean
@@ -305,6 +313,7 @@ export const encounterRepository = {
     if (filter.doctorId) where.doctorId = filter.doctorId
     if (filter.appointmentIds) where.appointmentId = { $in: [...filter.appointmentIds] }
     if (filter.status) where.status = filter.status
+    if (filter.noteStatus) where['note.status'] = filter.noteStatus
     if (filter.signedOnly) where['note.status'] = 'SIGNED'
     if (filter.patientVisibleOnly) where['note.isPatientVisible'] = true
     if (filter.from || filter.to) {
@@ -379,7 +388,7 @@ export const encounterRepository = {
     const doc = (await EncounterModel()
       .findOneAndUpdate(
         { clinicId, _id: encounterId, status: { $ne: 'CANCELLED' }, 'note.status': 'DRAFT' },
-        { $set: patch },
+        { $set: patch, $inc: { revision: 1 } },
         { new: true },
       )
       .lean()) as unknown as EncounterRecord | null
@@ -393,20 +402,30 @@ export const encounterRepository = {
     patch: Record<string, unknown>,
   ): Promise<StoredEncounter | null> {
     const doc = (await EncounterModel()
-      .findOneAndUpdate({ clinicId, _id: encounterId }, { $set: patch }, { new: true })
+      .findOneAndUpdate(
+        { clinicId, _id: encounterId },
+        { $set: patch, $inc: { revision: 1 } },
+        { new: true },
+      )
       .lean()) as unknown as EncounterRecord | null
     return doc ? toEncounter(doc) : null
   },
 
-  /** Signing is one atomic update with the precondition in the filter (ADR-0024). */
+  /**
+   * Signing is one atomic update with the preconditions in the filter (ADR-0024): still a draft,
+   * and still the revision whose content was hashed. A save that lands between the read and this
+   * write moves the revision on, and the signature matches nothing rather than freezing content
+   * nobody hashed.
+   */
   async sign(
     clinicId: string,
     encounterId: string,
+    revision: number,
     signature: { signedAt: Date; signedBy: PersonRef; signatureHash: string },
   ): Promise<StoredEncounter | null> {
     const doc = (await EncounterModel()
       .findOneAndUpdate(
-        { clinicId, _id: encounterId, 'note.status': 'DRAFT' },
+        { clinicId, _id: encounterId, 'note.status': 'DRAFT', revision: atRevision(revision) },
         {
           $set: {
             'note.status': 'SIGNED',

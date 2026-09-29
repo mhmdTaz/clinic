@@ -63,6 +63,7 @@ export function toEncounterDetail(
       ? { ...encounter.vitals, recordedAt: iso(encounter.vitals.recordedAt) }
       : null,
     createdBy: encounter.createdBy,
+    revision: encounter.revision,
   }
 }
 
@@ -97,6 +98,7 @@ export async function listEncounters(
       doctorId: scope.doctorId ?? query.doctorId,
       appointmentIds: query.appointmentIds,
       status: query.status,
+      noteStatus: query.noteStatus,
       from: query.from ? instantOf(query.from, '00:00', clinic.timezone) : undefined,
       to: query.to ? instantOf(nextDate(query.to), '00:00', clinic.timezone) : undefined,
     },

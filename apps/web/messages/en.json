@@ -27,7 +27,8 @@
     "never": "Never",
     "reason": "Reason",
     "reasonOptional": "Reason (optional)",
-    "truncated": "Only the first {count} are shown."
+    "truncated": "Only the first {count} are shown.",
+    "formerCountry": "{code} — a former country code. Choose the country this address is in today."
   },
   "portals": {
     "admin": "Admin",
@@ -170,7 +171,8 @@
     "PRICE_REQUIRED": "There is no price list price for this — type one.",
     "BEFORE_SENT": "The due date cannot be before the day it was sent.",
     "NOT_LAB_WORK": "Only planned or done work that is still on the chart can go to the lab.",
-    "IN_THE_PAST": "Choose today or a later day."
+    "IN_THE_PAST": "Choose today or a later day.",
+    "RETIRED_COUNTRY": "That code no longer names one current country. Choose the country this address is in today."
   },
   "auth": {
     "login": {
@@ -296,7 +298,8 @@
     "NOT_DONE": "This work has not been done yet.",
     "ALREADY_BILLED": "This work is already on an invoice.",
     "NOTHING_TO_BILL": "There was nothing to bill.",
-    "LAB_ORDER_STATE": "This lab work cannot be moved that way. Reload to see where it stands."
+    "LAB_ORDER_STATE": "This lab work cannot be moved that way. Reload to see where it stands.",
+    "NOTE_CHANGED": "This visit was changed after you opened it — perhaps in another tab or on another device. Review the latest version before signing."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -1184,7 +1187,10 @@
         "reasonHint": "A short note helps the clinic prepare. You can leave it blank.",
         "submit": "Confirm the booking",
         "noDoctors": "No doctors are taking appointments",
-        "noDoctorsBody": "Please call the clinic to arrange a time."
+        "noDoctorsBody": "Please call the clinic to arrange a time.",
+        "timeZoneHint": "Times are in the clinic’s time zone ({zone}).",
+        "chooseTime": "Choose a time to continue.",
+        "summary": "{doctor} · {when}"
       }
     },
     "records": {
@@ -1473,7 +1479,10 @@
       "chooseDoctor": "Choose a doctor to see when they are free.",
       "loading": "Finding open times…",
       "none": "No open times. Try another day.",
-      "groupLabel": "Open times"
+      "groupLabel": "Open times",
+      "days": "Days with open times",
+      "count": "{count, plural, one {# time} other {# times}}",
+      "dayOption": "{date}: {count, plural, one {# open time} other {# open times}}"
     },
     "book": {
       "title": "Book an appointment",
@@ -1541,7 +1550,11 @@
       "reason": "What have they come in for?",
       "internalNote": "Note for the clinic",
       "submit": "Register and check in"
-    }
+    },
+    "changeOpenUntil": "You can change or cancel this online until {until}.",
+    "changeClosed": "Changes online closed at {until}, as the clinic needs notice. To change or cancel it now, please call the clinic.",
+    "callClinic": "Call the clinic ({phone})",
+    "contactClinic": "Please contact the clinic directly."
   },
   "clinical": {
     "chart": {
@@ -1595,7 +1608,13 @@
       "signConfirm": "Sign the note",
       "addendum": "Add an addendum",
       "addendumHint": "A correction or an addition. It appears beneath the signed note.",
-      "addAddendum": "Add the addendum"
+      "addAddendum": "Add the addendum",
+      "signBlocked": "Save your changes before signing.",
+      "signBlockedDescription": "Signing freezes what has been saved, and some of what is on screen has not been saved yet.",
+      "sectionSaving": "{section} (saving…)",
+      "goToSection": "Go to {section}",
+      "signingSaved": "You are signing the note as it was last saved:",
+      "reviewLatest": "Load the latest version"
     },
     "vitals": {
       "save": "Save vitals",
@@ -1696,6 +1715,20 @@
       "teeth": "Teeth shown",
       "teethHint": "FDI numbers, separated by spaces — for example 16 17 for a radiograph of both.",
       "teethInvalid": "One of the teeth is not an FDI tooth number, such as 16 or 55."
+    },
+    "drafts": {
+      "leaveTitle": "Leave without saving?",
+      "leaveDescription": "These parts of the visit have changes that are not saved yet:",
+      "stay": "Stay on this page",
+      "discardAndLeave": "Discard and leave",
+      "saveAndLeave": "Save and leave",
+      "saving": "Saving…",
+      "sections": {
+        "note": "Clinical note",
+        "vitals": "Vitals",
+        "diagnoses": "Diagnoses",
+        "addendum": "Addendum"
+      }
     }
   },
   "billing": {
@@ -1947,9 +1980,13 @@
       "email": "By email",
       "inAppFor": "In the app: {type}",
       "emailFor": "By email: {type}",
-      "alwaysOn": "Always sent — you would turn up to a closed door.",
+      "alwaysOn": "Always sent — this notice cannot be switched off.",
       "saving": "Saving…",
-      "savedAutomatically": "Changes save as you make them."
+      "savedAutomatically": "Changes save as you make them.",
+      "alwaysOnBecause": {
+        "APPOINTMENT_CANCELLED": "Always sent — so nobody sets out for an appointment that is no longer happening.",
+        "AUDIT_CHAIN_BROKEN": "Always sent — a sign the record may have been tampered with has to reach everyone responsible for it."
+      }
     }
   },
   "support": {
@@ -2432,6 +2469,47 @@
       "offline": "The speech service could not be reached. Chart it by hand, or try again.",
       "heard": "From voice: “{heard}”. Check it, then save.",
       "alternatives": "Also fits: {names}."
+    }
+  },
+  "home": {
+    "staff": {
+      "book": "Book an appointment",
+      "register": "Register a patient",
+      "todayTitle": "Today at the clinic",
+      "counts": {
+        "expected": "Expected",
+        "arrived": "Checked in",
+        "withDoctor": "With a doctor",
+        "done": "Seen"
+      },
+      "nextUp": "Next up",
+      "noneToday": "No appointments today.",
+      "allSeen": "Everyone booked for today has been seen.",
+      "seeAll": "All appointments"
+    },
+    "doctor": {
+      "todayTitle": "Your day",
+      "todayCount": "{count, plural, =0 {No one still to see today} one {# patient still to see today} other {# patients still to see today}}",
+      "noneToday": "Nobody else is booked with you today.",
+      "openNote": "Open the note",
+      "recordVisit": "Record the visit",
+      "seeDay": "Your full day",
+      "unsignedTitle": "Notes to sign",
+      "unsignedHint": "Visits whose note is still a draft. Nothing reaches the patient until it is signed.",
+      "noneUnsigned": "Every note is signed.",
+      "startedAt": "{number} · started {when}",
+      "draft": "Draft",
+      "moreUnsigned": "Showing the most recent. Older drafts are on each patient’s chart."
+    },
+    "patient": {
+      "nextTitle": "Your next appointment",
+      "noneBooked": "You have nothing booked.",
+      "book": "Book an appointment",
+      "allAppointments": "All appointments",
+      "billsTitle": "Bills to pay",
+      "noBills": "Nothing is owed.",
+      "overdue": "Overdue",
+      "seeBills": "Bills and payments"
     }
   }
 }

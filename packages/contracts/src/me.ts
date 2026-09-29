@@ -34,6 +34,8 @@ export const NavigationItem = z.object({
   labelKey: z.string(),
   href: z.string(),
   icon: z.string(),
+  /** Paths with no item of their own that this item stands for, e.g. a note under the chart. */
+  activeFor: z.array(z.string()).optional(),
 })
 export const NavigationSection = z.object({
   id: z.string(),

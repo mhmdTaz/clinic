@@ -125,6 +125,13 @@ export type SetDiagnosesRequest = z.infer<typeof SetDiagnosesRequest>
 export const SignNoteRequest = z.object({
   /** Typed by the doctor as a deliberate act. Their own name, as it will be printed. */
   signature: requiredText(120),
+  /**
+   * The encounter `revision` the doctor was looking at when they chose to sign. If anything was
+   * saved since — from another tab, another device, a colleague — the server refuses with
+   * `NOTE_CHANGED` rather than sign content that was never on this screen. Optional so that a
+   * client written before it existed still signs, against whatever the server holds.
+   */
+  expectedRevision: z.number().int().nonnegative().optional(),
 })
 export type SignNoteRequest = z.infer<typeof SignNoteRequest>
 
@@ -172,6 +179,8 @@ export const EncounterDetail = EncounterSummary.extend({
   note: ClinicalNote,
   vitals: Vitals.nullable(),
   createdBy: PersonRef.nullable(),
+  /** Moves on with every saved change to the draft; what signing is checked against. */
+  revision: z.number().int().nonnegative(),
 })
 export type EncounterDetail = z.infer<typeof EncounterDetail>
 
@@ -185,6 +194,8 @@ export const EncounterListQuery = PaginationQuery.extend({
    */
   appointmentIds: idList(100).optional(),
   status: EncounterStatus.optional(),
+  /** Unsigned notes are a doctor's unfinished work; their home page lists them (audit F08). */
+  noteStatus: NoteStatus.optional(),
   from: LocalDate.optional(),
   to: LocalDate.optional(),
 })
