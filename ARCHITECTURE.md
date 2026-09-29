@@ -3395,6 +3395,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
 | 0035 | A transitive fix is patched only where its parent was read | **Accepted** | `docs/adr/0035` — `image-size@2` for Metro with a patch passing bytes instead of a path, `uuid@11` for `xcode`, both scoped overrides validated by a byte-identical bundle; `decode-uri-component` left at one moderate advisory because every fix is ESM-only |
+| 0036 | The app runs the React Native its Expo SDK expects | **Accepted** | `docs/adr/0036` — React Native 0.85.3 and Hermes V1 for Expo SDK 56 (was 0.83.3 with a classic `hermesc`, which failed on `#private` fields); one Metro, no `image-size`, so ADR-0035's patch is gone |
 
 ### The ones to settle next
 

@@ -27,8 +27,7 @@ Reloading or closing the tab gets the browser's own warning. A signature names t
 doctor was shown; if anything was saved since (another tab, the phone), the server refuses it
 with `NOTE_CHANGED` rather than sign content nobody reviewed.
 
-**Not yet shown to be ready:** native iOS/Android behaviour on a device, a Hermes release build of
-the app (see ADR-0035), load at a real clinic's volume, a full accessibility audit (screen
+**Not yet shown to be ready:** native iOS/Android behaviour on a device, load at a real clinic's volume, a full accessibility audit (screen
 readers, 200% zoom, every flow by keyboard), and the Arabic interface, which is incomplete and
 hidden from the language choice. Passing API tests is not evidence for any of these.
 

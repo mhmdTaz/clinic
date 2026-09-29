@@ -1,6 +1,9 @@
 # ADR-0035 — A transitive fix is patched only where its parent was read
 
-**Status:** accepted · audit F03 (29 Sep 2026) · extends the dependency row of §17
+**Status:** accepted · audit F03 (29 Sep 2026) · extends the dependency row of §17 ·
+**the Metro patch and `metro>image-size` override were removed by ADR-0036** — aligning React
+Native with Expo SDK 56 left no Metro in the tree that depends on `image-size`. The principle and
+the `xcode>uuid` override stand.
 
 ## Context
 
