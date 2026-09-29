@@ -9,6 +9,7 @@ import {
   type UpdateBookingWindowRequest,
   type UpdateBranchRequest,
 } from '@clinic/contracts'
+import type { FeatureFlagKey } from '@clinic/config'
 import { BusinessRuleError, NotFoundError, ValidationError } from '../../../errors'
 import { assertCan, type Actor } from '../../access'
 import { bookingWindowOf } from '../../scheduling'
@@ -155,4 +156,18 @@ export async function updateBookingWindow(
   await assertCan(actor, 'clinic:update')
   await saveBookingWindow(actor.clinicId, input)
   return settingsOf(actor.clinicId)
+}
+
+/**
+ * Turns one of the clinic's modules on or off. No permission check here: the use case that calls
+ * it decides who may, and what has to be acknowledged first — turning on voice charting is a
+ * decision about where audio goes, not a settings toggle (ADR-0037).
+ */
+export async function setClinicFeatureFlag(
+  clinicId: string,
+  key: FeatureFlagKey,
+  value: boolean,
+): Promise<void> {
+  const saved = await clinicRepository.setFeatureFlag(clinicId, key, value)
+  if (!saved) throw new NotFoundError(`Clinic ${clinicId}`)
 }

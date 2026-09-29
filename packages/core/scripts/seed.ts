@@ -18,7 +18,10 @@ import './bootstrap-env'
 import { env, nameKey, type BloodType, type Gender } from '@clinic/config'
 import {
   ClinicModel,
+  DentalQuickPickModel,
+  DentalTreatmentModel,
   DoctorModel,
+  EncounterModel,
   InventoryCategoryModel,
   InventoryItemModel,
   PatientModel,
@@ -26,20 +29,28 @@ import {
   ServiceModel,
   SpecialtyModel,
   SupplierModel,
+  LabOrderModel,
+  ToothRecordModel,
+  TreatmentPlanModel,
   UserModel,
   connect,
   disconnect,
+  decimal128,
   newId,
   nextFormatted,
 } from '@clinic/db'
+import { localDateIn } from '@clinic/contracts'
 import { runWithContext, systemContext } from '../src/context/request-context'
 import { SYSTEM_ROLES } from '../src/modules/access'
 import { flushAudit, installAuditCapture } from '../src/modules/audit'
+import { computeLine, computeTotals } from '../src/modules/billing'
+import { DEFAULT_TREATMENTS, describeWork } from '../src/modules/dental'
 import { issueInvitation } from '../src/modules/identity'
 // Scripts may reach infrastructure directly; application code goes through the module API.
 import { passwordHasher } from '../src/modules/identity/infrastructure/password-hasher'
 import { itemRepository } from '../src/modules/inventory/infrastructure/item.repository'
 import { movementRepository } from '../src/modules/inventory/infrastructure/movement.repository'
+import { catalogueRepository } from '../src/modules/dental/infrastructure/catalogue.repository'
 
 const DEFAULT_DEMO_PASSWORD = 'Clinic-Demo-2026!'
 const EMAIL_COLLATION = { locale: 'en', strength: 2 } as const
@@ -183,6 +194,9 @@ async function seedClinic(
         currency: 'USD',
         locale: 'en',
         isActive: true,
+        // The demo is a dental practice's: the tooth chart is on (Phase 11).
+        'featureFlags.dental': true,
+        'featureFlags.labOrders': true,
       },
       $setOnInsert: { permissionVersion: 1, branches: [], holidays: [] },
     },
@@ -605,6 +619,449 @@ async function seedPatients(
   return created
 }
 
+/** A day this many days before today, in the clinic's zone. */
+function daysAgo(today: string, days: number): string {
+  const date = new Date(`${today}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - days)
+  return date.toISOString().slice(0, 10)
+}
+
+/**
+ * The tooth chart's demo (Phase 11): the clinic's starting treatments, two quick-picks, and one
+ * patient with a mouth worth looking at — a crown on a root-filled front tooth, a planned crown,
+ * decay, a bridge over a missing molar, an implant and an impacted wisdom tooth — charted over a
+ * few visits by the demo dentist, so the doctor portal can open the chart as well.
+ */
+/**
+ * What the dental work costs (Phase 12): a service per treatment that is billed, linked from the
+ * treatment so a plan can price itself. Dental care is VAT-exempt here, as in most of the region.
+ */
+const DENTAL_PRICES: ReadonlyArray<{ code: string; name: string; price: string; minutes: number }> =
+  [
+    { code: 'FILLING_COMPOSITE', name: 'Composite filling', price: '60.00', minutes: 30 },
+    { code: 'SEALANT', name: 'Fissure sealant', price: '30.00', minutes: 15 },
+    { code: 'ROOT_CANAL', name: 'Root canal treatment', price: '250.00', minutes: 60 },
+    { code: 'CROWN_ZIRCONIA', name: 'Zirconia crown', price: '550.00', minutes: 60 },
+    { code: 'CROWN_PFM', name: 'Porcelain-fused-to-metal crown', price: '420.00', minutes: 60 },
+    { code: 'EXTRACTION', name: 'Extraction', price: '80.00', minutes: 30 },
+    { code: 'BRIDGE', name: 'Bridge (per unit)', price: '400.00', minutes: 90 },
+  ]
+
+async function seedDentalPrices(clinicId: string): Promise<void> {
+  for (const entry of DENTAL_PRICES) {
+    let service = await ServiceModel()
+      .findOne({ clinicId, 'search.name': nameKey(entry.name) })
+      .setOptions({ skipAudit: true })
+    if (!service) {
+      service = await ServiceModel().create({
+        _id: newId(),
+        clinicId,
+        name: entry.name,
+        description: null,
+        price: entry.price,
+        taxRatePercent: '0',
+        durationMinutes: entry.minutes,
+        isActive: true,
+      })
+    }
+    // Only a treatment nobody has priced yet: the clinic's own choice is never overwritten.
+    await DentalTreatmentModel().updateOne(
+      { clinicId, code: entry.code, serviceId: null },
+      { $set: { serviceId: service._id } },
+    )
+  }
+}
+
+async function seedDentalChart(
+  clinicId: string,
+  doctorUserId: string | undefined,
+): Promise<number> {
+  await catalogueRepository.seedTreatments(clinicId, DEFAULT_TREATMENTS)
+  await seedDentalPrices(clinicId)
+  const treatments = new Map(
+    (await catalogueRepository.listTreatments(clinicId)).map((treatment) => [
+      treatment.code,
+      treatment,
+    ]),
+  )
+  const treatment = (code: string) => {
+    const found = treatments.get(code)
+    if (!found) throw new Error(`Treatment ${code} was not seeded`)
+    return found
+  }
+
+  const presets = [
+    {
+      name: 'Root canal + crown',
+      items: [
+        { code: 'ROOT_CANAL', surfaces: [] as string[], status: 'COMPLETED' },
+        { code: 'CROWN_ZIRCONIA', surfaces: [] as string[], status: 'PLANNED' },
+      ],
+    },
+    {
+      name: 'Composite MO',
+      items: [{ code: 'FILLING_COMPOSITE', surfaces: ['M', 'O'], status: 'COMPLETED' }],
+    },
+  ]
+  for (const preset of presets) {
+    const exists = await DentalQuickPickModel()
+      .exists({ clinicId, name: preset.name })
+      .setOptions({ skipAudit: true })
+    if (exists) continue
+    await DentalQuickPickModel().create({
+      _id: newId(),
+      clinicId,
+      doctorId: null,
+      name: preset.name,
+      items: preset.items.map((item) => ({
+        treatmentId: treatment(item.code).id,
+        surfaces: item.surfaces,
+        status: item.status,
+      })),
+      sortOrder: 0,
+      isActive: true,
+    })
+  }
+
+  const patient = await PatientModel()
+    .findOne({
+      clinicId,
+      'search.lastName': nameKey('Fakhoury'),
+      'search.firstName': nameKey('Omar'),
+    })
+    .setOptions({ skipAudit: true })
+  const doctor = doctorUserId
+    ? await DoctorModel().findOne({ clinicId, userId: doctorUserId })
+    : null
+  const doctorUser = doctorUserId
+    ? await UserModel().findOne({ clinicId, _id: doctorUserId })
+    : null
+  if (!patient || !doctor || !doctorUser) return 0
+  const already = await ToothRecordModel()
+    .exists({ clinicId, patientId: patient._id })
+    .setOptions({ skipAudit: true })
+  if (already) return 0
+
+  const today = localDateIn('Asia/Beirut')
+  const doctorRef = { id: doctor._id, name: `${doctorUser.firstName} ${doctorUser.lastName}` }
+  const visit = async (day: string, complaint: string) => {
+    // Half past nine that morning — but never later than now: a seed run before then must not
+    // leave a visit in the future, where it would read as the newest one on the diary.
+    const started = new Date(
+      Math.min(new Date(`${day}T09:30:00+03:00`).getTime(), Date.now() - 60_000),
+    )
+    const id = newId()
+    await EncounterModel().create({
+      _id: id,
+      clinicId,
+      number: await nextFormatted(`encounter:${clinicId}`, 'ENC', 6),
+      patientId: patient._id,
+      doctorId: doctor._id,
+      appointmentId: null,
+      patient: {
+        name: `${patient.firstName} ${patient.lastName}`,
+        medicalRecordNo: patient.medicalRecordNo,
+        dateOfBirth: patient.dateOfBirth ?? null,
+      },
+      doctor: { name: doctorRef.name },
+      encounterType: 'PROCEDURE',
+      chiefComplaint: complaint,
+      startedAt: started,
+      endedAt: new Date(started.getTime() + 45 * 60_000),
+      status: 'COMPLETED',
+      createdBy: SEEDED_BY,
+    })
+    return id
+  }
+  const intakeDay = daysAgo(today, 400)
+  const intake = await visit(intakeDay, 'New patient check-up')
+  const rootCanal = await visit(daysAgo(today, 14), 'Pain in the upper front tooth')
+  const crown = await visit(today, 'Crown on the front tooth')
+
+  const rows: Array<{
+    code: string
+    teeth: Array<{ fdi: string; role: 'ABUTMENT' | 'PONTIC' | null }>
+    surfaces?: string[]
+    status: 'CONDITION' | 'PLANNED' | 'COMPLETED' | 'EXISTING'
+    day: string
+    encounterId: string
+    notes: string
+  }> = [
+    {
+      code: 'IMPLANT',
+      teeth: [{ fdi: '36', role: null }],
+      status: 'EXISTING',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Implant placed elsewhere in 2019.',
+    },
+    {
+      code: 'BRIDGE',
+      teeth: [
+        { fdi: '45', role: 'ABUTMENT' },
+        { fdi: '46', role: 'PONTIC' },
+        { fdi: '47', role: 'ABUTMENT' },
+      ],
+      status: 'EXISTING',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Three-unit PFM bridge, 46 missing.',
+    },
+    {
+      code: 'FILLING_COMPOSITE',
+      teeth: [{ fdi: '21', role: null }],
+      surfaces: ['M', 'I'],
+      status: 'COMPLETED',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Small chip on the mesial edge.',
+    },
+    {
+      code: 'IMPACTED',
+      teeth: [{ fdi: '48', role: null }],
+      status: 'CONDITION',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Partially erupted, mesioangular.',
+    },
+    {
+      code: 'EXTRACTION',
+      teeth: [{ fdi: '48', role: null }],
+      status: 'PLANNED',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Refer to the oral surgeon.',
+    },
+    {
+      code: 'ROOT_CANAL',
+      teeth: [{ fdi: '16', role: null }],
+      status: 'COMPLETED',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Three canals. Sensitivity resolved.',
+    },
+    {
+      code: 'CROWN_PFM',
+      teeth: [{ fdi: '16', role: null }],
+      status: 'PLANNED',
+      day: intakeDay,
+      encounterId: intake,
+      notes: 'Protect the root-filled tooth.',
+    },
+    {
+      code: 'FRACTURE',
+      teeth: [{ fdi: '11', role: null }],
+      status: 'CONDITION',
+      day: daysAgo(today, 14),
+      encounterId: rootCanal,
+      notes: 'Fractured incisal third after a fall.',
+    },
+    {
+      code: 'ROOT_CANAL',
+      teeth: [{ fdi: '11', role: null }],
+      status: 'COMPLETED',
+      day: daysAgo(today, 14),
+      encounterId: rootCanal,
+      notes: 'Two sessions. Canal filled, temporary seal.',
+    },
+    {
+      code: 'CROWN_ZIRCONIA',
+      teeth: [{ fdi: '11', role: null }],
+      status: 'COMPLETED',
+      day: today,
+      encounterId: crown,
+      notes: 'Zirconia crown, shade A2. Avoid hard food for 48 hours.',
+    },
+    {
+      code: 'CARIES',
+      teeth: [{ fdi: '26', role: null }],
+      surfaces: ['O'],
+      status: 'CONDITION',
+      day: today,
+      encounterId: crown,
+      notes: 'Early occlusal decay. Filling planned.',
+    },
+  ]
+  for (const row of rows) {
+    const chosen = treatment(row.code)
+    const existing = row.status === 'EXISTING'
+    await ToothRecordModel().create({
+      _id: newId(),
+      clinicId,
+      patientId: patient._id,
+      encounterId: row.encounterId,
+      teeth: row.teeth,
+      surfaces: row.surfaces ?? [],
+      treatmentId: chosen.id,
+      treatment: {
+        code: chosen.code,
+        name: chosen.name,
+        symbol: chosen.symbol,
+        scope: chosen.scope,
+      },
+      status: row.status,
+      completesRecordId: null,
+      notes: row.notes,
+      performedOn: row.day,
+      doctorId: existing ? null : doctor._id,
+      doctor: existing ? null : doctorRef,
+      recordedBy: SEEDED_BY,
+    })
+  }
+  await seedTreatmentPlan(clinicId, patient._id, today)
+  await seedLabOrder(clinicId, patient, today)
+  return rows.length
+}
+
+/**
+ * The planned crown on 16 at a lab (Phase 13): sent five days ago, due in two, so the tooth
+ * drawer and the lab board have something on them.
+ */
+async function seedLabOrder(
+  clinicId: string,
+  patient: { _id: string; firstName: string; lastName: string; medicalRecordNo: string },
+  today: string,
+) {
+  const crown = await ToothRecordModel()
+    .findOne({
+      clinicId,
+      patientId: patient._id,
+      status: 'PLANNED',
+      'treatment.symbol': 'CROWN',
+      voidedAt: null,
+    })
+    .setOptions({ skipAudit: true })
+    .lean()
+  if (!crown?.treatment) return
+  const sentOn = daysAgo(today, 5)
+  const dueOn = daysAgo(today, -2)
+  await LabOrderModel().create({
+    _id: newId(),
+    clinicId,
+    patientId: patient._id,
+    patient: {
+      name: `${patient.firstName} ${patient.lastName}`,
+      medicalRecordNo: patient.medicalRecordNo,
+    },
+    toothRecordIds: [crown._id],
+    teeth: crown.teeth.map((tooth) => tooth.fdi),
+    work: [{ name: crown.treatment.name, symbol: crown.treatment.symbol }],
+    labName: 'Beirut Dental Lab',
+    sentOn,
+    dueOn,
+    status: 'SENT',
+    notes: 'PFM, shade A3. Opposing model enclosed.',
+    history: [
+      {
+        status: 'SENT',
+        at: new Date(`${sentOn}T12:00:00+03:00`),
+        by: SEEDED_BY,
+        note: null,
+        dueOn,
+      },
+    ],
+    createdBy: SEEDED_BY,
+  })
+}
+
+/**
+ * An agreed plan for the demo patient, six weeks old with nothing done yet — so the recall list
+ * has somebody on it, and the crown on 16 can be finished and billed from the plan.
+ */
+async function seedTreatmentPlan(clinicId: string, patientId: string, today: string) {
+  const clinic = await ClinicModel().findById(clinicId).setOptions({ skipAudit: true })
+  const currency = clinic?.currency ?? 'USD'
+  const planned = await ToothRecordModel()
+    .find({ clinicId, patientId, status: 'PLANNED', voidedAt: null })
+    .sort({ performedOn: 1, createdAt: 1 })
+    .setOptions({ skipAudit: true })
+    .lean()
+  if (planned.length === 0) return
+  const treatments = new Map(
+    (await catalogueRepository.listTreatments(clinicId)).map((t) => [t.id, t]),
+  )
+  const services = new Map(
+    (await ServiceModel().find({ clinicId }).setOptions({ skipAudit: true }).lean()).map(
+      (service) => [service._id, service],
+    ),
+  )
+  const items = planned.flatMap((record) => {
+    const serviceId = treatments.get(record.treatmentId)?.serviceId ?? null
+    const service = serviceId ? services.get(serviceId) : undefined
+    const treatment = record.treatment
+    if (!service || !treatment) return []
+    const teeth = record.teeth.map((tooth) => ({ fdi: tooth.fdi, role: tooth.role ?? null }))
+    const line = computeLine(
+      {
+        serviceId: service._id,
+        description: describeWork({
+          name: treatment.name,
+          teeth,
+          surfaces: record.surfaces,
+        }),
+        quantity: '1',
+        unitPrice: String(service.price),
+        discount: '0',
+        taxRatePercent: String(service.taxRatePercent ?? '0'),
+      },
+      currency,
+    )
+    return [{ record, treatment, teeth, line }]
+  })
+  if (items.length === 0) return
+  const totals = computeTotals(
+    items.map(({ line }) => ({ ...line })),
+    currency,
+  )
+  const agreed = new Date(`${daysAgo(today, 45)}T11:00:00+03:00`)
+  await TreatmentPlanModel().create({
+    _id: newId(),
+    clinicId,
+    patientId,
+    title: 'Finish the upper right, then the wisdom tooth',
+    status: 'ACCEPTED',
+    phases: ['Crown on 16', 'Wisdom tooth'],
+    items: items.map(({ record, treatment, teeth, line }) => ({
+      _id: newId(),
+      toothRecordId: record._id,
+      phase: treatment.symbol === 'EXTRACTION' ? 1 : 0,
+      teeth,
+      surfaces: record.surfaces,
+      treatment: {
+        id: record.treatmentId,
+        code: treatment.code,
+        name: treatment.name,
+        symbol: treatment.symbol,
+      },
+      serviceId: line.serviceId,
+      description: line.description,
+      quantity: decimal128(line.quantity),
+      unitPrice: decimal128(line.unitPrice),
+      discount: decimal128(line.discount),
+      taxRatePercent: decimal128(line.taxRatePercent),
+      gross: decimal128(line.gross),
+      net: decimal128(line.net),
+      tax: decimal128(line.tax),
+      lineTotal: decimal128(line.lineTotal),
+      state: 'OPEN',
+    })),
+    openItems: items.length,
+    currency,
+    subtotal: decimal128(totals.subtotal),
+    discountTotal: decimal128(totals.discountTotal),
+    taxTotal: decimal128(totals.taxTotal),
+    total: decimal128(totals.total),
+    notes: 'Crown first to protect the root-filled molar. Extraction referred to the surgeon.',
+    createdBy: SEEDED_BY,
+    presentedAt: agreed,
+    decidedAt: agreed,
+    acceptedAt: agreed,
+    decisionRecordedBy: SEEDED_BY,
+    signedBy: 'Omar Fakhoury',
+    signatureFileId: null,
+  })
+}
+
 async function main(): Promise<void> {
   const clinicId = env().CLINIC_ID
   await connect()
@@ -619,6 +1076,7 @@ async function main(): Promise<void> {
   let patientsCreated = 0
   let servicesCreated = 0
   let inventoryCreated = 0
+  let toothRecordsCreated = 0
 
   await runWithContext(context, async () => {
     const clinic = await seedClinic(clinicId)
@@ -666,6 +1124,7 @@ async function main(): Promise<void> {
     patientsCreated = await seedPatients(clinicId, accounts)
     servicesCreated = await seedServices(clinicId)
     inventoryCreated = await seedInventory(clinicId)
+    toothRecordsCreated = await seedDentalChart(clinicId, doctorUserId)
   })
 
   await flushAudit()
@@ -675,7 +1134,8 @@ async function main(): Promise<void> {
     [
       `seeded clinic "${clinicId}": ${SYSTEM_ROLES.length} roles, ${ACTIVE_USERS.length} active users, ` +
         `${SPECIALTIES.length} specialties, ${patientsCreated} new patient records, ` +
-        `${servicesCreated} new priced services, ${inventoryCreated} new stock items`,
+        `${servicesCreated} new priced services, ${inventoryCreated} new stock items, ` +
+        `${toothRecordsCreated} new tooth records`,
       `  sign in as ${ACTIVE_USERS.map((user) => user.email).join(', ')}`,
       `  ${UNASSIGNED_USER.email} can sign in but has no role yet — give it one in Admin → Users`,
       process.env.SEED_PASSWORD

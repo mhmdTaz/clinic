@@ -1,12 +1,14 @@
 import { z } from 'zod'
 import {
+  AcceptInvitationRequest,
   AccountStatement,
   AccountStatementQuery,
-  AcceptInvitationRequest,
   AddendumRequest,
+  AddToothRecordRequest,
   AdjustStockRequest,
   AnalyticsOverview,
   AnalyticsQuery,
+  ApplyQuickPickRequest,
   AppointmentDetail,
   AppointmentListQuery,
   AppointmentSummary,
@@ -28,6 +30,7 @@ import {
   ClinicOverview,
   ClinicProfileInput,
   ClinicSettings,
+  CompleteToothRecordRequest,
   ConfirmUploadRequest,
   ConsumptionResult,
   CreateDoctorRequest,
@@ -37,6 +40,10 @@ import {
   DailyReconciliation,
   DailyReconciliationQuery,
   DaySlots,
+  DentalChart,
+  DentalChartQuery,
+  DentalTreatment,
+  DentalTreatmentInput,
   DoctorAvailability,
   DoctorDetail,
   DoctorListQuery,
@@ -87,6 +94,8 @@ import {
   PrescriptionListQuery,
   PresignedUpload,
   PresignUploadRequest,
+  QuickPick,
+  QuickPickInput,
   ReceiveStockRequest,
   RecordConsumptionRequest,
   RecordPaymentRequest,
@@ -101,15 +110,16 @@ import {
   ResetPasswordRequest,
   RoleDetail,
   RoleListItem,
+  Service,
   ServiceInput,
   ServiceListQuery,
-  Service,
   SessionResult,
   SessionSummary,
   SessionUser,
   SetAllergiesRequest,
   SetAvailabilityRequest,
   SetConditionsRequest,
+  SetDentitionRequest,
   SetDiagnosesRequest,
   SetHolidaysRequest,
   SetLocaleRequest,
@@ -130,6 +140,25 @@ import {
   TicketListQuery,
   TicketSummary,
   TimeOffInput,
+  ToothRecord,
+  ToothRecordListQuery,
+  TreatmentPlan,
+  TreatmentPlanInput,
+  TreatmentPlanListQuery,
+  AcceptTreatmentPlanRequest,
+  DeclineTreatmentPlanRequest,
+  CancelTreatmentPlanRequest,
+  BillPlanItemRequest,
+  PlanItemBilled,
+  OverduePlan,
+  OverduePlansQuery,
+  LabOrder,
+  CreateLabOrderRequest,
+  ChangeLabOrderStatusRequest,
+  PatientLabOrderQuery,
+  LabOrderListQuery,
+  SetVoiceChartingRequest,
+  VoiceChartingSetting,
   UpdateBookingWindowRequest,
   UpdateBranchRequest,
   UpdateDoctorRequest,
@@ -147,6 +176,7 @@ import {
   UserSummary,
   VitalsInput,
   VoidInvoiceRequest,
+  VoidToothRecordRequest,
 } from '@clinic/contracts'
 
 /**
@@ -1066,4 +1096,194 @@ export const OPERATIONS: readonly Operation[] = [
     body: ReplyToTicketRequest,
     description: 'An internal note is staff-only and never shown to the patient.',
   }),
+
+  // ── The tooth chart ─────────────────────────────────────────────────────────
+  GET('/api/v1/dental/treatments', 'What can be charted on a tooth', list(DentalTreatment), {
+    permission: 'dental:read',
+    description: 'The first read in a clinic with none writes the starting list (Phase 11).',
+  }),
+  POST('/api/v1/dental/treatments', 'Add a treatment', created(DentalTreatment), {
+    permission: 'dental:configure',
+    body: DentalTreatmentInput,
+  }),
+  PUT(
+    '/api/v1/dental/treatments/{treatmentId}',
+    'Rename, reprice or retire a treatment',
+    data(DentalTreatment),
+    {
+      permission: 'dental:configure',
+      body: DentalTreatmentInput,
+      description: 'Its symbol and scope are fixed: they decide what charted rows draw.',
+    },
+  ),
+  GET('/api/v1/dental/quick-picks', 'One-tap charting presets', list(QuickPick), {
+    permission: 'dental:read',
+  }),
+  POST('/api/v1/dental/quick-picks', 'Add a preset', created(QuickPick), {
+    permission: 'dental:configure',
+    body: QuickPickInput,
+  }),
+  PUT('/api/v1/dental/quick-picks/{quickPickId}', 'Change a preset', data(QuickPick), {
+    permission: 'dental:configure',
+    body: QuickPickInput,
+  }),
+  GET(
+    '/api/v1/patients/{patientId}/dental-chart',
+    'A patient’s tooth chart, as it stands or as it stood',
+    data(DentalChart),
+    {
+      permission: 'dental:read',
+      query: DentalChartQuery,
+      description: 'Derived from the tooth records; `asOf` replays it at the end of that day.',
+    },
+  ),
+  PUT(
+    '/api/v1/patients/{patientId}/dental-chart/dentition',
+    'Set which teeth the chart draws',
+    data(DentalChart),
+    {
+      permission: 'dental:write',
+      body: SetDentitionRequest,
+    },
+  ),
+  GET(
+    '/api/v1/patients/{patientId}/tooth-records',
+    'The tooth records behind the chart, newest first',
+    page(ToothRecord),
+    {
+      permission: 'dental:read',
+      query: ToothRecordListQuery,
+    },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/tooth-records',
+    'Chart something on one or more teeth',
+    created(ToothRecord),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: AddToothRecordRequest,
+      description: 'Rows are never edited afterwards; a mistake is voided (ADR-0035).',
+    },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/quick-picks/{quickPickId}/apply',
+    'Apply a preset to teeth',
+    created(z.array(ToothRecord)),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: ApplyQuickPickRequest,
+      description: 'Every row is checked first and they are written together, or not at all.',
+    },
+  ),
+  POST(
+    '/api/v1/tooth-records/{recordId}/complete',
+    'Mark planned work as done',
+    created(ToothRecord),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: CompleteToothRecordRequest,
+      description: 'Adds a COMPLETED row that points at the plan; the plan is unchanged.',
+    },
+  ),
+  POST('/api/v1/tooth-records/{recordId}/void', 'Void a tooth record', data(ToothRecord), {
+    permission: 'dental:write',
+    body: VoidToothRecordRequest,
+  }),
+
+  // ── Treatment plans ─────────────────────────────────────────────────────────
+  GET(
+    '/api/v1/patients/{patientId}/treatment-plans',
+    'A patient’s treatment plans, newest first',
+    page(TreatmentPlan),
+    { permission: 'dental:read', query: TreatmentPlanListQuery },
+  ),
+  POST(
+    '/api/v1/patients/{patientId}/treatment-plans',
+    'Draft a treatment plan',
+    created(TreatmentPlan),
+    {
+      permission: 'dental:write',
+      idempotent: true,
+      body: TreatmentPlanInput,
+      description:
+        'Items are PLANNED chart rows; prices come from the price list unless given (ADR-0036).',
+    },
+  ),
+  GET('/api/v1/treatment-plans/{planId}', 'One treatment plan', data(TreatmentPlan), {
+    permission: 'dental:read',
+  }),
+  PUT('/api/v1/treatment-plans/{planId}', 'Rewrite a draft plan', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: TreatmentPlanInput,
+    description: 'A presented plan goes back to DRAFT.',
+  }),
+  POST(
+    '/api/v1/treatment-plans/{planId}/present',
+    'Record that a plan was shown',
+    data(TreatmentPlan),
+    { permission: 'dental:write' },
+  ),
+  POST('/api/v1/treatment-plans/{planId}/accept', 'The patient agrees', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: AcceptTreatmentPlanRequest,
+  }),
+  POST('/api/v1/treatment-plans/{planId}/decline', 'The patient says no', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: DeclineTreatmentPlanRequest,
+  }),
+  POST('/api/v1/treatment-plans/{planId}/cancel', 'Cancel a plan', data(TreatmentPlan), {
+    permission: 'dental:write',
+    body: CancelTreatmentPlanRequest,
+  }),
+  POST(
+    '/api/v1/treatment-plans/{planId}/items/{itemId}/bill',
+    'Put done work on a visit’s invoice',
+    data(PlanItemBilled),
+    {
+      permission: 'dental:write',
+      body: BillPlanItemRequest,
+      description: 'Also needs invoice:create. At the agreed price; an item is billed once.',
+    },
+  ),
+  GET('/api/v1/dental/overdue-plans', 'Agreed plans with work left undone', page(OverduePlan), {
+    permission: 'dental:read',
+    query: OverduePlansQuery,
+  }),
+
+  // ── Lab work and voice charting ─────────────────────────────────────────────
+  GET(
+    '/api/v1/patients/{patientId}/lab-orders',
+    'A patient’s lab work, newest first',
+    page(LabOrder),
+    { permission: 'dental:read', query: PatientLabOrderQuery },
+  ),
+  POST('/api/v1/patients/{patientId}/lab-orders', 'Send work to the lab', created(LabOrder), {
+    permission: 'dental:write',
+    idempotent: true,
+    body: CreateLabOrderRequest,
+  }),
+  GET('/api/v1/lab-orders', 'The clinic’s lab board, soonest due first', page(LabOrder), {
+    permission: 'dental:read',
+    query: LabOrderListQuery,
+    description: 'Needs the chart at clinic scope.',
+  }),
+  POST(
+    '/api/v1/lab-orders/{orderId}/status',
+    'Take lab work in, fit it, send it back or cancel it',
+    data(LabOrder),
+    { permission: 'dental:write', body: ChangeLabOrderStatusRequest },
+  ),
+  PUT(
+    '/api/v1/dental/voice-charting',
+    'Turn voice charting on or off',
+    data(VoiceChartingSetting),
+    {
+      permission: 'dental:configure',
+      body: SetVoiceChartingRequest,
+      description: 'Turning it on must be acknowledged (ADR-0037).',
+    },
+  ),
 ]

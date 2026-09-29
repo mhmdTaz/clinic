@@ -21,14 +21,14 @@
     "close": "Close",
     "optional": "Optional",
     "notSet": "Not set",
-    "formerCountry": "{code} — a former country code. Choose the country this address is in today.",
     "none": "None",
     "yes": "Yes",
     "no": "No",
     "never": "Never",
     "reason": "Reason",
     "reasonOptional": "Reason (optional)",
-    "truncated": "Only the first {count} are shown."
+    "truncated": "Only the first {count} are shown.",
+    "formerCountry": "{code} — a former country code. Choose the country this address is in today."
   },
   "portals": {
     "admin": "Admin",
@@ -66,7 +66,10 @@
       "support": "Support",
       "getHelp": "Get help",
       "analytics": "Analytics",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "dental": "Dental chart",
+      "dentalRecall": "Plan recall",
+      "dentalLab": "Lab work"
     }
   },
   "shell": {
@@ -101,7 +104,6 @@
     "INVALID_TIME": "Enter a time such as 09:30.",
     "INVALID_TIMEZONE": "Choose a timezone from the list.",
     "INVALID_COUNTRY": "Choose a country from the list.",
-    "RETIRED_COUNTRY": "That code no longer names one current country. Choose the country this address is in today.",
     "INVALID_AMOUNT": "Enter an amount such as 45 or 45.50.",
     "TOO_MANY_DECIMALS": "The clinic's currency does not have that many decimal places.",
     "SELECT_AT_LEAST_ONE": "Select at least one.",
@@ -137,7 +139,40 @@
     "RANGE_INVERTED": "The start of the range is after its end.",
     "RANGE_TOO_LONG": "That is a longer stretch than can be shown at once.",
     "INVALID_ICD10_CODE": "That is not an ICD-10 code.",
-    "INVALID_MEASUREMENT": "Use a number, with at most one decimal place."
+    "INVALID_MEASUREMENT": "Use a number, with at most one decimal place.",
+    "INVALID_TOOTH": "This is not a tooth number.",
+    "NOT_IN_DENTITION": "This tooth is not part of the patient’s chart. Change the dentition first.",
+    "ONE_TOOTH_ONLY": "This treatment is charted on one tooth at a time.",
+    "ROLE_NOT_ALLOWED": "Only a bridge or a denture gives teeth a role.",
+    "NOT_A_SPAN": "A bridge runs over neighbouring teeth in one jaw.",
+    "NEEDS_ABUTMENT": "A bridge needs at least one supporting tooth.",
+    "NEEDS_PONTIC": "A bridge needs a tooth it replaces.",
+    "SPAN_ROLES": "Every tooth of a bridge supports it or is replaced by it.",
+    "ONE_JAW_ONLY": "A denture belongs to one jaw.",
+    "ARCH_ROLES": "Every tooth of a denture is a denture tooth.",
+    "NOT_ALLOWED": "This does not apply here.",
+    "NO_OCCLUSAL_ON_FRONT_TOOTH": "A front tooth has an incisal edge (I), not an occlusal surface.",
+    "NO_INCISAL_ON_BACK_TOOTH": "A back tooth has an occlusal surface (O), not an incisal edge.",
+    "FINDING_IS_A_CONDITION": "A finding is recorded as a condition.",
+    "MISSING_IS_FOUND": "A missing tooth is either found missing or already known to be.",
+    "WORK_IS_NOT_A_CONDITION": "Treatment is planned, done here, or already existing — not a condition.",
+    "IN_THE_FUTURE": "The date cannot be in the future.",
+    "BEFORE_THE_PLAN": "Work cannot be done before it was planned.",
+    "NOT_THIS_PATIENTS_VISIT": "That visit belongs to another patient.",
+    "RETIRED": "This is no longer offered.",
+    "TREATMENT_UNAVAILABLE": "A treatment in this preset is no longer available.",
+    "FIXED": "This cannot be changed once the treatment exists.",
+    "INVALID_CODE": "Use capital letters, digits and underscores only.",
+    "TAKEN": "This is already in use.",
+    "NO_SUCH_PHASE": "Choose one of the plan’s phases.",
+    "DUPLICATE_ITEM": "This work is in the plan twice.",
+    "NOT_PLANNED": "Only planned work that is still live can go in a plan.",
+    "ALREADY_DONE": "This work has already been done.",
+    "PRICE_REQUIRED": "There is no price list price for this — type one.",
+    "BEFORE_SENT": "The due date cannot be before the day it was sent.",
+    "NOT_LAB_WORK": "Only planned or done work that is still on the chart can go to the lab.",
+    "IN_THE_PAST": "Choose today or a later day.",
+    "RETIRED_COUNTRY": "That code no longer names one current country. Choose the country this address is in today."
   },
   "auth": {
     "login": {
@@ -241,7 +276,6 @@
     "INVALID_TRANSITION": "The appointment has already moved on. Refresh the page to see where it stands.",
     "NO_SLOT_TODAY": "That doctor has no open time left today. Book a later appointment instead.",
     "NOTE_ALREADY_SIGNED": "This note has been signed and can no longer be changed. Add an addendum instead.",
-    "NOTE_CHANGED": "This visit was changed after you opened it — perhaps in another tab or on another device. Review the latest version before signing.",
     "NOTE_NOT_SIGNED": "A draft is still editable — an addendum belongs to a signed note.",
     "NOTE_IS_EMPTY": "There is nothing in this note to sign.",
     "ENCOUNTER_EXISTS": "That appointment already has a visit recorded against it.",
@@ -252,7 +286,20 @@
     "UPLOAD_ALREADY_CONFIRMED": "That upload was already confirmed.",
     "UPLOAD_REJECTED": "That file is not the kind of file it was uploaded as.",
     "UPLOAD_FAILED": "The upload did not finish. Check your connection and try again.",
-    "FILE_NOT_AVAILABLE": "That file is not available to download."
+    "FILE_NOT_AVAILABLE": "That file is not available to download.",
+    "ALREADY_COMPLETED": "This planned work has already been done.",
+    "NOT_PLANNED": "Only planned work can be marked as done.",
+    "RECORD_VOIDED": "This record has been voided.",
+    "CODE_TAKEN": "Another treatment already uses this code.",
+    "PLAN_STATE": "This plan can no longer be changed that way. Reload to see where it stands.",
+    "PLAN_OUT_OF_DATE": "Some of this plan has been done or voided on the chart since it was drawn up. Edit the plan first.",
+    "ALREADY_AGREED": "Some of this work is already in a plan the patient has agreed to.",
+    "PLAN_NOT_AGREED": "Only work in an agreed plan can be billed from it.",
+    "NOT_DONE": "This work has not been done yet.",
+    "ALREADY_BILLED": "This work is already on an invoice.",
+    "NOTHING_TO_BILL": "There was nothing to bill.",
+    "LAB_ORDER_STATE": "This lab work cannot be moved that way. Reload to see where it stands.",
+    "NOTE_CHANGED": "This visit was changed after you opened it — perhaps in another tab or on another device. Review the latest version before signing."
   },
   "greeting": {
     "morning": "Good morning, {name}",
@@ -679,6 +726,77 @@
       "newHint": "{percent}% of everybody seen.",
       "returning": "Returning",
       "returningHint": "Registered before this range began."
+    },
+    "dental": {
+      "title": "Dental chart",
+      "subtitle": "What the tooth chart offers: your treatments and the one-tap presets built from them.",
+      "disabled": "The tooth chart is turned off for this clinic, so nobody sees it yet. What you set up here is ready for when it is turned on.",
+      "retired": "Retired",
+      "unknown": "Unknown",
+      "edit": "Edit",
+      "scopes": {
+        "TOOTH": "Whole tooth",
+        "SURFACE": "Surfaces",
+        "SPAN": "Several teeth (bridge)",
+        "ARCH": "A jaw (denture)"
+      },
+      "treatments": {
+        "title": "Treatments and findings",
+        "add": "Add a treatment",
+        "body": "Everything that can be charted on a tooth. A treatment is retired rather than deleted: records already charted keep its name as it was on the day.",
+        "priced": "priced as {service}",
+        "unpriced": "not priced"
+      },
+      "quickPicks": {
+        "title": "Quick-picks",
+        "add": "Add a quick-pick",
+        "body": "One tap charts several things on the selected tooth, together — for example a root canal done and a crown planned.",
+        "none": "No quick-picks yet",
+        "noneBody": "Add the combinations your clinic charts most often."
+      },
+      "treatmentForm": {
+        "addTitle": "Add a treatment",
+        "editTitle": "Edit treatment",
+        "body": "The symbol decides how it is drawn on the chart; the scope decides what it is charted on.",
+        "code": "Code",
+        "name": "Name",
+        "symbol": "Drawn as",
+        "scope": "Charted on",
+        "fixed": "What a treatment draws cannot change once it exists, because records already charted rely on it. Retire it and add another instead.",
+        "service": "Price-list service",
+        "noService": "Not linked",
+        "serviceHint": "Links the treatment to what it costs, for treatment plans and invoices.",
+        "sortOrder": "Order",
+        "active": "Offered on the chart",
+        "cancel": "Cancel",
+        "save": "Save"
+      },
+      "quickPickForm": {
+        "addTitle": "Add a quick-pick",
+        "editTitle": "Edit quick-pick",
+        "body": "Applied to the tooth that is selected. Each line is checked against that tooth when the quick-pick is used.",
+        "name": "Name",
+        "namePlaceholder": "Root canal + crown",
+        "sortOrder": "Order",
+        "items": "What it charts",
+        "treatmentFor": "Treatment on line {number}",
+        "statusFor": "Status on line {number}",
+        "surfacesFor": "Surfaces on line {number}",
+        "remove": "Remove line {number}",
+        "addItem": "Add a line",
+        "active": "Offered on the chart",
+        "cancel": "Cancel",
+        "save": "Save"
+      },
+      "voice": {
+        "title": "Voice charting",
+        "what": "Lets the dentist or the front desk chart by speaking — “sixteen MOD composite done” fills in the tooth’s form, which a person then checks and saves. Nothing is saved from speech alone.",
+        "privacy": "The listening is done by the browser’s speech service. In Chrome and Edge that service is run by Google or Microsoft: the audio leaves this computer to be transcribed, and their terms apply to it. Patients’ names are not needed and should not be spoken.",
+        "acknowledge": "I understand that spoken audio is sent to the browser maker’s speech service, and the clinic accepts that.",
+        "turnOn": "Turn on voice charting",
+        "turnOff": "Turn off",
+        "on": "Voice charting is on. The button appears on the tooth chart in browsers that support it."
+      }
     }
   },
   "staff": {
@@ -1065,14 +1183,14 @@
         "fromDate": "Looking from",
         "horizonHint": "Booking is open up to {date}.",
         "time": "Open times",
-        "timeZoneHint": "Times are in the clinic’s time zone ({zone}).",
         "reason": "What is it about?",
         "reasonHint": "A short note helps the clinic prepare. You can leave it blank.",
         "submit": "Confirm the booking",
-        "chooseTime": "Choose a time to continue.",
-        "summary": "{doctor} · {when}",
         "noDoctors": "No doctors are taking appointments",
-        "noDoctorsBody": "Please call the clinic to arrange a time."
+        "noDoctorsBody": "Please call the clinic to arrange a time.",
+        "timeZoneHint": "Times are in the clinic’s time zone ({zone}).",
+        "chooseTime": "Choose a time to continue.",
+        "summary": "{doctor} · {when}"
       }
     },
     "records": {
@@ -1181,6 +1299,7 @@
     "doctors": "Doctors",
     "scheduling": "Scheduling",
     "clinical": "Clinical records",
+    "dental": "Dental chart",
     "files": "Files",
     "billing": "Billing",
     "inventory": "Inventory",
@@ -1266,6 +1385,11 @@
     "prescription": {
       "read": "View prescriptions",
       "issue": "Issue prescriptions"
+    },
+    "dental": {
+      "read": "View the tooth chart",
+      "write": "Chart treatments on teeth",
+      "configure": "Manage dental treatments and quick-picks"
     },
     "file": {
       "read": "View documents",
@@ -1482,29 +1606,15 @@
       "signWarning": "Once signed, the text of this note cannot be changed by anyone — including you. Corrections are added underneath as addenda.",
       "signature": "Signature",
       "signConfirm": "Sign the note",
+      "addendum": "Add an addendum",
+      "addendumHint": "A correction or an addition. It appears beneath the signed note.",
+      "addAddendum": "Add the addendum",
       "signBlocked": "Save your changes before signing.",
       "signBlockedDescription": "Signing freezes what has been saved, and some of what is on screen has not been saved yet.",
       "sectionSaving": "{section} (saving…)",
       "goToSection": "Go to {section}",
       "signingSaved": "You are signing the note as it was last saved:",
-      "reviewLatest": "Load the latest version",
-      "addendum": "Add an addendum",
-      "addendumHint": "A correction or an addition. It appears beneath the signed note.",
-      "addAddendum": "Add the addendum"
-    },
-    "drafts": {
-      "leaveTitle": "Leave without saving?",
-      "leaveDescription": "These parts of the visit have changes that are not saved yet:",
-      "stay": "Stay on this page",
-      "discardAndLeave": "Discard and leave",
-      "saveAndLeave": "Save and leave",
-      "saving": "Saving…",
-      "sections": {
-        "note": "Clinical note",
-        "vitals": "Vitals",
-        "diagnoses": "Diagnoses",
-        "addendum": "Addendum"
-      }
+      "reviewLatest": "Load the latest version"
     },
     "vitals": {
       "save": "Save vitals",
@@ -1601,6 +1711,23 @@
         "CLEAN": "Ready",
         "INFECTED": "Quarantined",
         "FAILED": "Rejected"
+      },
+      "teeth": "Teeth shown",
+      "teethHint": "FDI numbers, separated by spaces — for example 16 17 for a radiograph of both.",
+      "teethInvalid": "One of the teeth is not an FDI tooth number, such as 16 or 55."
+    },
+    "drafts": {
+      "leaveTitle": "Leave without saving?",
+      "leaveDescription": "These parts of the visit have changes that are not saved yet:",
+      "stay": "Stay on this page",
+      "discardAndLeave": "Discard and leave",
+      "saveAndLeave": "Save and leave",
+      "saving": "Saving…",
+      "sections": {
+        "note": "Clinical note",
+        "vitals": "Vitals",
+        "diagnoses": "Diagnoses",
+        "addendum": "Addendum"
       }
     }
   },
@@ -1841,7 +1968,8 @@
       "TICKET_REPLY": "Somebody replies to a ticket",
       "TICKET_ASSIGNED": "A ticket is given to you",
       "STOCK_LOW": "Stock is running low",
-      "AUDIT_CHAIN_BROKEN": "The audit log fails its integrity check"
+      "AUDIT_CHAIN_BROKEN": "The audit log fails its integrity check",
+      "LAB_WORK_LATE": "Lab work is not back for tomorrow’s patient"
     },
     "preferences": {
       "title": "Notifications",
@@ -1853,12 +1981,12 @@
       "inAppFor": "In the app: {type}",
       "emailFor": "By email: {type}",
       "alwaysOn": "Always sent — this notice cannot be switched off.",
+      "saving": "Saving…",
+      "savedAutomatically": "Changes save as you make them.",
       "alwaysOnBecause": {
         "APPOINTMENT_CANCELLED": "Always sent — so nobody sets out for an appointment that is no longer happening.",
         "AUDIT_CHAIN_BROKEN": "Always sent — a sign the record may have been tampered with has to reach everyone responsible for it."
-      },
-      "saving": "Saving…",
-      "savedAutomatically": "Changes save as you make them."
+      }
     }
   },
   "support": {
@@ -1945,6 +2073,402 @@
       "SUCCESS": "Succeeded",
       "FAILURE": "Failed",
       "DENIED": "Refused"
+    }
+  },
+  "dental": {
+    "title": "Tooth chart",
+    "view3d": "3D",
+    "view2d": "2D",
+    "viewLabel": "Chart view",
+    "noWebgl": "This device cannot show the 3D view. The 2D chart has everything the 3D view shows.",
+    "mixedIs2d": "A mixed dentition is shown on the 2D chart.",
+    "jawLabel": "3D model of the patient’s teeth",
+    "chartLabel": "Tooth chart, FDI numbering",
+    "hint": "Drag to rotate, scroll to zoom, click a tooth",
+    "sculpting": "Preparing the 3D teeth… {done} of {total}",
+    "views": {
+      "front": "Front",
+      "right": "Right side",
+      "upper": "Upper arch",
+      "lower": "Lower arch"
+    },
+    "openMouth": "Open mouth",
+    "closeMouth": "Close mouth",
+    "xray": "X-ray",
+    "normalView": "Normal view",
+    "legend": {
+      "done": "Done",
+      "todo": "To do"
+    },
+    "filters": {
+      "label": "Show",
+      "all": "Everything",
+      "todo": "To do only",
+      "done": "Done only",
+      "lastCharted": "Last charting day"
+    },
+    "dentition": {
+      "label": "Dentition",
+      "PERMANENT": "Adult",
+      "MIXED": "Mixed (child)",
+      "PRIMARY": "Baby teeth"
+    },
+    "sides": {
+      "right": "Patient’s right",
+      "left": "Patient’s left"
+    },
+    "jaws": {
+      "upper": "Upper jaw",
+      "lower": "Lower jaw"
+    },
+    "lastCharted": "Last charted on {date}: {teeth}",
+    "nothingYet": "Nothing has been charted for this patient yet.",
+    "replay": {
+      "label": "Chart as of {date}",
+      "today": "today",
+      "showing": "Showing the chart as it was at the end of {date}. Nothing can be charted while you look back.",
+      "backToToday": "Back to today"
+    },
+    "tooth": "Tooth {fdi} · {place} {name}",
+    "quadrants": {
+      "1": "upper right",
+      "2": "upper left",
+      "3": "lower left",
+      "4": "lower right"
+    },
+    "names": {
+      "1": "central incisor",
+      "2": "lateral incisor",
+      "3": "canine",
+      "4": "first premolar",
+      "5": "second premolar",
+      "6": "first molar",
+      "7": "second molar",
+      "8": "third molar"
+    },
+    "primaryNames": {
+      "1": "central incisor (baby)",
+      "2": "lateral incisor (baby)",
+      "3": "canine (baby)",
+      "4": "first molar (baby)",
+      "5": "second molar (baby)"
+    },
+    "symbols": {
+      "CROWN": "Crown",
+      "ROOT_CANAL": "Root canal",
+      "FILLING": "Filling",
+      "IMPLANT": "Implant",
+      "EXTRACTION": "Extraction",
+      "MISSING": "Missing",
+      "BRIDGE": "Bridge",
+      "DENTURE": "Denture",
+      "VENEER": "Veneer",
+      "SEALANT": "Sealant",
+      "CARIES": "Caries",
+      "FRACTURE": "Fracture",
+      "IMPACTED": "Impacted",
+      "OTHER": "Other"
+    },
+    "statuses": {
+      "CONDITION": "Found",
+      "PLANNED": "Planned",
+      "COMPLETED": "Done",
+      "EXISTING": "Already there"
+    },
+    "surfaces": {
+      "M": "Mesial",
+      "D": "Distal",
+      "O": "Occlusal",
+      "I": "Incisal",
+      "B": "Buccal / facial",
+      "L": "Lingual / palatal"
+    },
+    "roles": {
+      "ABUTMENT": "Supports the bridge",
+      "PONTIC": "Replaced by the bridge",
+      "DENTURE_TOOTH": "Denture tooth"
+    },
+    "panel": {
+      "pick": "Click a tooth to see everything done to it.",
+      "present": "In the mouth",
+      "absent": "Not in the mouth",
+      "quickPicks": "Quick-picks",
+      "add": "Chart something on this tooth",
+      "history": "History",
+      "showVoided": "Show voided",
+      "empty": "Nothing charted on this tooth yet.",
+      "more": "Show older",
+      "carriedOut": "Carried out",
+      "voided": "Voided",
+      "voidedBecause": "Voided: {reason}",
+      "aVisit": "a visit",
+      "chartedBy": "charted by {name}",
+      "markDone": "Mark as done",
+      "void": "Void",
+      "pictures": "X-rays and photos",
+      "addPicture": "Add an X-ray or photo",
+      "noPictures": "No X-rays or photos of this tooth yet.",
+      "openPicture": "Open {name}",
+      "notReady": "Being checked"
+    },
+    "void": {
+      "title": "Void this record?",
+      "body": "It stays on the record, marked as voided, with your name and the reason. Use this for a mistake; it cannot be undone.",
+      "reason": "Why is it being voided?",
+      "reasonRequired": "Say why it is being voided.",
+      "confirm": "Void record"
+    },
+    "form": {
+      "treatment": "What",
+      "findings": "Findings",
+      "work": "Treatment",
+      "status": "Status",
+      "surfaces": "Surfaces",
+      "spanTo": "Bridge to tooth",
+      "choose": "Choose…",
+      "roleFor": "Role of tooth {tooth}",
+      "dentureTeeth": "Teeth the denture replaces",
+      "visit": "Visit",
+      "noVisit": "Not tied to a visit",
+      "date": "Date",
+      "notes": "Notes",
+      "notesPlaceholder": "What was done, materials, shade, anything the next visit should know",
+      "save": "Save to the chart",
+      "cancel": "Cancel"
+    },
+    "plans": {
+      "title": "Treatment plans",
+      "new": "New plan",
+      "none": "No treatment plans yet.",
+      "openWork": "{count, plural, one {# piece of planned work} other {# pieces of planned work}} on the chart.",
+      "noOpenWork": "Chart planned work on a tooth to put it in a plan.",
+      "edit": "Edit",
+      "present": "Present",
+      "print": "Print",
+      "recordDecline": "Patient declined",
+      "cancel": "Cancel plan",
+      "draftedOn": "Drawn up on {date}",
+      "agreedOn": "Agreed on {date} by {name}",
+      "declinedOn": "Declined on {date}",
+      "declineReason": "Reason: {reason}",
+      "cancelledBecause": "Cancelled: {reason}",
+      "progressLabel": "Work done",
+      "progress": "{done} of {total} done",
+      "remaining": "Left to do:",
+      "doneOn": "done {date}",
+      "onInvoice": "On {number}",
+      "statuses": {
+        "DRAFT": "Draft",
+        "PRESENTED": "Presented",
+        "ACCEPTED": "Agreed",
+        "DECLINED": "Declined",
+        "COMPLETED": "Completed",
+        "CANCELLED": "Cancelled"
+      },
+      "itemStates": {
+        "OPEN": "to do",
+        "DONE": "done",
+        "DROPPED": "dropped"
+      },
+      "editor": {
+        "newTitle": "New treatment plan",
+        "editTitle": "Edit treatment plan",
+        "body": "Put planned work from the chart into phases. Prices come from the price list unless you type another.",
+        "backToDraft": "Saving changes sends the plan back to draft; present it to the patient again.",
+        "defaultTitle": "Treatment plan",
+        "defaultPhase": "First visit",
+        "title": "Title",
+        "phases": "Phases",
+        "phaseName": "Name of phase {number}",
+        "phaseN": "Phase {number}",
+        "addPhase": "Add a phase",
+        "removePhase": "Remove phase {number}",
+        "work": "Planned work",
+        "noWork": "There is no planned work on the chart to put in a plan.",
+        "plannedOn": "Planned on {date}",
+        "phase": "Phase",
+        "quantity": "Units",
+        "unitPrice": "Price per unit",
+        "noListPrice": "No list price",
+        "discount": "Discount",
+        "notes": "Notes for the patient",
+        "total": "Total",
+        "cancel": "Cancel",
+        "save": "Save plan"
+      },
+      "bill": {
+        "trigger": "Add to invoice",
+        "title": "Add to the visit’s invoice",
+        "body": "{work}, at the agreed price:",
+        "visit": "Visit",
+        "hint": "It goes on the visit’s open invoice, or starts one.",
+        "noVisits": "This patient has no visit to bill against yet.",
+        "cancel": "Cancel",
+        "confirm": "Add to invoice"
+      },
+      "declineDialog": {
+        "title": "The patient declined",
+        "body": "The plan stays on the record as declined.",
+        "reason": "What they said (optional)",
+        "back": "Back",
+        "confirm": "Record decline"
+      },
+      "cancelDialog": {
+        "title": "Cancel this plan",
+        "body": "The plan stays on the record as cancelled. Work already done is not affected.",
+        "reason": "Why",
+        "back": "Keep the plan",
+        "confirm": "Cancel plan"
+      },
+      "document": {
+        "pageTitle": "Treatment plan",
+        "back": "Back to the patient",
+        "print": "Print or save as PDF",
+        "born": "Born {date}",
+        "heading": "Treatment plan",
+        "drawnUp": "drawn up on {date}",
+        "work": "Treatment",
+        "price": "Price",
+        "discount": "Discount",
+        "amount": "Amount",
+        "subtotal": "Subtotal",
+        "tax": "Tax",
+        "total": "Total",
+        "notes": "Notes",
+        "patientSignature": "Patient",
+        "signatureAlt": "The patient’s signature",
+        "signedOn": "{name}, {date}",
+        "nameAndDate": "Name and date",
+        "clinicSignature": "For the clinic",
+        "validity": "Prices are those agreed on the plan. Work not listed here, or a change to the plan, is priced separately."
+      },
+      "presentation": {
+        "pageTitle": "Treatment plan",
+        "showPrices": "Show prices",
+        "close": "Close",
+        "phase": "Phase {number}",
+        "discount": "Discount",
+        "total": "Total",
+        "agree": "I agree to this plan",
+        "notNow": "Not today",
+        "signTitle": "Agree and sign",
+        "consent": "By signing I agree to the treatment above, at the prices shown.",
+        "signedBy": "Name",
+        "signHere": "Sign here",
+        "clearSignature": "Clear",
+        "signAndAgree": "Sign and agree",
+        "back": "Back",
+        "declineTitle": "Decline the plan",
+        "declineReason": "Anything you would like us to know? (optional)",
+        "confirmDecline": "Decline",
+        "agreedBy": "Agreed by {name}. Thank you.",
+        "declinedNote": "Recorded as declined.",
+        "done": "Done"
+      }
+    },
+    "recall": {
+      "title": "Plan recall",
+      "subtitle": "Patients who agreed to a plan and still have work to do — the longest waiting first.",
+      "columns": {
+        "patient": "Patient",
+        "plan": "Plan",
+        "agreed": "Agreed",
+        "left": "Left to pay",
+        "next": "Next visit",
+        "book": "Book"
+      },
+      "filters": {
+        "waited": "Agreed at least",
+        "days": "{days} days ago",
+        "booked": "Booking",
+        "unbooked": "Nothing booked",
+        "all": "Everyone"
+      },
+      "itemsLeft": "{open} of {total} still to do",
+      "nothingBooked": "Nothing booked",
+      "none": "Nobody to recall",
+      "noneBody": "Every agreed plan is finished, recent, or has a visit booked."
+    },
+    "lab": {
+      "title": "Lab work",
+      "workReady": "{count, plural, one {# piece of planned work} other {# pieces of planned work}} a lab can make.",
+      "noWork": "Plan a crown, bridge, veneer, implant crown or denture on the chart to send it to a lab.",
+      "none": "Nothing has been sent to a lab.",
+      "late": "Late",
+      "where": "{lab} · sent {sent} · due {due}",
+      "onThisTooth": "Lab work on this tooth",
+      "chipAway": "At {lab}, due {date}",
+      "chipLate": "Late at {lab}, was due {date}",
+      "chipBack": "Back from {lab}, not fitted yet",
+      "statuses": {
+        "SENT": "At the lab",
+        "RECEIVED": "Back, not fitted",
+        "FITTED": "Fitted",
+        "REMAKE": "Back at the lab for a remake",
+        "CANCELLED": "Cancelled"
+      },
+      "actions": {
+        "received": "Mark as received",
+        "fitted": "Mark as fitted"
+      },
+      "remake": {
+        "trigger": "Send back for a remake",
+        "title": "Send back for a remake",
+        "body": "It goes back to {lab} with the new date they give.",
+        "dueOn": "New due date",
+        "note": "What was wrong",
+        "back": "Back",
+        "confirm": "Send back"
+      },
+      "cancel": {
+        "trigger": "Cancel",
+        "title": "Cancel this lab work",
+        "body": "The order stays on the record as cancelled.",
+        "dueOn": "Due",
+        "note": "Why",
+        "back": "Keep it",
+        "confirm": "Cancel lab work"
+      },
+      "send": {
+        "trigger": "Send to lab",
+        "title": "Send to a lab",
+        "body": "Choose the planned work being made, the lab, and the day they promised it back.",
+        "work": "Work",
+        "lab": "Lab",
+        "dueOn": "Due back on",
+        "notes": "Instructions",
+        "notesPlaceholder": "Shade, material, anything the lab was told",
+        "cancel": "Cancel",
+        "confirm": "Send"
+      },
+      "board": {
+        "title": "Lab work",
+        "subtitle": "Everything at a lab or back and waiting to be fitted, soonest due first.",
+        "columns": {
+          "patient": "Patient",
+          "work": "Work",
+          "lab": "Lab",
+          "due": "Due",
+          "status": "Status"
+        },
+        "open": "Not finished",
+        "lateOnly": "Late only",
+        "none": "Nothing here",
+        "noneBody": "No lab work matches this view.",
+        "hint": "Lab work is sent from a patient’s page.",
+        "patients": "Find a patient"
+      }
+    },
+    "voice": {
+      "speak": "Chart by voice",
+      "listening": "Listening… press to stop",
+      "hint": "Say a tooth, the surfaces and the treatment — “sixteen MOD composite done”.",
+      "noTooth": "Heard “{heard}”, but no tooth. Say the tooth number first.",
+      "noTreatment": "Heard “{heard}”, but no treatment from the clinic’s list.",
+      "blocked": "The browser is not allowed to use the microphone here.",
+      "offline": "The speech service could not be reached. Chart it by hand, or try again.",
+      "heard": "From voice: “{heard}”. Check it, then save.",
+      "alternatives": "Also fits: {names}."
     }
   },
   "home": {

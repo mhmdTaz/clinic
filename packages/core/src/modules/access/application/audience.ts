@@ -1,4 +1,5 @@
 import type { PermissionKey } from '../domain/permissions.catalog'
+import { isScope, scopeAtLeast, type Scope } from '../domain/scopes'
 import { roleRepository } from '../infrastructure/role.repository'
 
 /**
@@ -12,10 +13,24 @@ import { roleRepository } from '../infrastructure/role.repository'
  * No permission check of its own — it is a lookup a background job performs on nobody's behalf,
  * and it returns ids rather than people, so there is nothing here to leak.
  */
-export async function usersHolding(clinicId: string, permission: PermissionKey): Promise<string[]> {
+export async function usersHolding(
+  clinicId: string,
+  permission: PermissionKey,
+  /**
+   * The narrowest scope that counts. A notice naming a patient goes only to those who may read
+   * every patient's record — not to a doctor who holds the permission for their own patients.
+   */
+  minScope?: Scope,
+): Promise<string[]> {
   const roles = await roleRepository.listAll(clinicId)
   const granting = roles
-    .filter((role) => role.permissions.some((entry) => entry.key === permission))
+    .filter((role) =>
+      role.permissions.some(
+        (entry) =>
+          entry.key === permission &&
+          (!minScope || (isScope(entry.scope) && scopeAtLeast(entry.scope, minScope))),
+      ),
+    )
     .map((role) => role.id)
 
   const members = await roleRepository.activeMemberships(clinicId, granting)

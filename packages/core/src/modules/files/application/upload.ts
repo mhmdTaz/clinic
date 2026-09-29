@@ -40,6 +40,7 @@ export function toStoredFile(file: StoredFileRecord): StoredFile {
     description: file.description,
     uploadedBy: file.uploadedBy,
     createdAt: file.createdAt ? file.createdAt.toISOString() : null,
+    teeth: [...file.teeth],
   }
 }
 
@@ -78,7 +79,8 @@ async function patientBehind(
  */
 export async function presignUpload(
   actor: Actor,
-  input: PresignUploadRequest,
+  // Teeth are optional to a caller: most documents are about no tooth in particular.
+  input: Omit<PresignUploadRequest, 'teeth'> & { teeth?: string[] },
 ): Promise<PresignedUpload> {
   if (input.sizeBytes > MAX_FILE_BYTES) {
     throw new ValidationError('That file is larger than the clinic allows.', [
@@ -117,6 +119,7 @@ export async function presignUpload(
     description: input.description,
     isPatientVisible: input.isPatientVisible,
     uploadedBy: { id: actor.userId, name: actor.displayName },
+    teeth: input.teeth ?? [],
   })
 
   const { url, headers } = await objectStorage.presignPut(storageKey, {

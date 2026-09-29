@@ -75,7 +75,7 @@ export async function PortalShell({
         {t('shell.skipToContent')}
       </a>
       <Sidebar sections={sections} portalLabel={portalLabel} clinicName={clinic.name} />
-      <div className="md:ps-20 lg:ps-64">
+      <div className="md:ps-20 lg:ps-64 print:ps-0">
         <TopBar
           portal={navigation.portal}
           portalLabel={portalLabel}
@@ -83,7 +83,10 @@ export async function PortalShell({
           items={items}
           userName={actor.displayName}
         />
-        <main id="main" className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 md:pb-12">
+        <main
+          id="main"
+          className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 md:pb-12 print:max-w-none print:p-0"
+        >
           {children}
         </main>
       </div>

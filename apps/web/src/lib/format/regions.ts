@@ -37,10 +37,18 @@ export function countryOptions(
   return [{ value: kept, label: formerLabel ? formerLabel(kept) : kept }, ...options]
 }
 
+/**
+ * A country's name in `locale`. A renamed code is named as its current country; a retired one
+ * (YU, SU, AN…) is shown as the code it is. Intl would call YU "Serbia" and SU "Russia" — the
+ * guess about a country that split which this app refuses to make, least of all on an address a
+ * patient reads (audit F04).
+ */
 export function countryName(code: string | null, locale: string): string | null {
   if (!code) return null
+  const current = storedCountry(code)
+  if (!current || !isCountryCode(current)) return current
   try {
-    return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code
+    return new Intl.DisplayNames([locale], { type: 'region' }).of(current) ?? current
   } catch {
     // Not a code Intl accepts at all: show what was stored rather than fail the page.
     return code

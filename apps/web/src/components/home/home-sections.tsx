@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { localDateIn, type AppointmentSummary } from '@clinic/contracts'
+import { ForbiddenError } from '@clinic/core'
 import { holds, type Actor } from '@clinic/core/access'
 import { holdsSlot, listAppointments } from '@clinic/core/appointments'
 import { listInvoices } from '@clinic/core/billing'
@@ -39,6 +40,21 @@ const SHOWN = 6
 
 const STILL_AHEAD = (appointment: AppointmentSummary) => holdsSlot(appointment.status)
 
+/**
+ * A read the person's grant names, but whose scope reaches nothing of theirs: `appointment:read`
+ * at OWN on a custom role with no patient record, or at ASSIGNED with no doctor profile. `holds()`
+ * only says the key is granted; the use case then refuses. That refusal leaves this one section
+ * out rather than taking the home page down. Any other failure is still thrown.
+ */
+async function ifReachable<T>(read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read()
+  } catch (caught) {
+    if (caught instanceof ForbiddenError) return null
+    throw caught
+  }
+}
+
 // ── Staff ────────────────────────────────────────────────────────────────────
 
 export async function StaffToday({
@@ -52,10 +68,12 @@ export async function StaffToday({
 }) {
   const t = await getTranslations('home')
   const today = todayIn(timeZone)
-  const canRead = holds(actor, 'appointment:read')
-  const page = canRead
-    ? await listAppointments(actor, { from: today, to: today, limit: QUEUE_LIMIT })
+  const page = holds(actor, 'appointment:read')
+    ? await ifReachable(() =>
+        listAppointments(actor, { from: today, to: today, limit: QUEUE_LIMIT }),
+      )
     : null
+  const canRead = page !== null
   const items = page?.items ?? []
   const count = (...statuses: AppointmentSummary['status'][]) =>
     items.filter((appointment) => statuses.includes(appointment.status)).length
@@ -170,19 +188,23 @@ export async function DoctorToday({
 
   const [day, unsigned] = await Promise.all([
     canReadAppointments
-      ? listAppointments(actor, { from: today, to: today, limit: QUEUE_LIMIT })
+      ? ifReachable(() => listAppointments(actor, { from: today, to: today, limit: QUEUE_LIMIT }))
       : null,
-    canReadNotes ? listEncounters(actor, { noteStatus: 'DRAFT', limit: SHOWN }) : null,
+    canReadNotes
+      ? ifReachable(() => listEncounters(actor, { noteStatus: 'DRAFT', limit: SHOWN }))
+      : null,
   ])
   const ahead = (day?.items ?? []).filter(STILL_AHEAD)
   const shown = ahead.slice(0, SHOWN)
   // Which of today's appointments already have a visit: open that, or start one.
   const visits =
     canReadNotes && shown.length > 0
-      ? await listEncounters(actor, {
-          appointmentIds: shown.map((appointment) => appointment.id),
-          limit: shown.length,
-        })
+      ? await ifReachable(() =>
+          listEncounters(actor, {
+            appointmentIds: shown.map((appointment) => appointment.id),
+            limit: shown.length,
+          }),
+        )
       : null
   const noteFor = new Map(
     (visits?.items ?? []).map((visit) => [visit.appointmentId ?? '', visit.id] as const),
@@ -317,9 +339,11 @@ export async function PatientNext({
 
   const [upcoming, bills] = await Promise.all([
     canRead
-      ? listAppointments(actor, { from: today, to: shiftDate(today, AHEAD_DAYS), limit: 20 })
+      ? ifReachable(() =>
+          listAppointments(actor, { from: today, to: shiftDate(today, AHEAD_DAYS), limit: 20 }),
+        )
       : null,
-    canSeeBills ? listInvoices(actor, { outstanding: true, limit: 5 }) : null,
+    canSeeBills ? ifReachable(() => listInvoices(actor, { outstanding: true, limit: 5 })) : null,
   ])
   const now = Date.now()
   const next = upcoming?.items.find(

@@ -198,6 +198,30 @@ export const appointmentRepository = {
     return toAppointment(doc.toObject() as unknown as AppointmentRecord)
   },
 
+  /**
+   * For each patient asked about, when their next live appointment starts, if they have one. A
+   * cancelled or no-show booking is not a visit anybody is coming to.
+   */
+  async nextStartFor(
+    clinicId: string,
+    patientIds: readonly string[],
+    from: Date,
+  ): Promise<Map<string, Date>> {
+    if (patientIds.length === 0) return new Map()
+    const rows = await AppointmentModel().aggregate<{ _id: string; startsAt: Date }>([
+      {
+        $match: {
+          clinicId,
+          patientId: { $in: [...patientIds] },
+          status: { $in: [...SLOT_HOLDING_STATUSES] },
+          startsAt: { $gte: from },
+        },
+      },
+      { $group: { _id: '$patientId', startsAt: { $min: '$startsAt' } } },
+    ])
+    return new Map(rows.map((row) => [row._id, row.startsAt]))
+  },
+
   async findById(clinicId: string, appointmentId: string): Promise<StoredAppointment | null> {
     const doc = await AppointmentModel().findOne({ clinicId, _id: appointmentId }).lean()
     return doc ? toAppointment(doc as unknown as AppointmentRecord) : null

@@ -5,6 +5,9 @@ import {
   APPOINTMENT_STATUSES,
   BLOOD_TYPES,
   CURRENCIES,
+  DENTAL_SCOPES,
+  DENTAL_SYMBOLS,
+  DENTITIONS,
   ENCOUNTER_STATUSES,
   ENCOUNTER_TYPES,
   FILE_CATEGORIES,
@@ -17,6 +20,11 @@ import {
   PERMISSION_SCOPES,
   PORTAL_KEYS,
   SLOT_MINUTE_OPTIONS,
+  TOOTH_RECORD_STATUSES,
+  TOOTH_ROLES,
+  TREATMENT_PLAN_STATUSES,
+  LAB_ORDER_STATUSES,
+  TOOTH_SURFACES,
   USER_STATUSES,
 } from '@clinic/config'
 import {
@@ -25,6 +33,9 @@ import {
   AppointmentStatus,
   BloodType,
   Currency,
+  DentalScope,
+  DentalSymbol,
+  Dentition,
   EncounterStatus,
   EncounterType,
   FileCategory,
@@ -37,6 +48,11 @@ import {
   PermissionGrant,
   PortalKey,
   SLOT_MINUTES,
+  ToothRecordStatus,
+  ToothRole,
+  TreatmentPlanStatus,
+  LabOrderStatus,
+  ToothSurface,
   UserStatus,
 } from '@clinic/contracts'
 
@@ -64,6 +80,14 @@ describe('contracts and config list the same values', () => {
     ['file owner types', FileOwnerType.options, FILE_OWNER_TYPES],
     ['file categories', FileCategory.options, FILE_CATEGORIES],
     ['file mime types', FileMimeType.options, FILE_MIME_TYPES],
+    ['tooth record statuses', ToothRecordStatus.options, TOOTH_RECORD_STATUSES],
+    ['tooth surfaces', ToothSurface.options, TOOTH_SURFACES],
+    ['dentitions', Dentition.options, DENTITIONS],
+    ['dental symbols', DentalSymbol.options, DENTAL_SYMBOLS],
+    ['dental scopes', DentalScope.options, DENTAL_SCOPES],
+    ['tooth roles', ToothRole.options, TOOTH_ROLES],
+    ['treatment plan statuses', TreatmentPlanStatus.options, TREATMENT_PLAN_STATUSES],
+    ['lab order statuses', LabOrderStatus.options, LAB_ORDER_STATUSES],
   ])('%s', (_name, contract, config) => {
     expect([...contract]).toEqual([...config])
   })

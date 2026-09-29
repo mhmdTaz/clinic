@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { LogOut } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { cn } from '@clinic/ui'
+import { signOutAndLeave } from '@/components/auth/sign-out-button'
 import { NavIcon } from './nav-icon'
 import { activeHref, type ShellNavSection } from './nav-utils'
 
@@ -23,13 +26,15 @@ export function Sidebar({
 }) {
   const pathname = usePathname()
   const t = useTranslations('shell')
+  const tCommon = useTranslations('common')
+  const [signingOut, setSigningOut] = useState(false)
   const active = activeHref(
     pathname,
     sections.flatMap((section) => section.items),
   )
 
   return (
-    <aside className="border-border bg-card fixed inset-y-0 start-0 z-30 hidden w-20 flex-col border-e md:flex lg:w-64">
+    <aside className="border-border bg-card fixed inset-y-0 start-0 z-30 hidden w-20 flex-col border-e md:flex lg:w-64 print:hidden!">
       <div className="border-border flex h-16 shrink-0 items-center justify-center gap-3 border-b px-4 lg:justify-start lg:px-5">
         <span
           aria-hidden="true"
@@ -75,6 +80,23 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+
+      {/* Also in the account menu, but a way out should not have to be looked for. */}
+      <div className="border-border shrink-0 border-t px-2 py-3 lg:px-3">
+        <button
+          type="button"
+          title={tCommon('signOut')}
+          disabled={signingOut}
+          onClick={() => {
+            setSigningOut(true)
+            void signOutAndLeave()
+          }}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex min-h-11 w-full items-center justify-center gap-3 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-60 lg:justify-start"
+        >
+          <LogOut aria-hidden="true" className="size-5 shrink-0" />
+          <span className="sr-only lg:not-sr-only lg:truncate">{tCommon('signOut')}</span>
+        </button>
+      </div>
     </aside>
   )
 }

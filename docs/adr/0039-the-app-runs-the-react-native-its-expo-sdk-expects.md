@@ -1,6 +1,6 @@
-# ADR-0036 — The app runs the React Native its Expo SDK expects
+# ADR-0039 — The app runs the React Native its Expo SDK expects
 
-**Status:** accepted · 29 Sep 2026 · supersedes the Metro patch of ADR-0035
+**Status:** accepted · 29 Sep 2026 · supersedes the Metro patch of ADR-0038
 
 ## Context
 
@@ -37,7 +37,7 @@ The web app keeps its own React (19.3.0); workspaces resolve React independently
 - `expo export` with bytecode succeeds for Android and iOS. The bytecode (Hermes format version 98) comes from `hermes-compiler@250829098.0.10`, the same Hermes V1 version React Native 0.85.3
   builds into the app (`sdks/hermes-engine/version.properties`, `HERMES_V1_VERSION_NAME`).
 - One Metro remains (0.84.5, via `@expo/metro`). It measures images with its own parser, so
-  `image-size` is gone from the tree, and with it ADR-0035's patch and override. Asset dimensions
+  `image-size` is gone from the tree, and with it ADR-0038's patch and override. Asset dimensions
   in the bundle are unchanged (checked on the same asset and hash).
 - **TypeScript stays at 5.x** although the SDK suggests ~6.0.3: it is a compiler for this repo,
   not part of the app, and a major upgrade across every workspace is its own change.

@@ -3290,6 +3290,208 @@ mobile app — or, for the silent caps below, into nobody's awareness at all.
   this phase's scope.
 - The app has still not run on a phone or a simulator (Phase 9).
 
+### Phase 11 — A tooth remembers what was done to it · after v1 · 🔸
+
+A dental practice reads a patient through their teeth. The dentist fixes a tooth; the front desk
+marks it on a picture of the jaw — a crown on 11, a root canal on 16 — with a note; and at the next
+visit the dentist looks at the picture before anything else. Every dental system has it, and the
+practice this app is being built for will not move without it. Nothing in the app knew what a tooth
+was.
+
+- **The tooth chart is an event log** (ADR-0035). A `tooth_records` row per thing charted, naming
+  the teeth, surfaces, treatment, status, visit, day, dentist and notes, never edited. Finishing a
+  plan adds a COMPLETED row pointing at it; a mistake is voided with a reason. The picture is a pure
+  function of the rows, so it can be replayed on any day.
+- **FDI numbering with a dentition.** 11–48 and 51–85; permanent, primary or mixed per patient.
+  Surfaces M, D, O/I, B, L; a bridge is one row over its abutments and pontic, a denture one row over
+  a jaw's teeth.
+- **The clinic's own treatments.** A catalogue seeded on first read — findings (caries, fracture,
+  impacted, missing) and work (fillings, sealant, root canal, crowns, veneer, implant, extraction,
+  bridge, dentures) — each with the symbol it draws. Renaming does not restate history; what a
+  treatment draws cannot change once it exists. One-tap quick-picks apply several at once, in one
+  transaction.
+- **Who may chart.** `dental:read`, `dental:write`, `dental:configure`. The front desk writes the
+  chart — the exception to §7.4 a dental practice needs — and a dentist reaches the whole chart of
+  a patient they have treated, a colleague's work included.
+- **A 3D jaw and a flat chart over the same data**, one selected tooth shared by both. The teeth
+  are sculpted in code to millimetre measurements and meshed in the browser; the gums scallop
+  around each neck and close over a lost tooth; treatments look like themselves, and an X-ray view
+  shows canals and implants. The 2D chart is the classic odontogram with the five-surface diagram,
+  and the fallback when WebGL is missing.
+- **The tooth's story beside it**: every row newest first, the form that charts the next thing, mark
+  done, void. A filter (to do, done, last charting day), a slider that replays the chart on each day
+  something was charted, and the teeth touched last time pulsing when the chart opens.
+- **A tooth's X-rays and photos.** An upload from the drawer names the teeth it shows — the tooth
+  being looked at, and any neighbours typed beside it — and belongs to the visit being charted, or
+  to the patient. The drawer shows every picture that names the tooth; the file list filters by
+  `tooth`, and a picture can be re-tagged.
+- **The catalogue has screens.** Admin → Dental chart lists the treatments and quick-picks, adds and
+  edits them, links a treatment to a price-list service, and retires rather than deletes. It is in
+  the navigation only when the clinic has the chart turned on.
+
+**Exit criteria:**
+
+1. The front desk charts what the dentist did on a tooth, against the visit, and the dentist sees
+   it on the chart and in the tooth's history at the next visit — in 3D and in 2D.
+2. Nothing on the chart is ever edited or deleted: plans are carried out by new rows, mistakes are
+   voided with a reason, and the chart as it stood on any charted day can be shown.
+3. Every route is in the OpenAPI catalogue, and every rule a row must meet is enforced on the server
+   with the field it concerns.
+
+**How it came out.**
+
+1. Met, in a browser against the running app. Signed in as the front desk: the seeded patient's
+   chart in 3D and 2D, tooth 11's history with the visit and the dentist, a composite on 24's M and O
+   charted against today's visit and drawn on the next render. Signed in as the dentist: the same
+   chart on the patient's page and on the visit, where the planned crown on 16 was marked done.
+2. Met. The integration suite carries out a plan once and is refused the second time, voids a row
+   once and keeps it on the record; in the browser, voiding the completion put the plan back to
+   planned. Replaying 22 August 2025 draws 11 with nothing on it and 46 already a bridge pontic.
+3. Met. Thirteen operations, each checked by the catalogue test. The server refuses an occlusal
+   surface on a front tooth, a tooth the dentition does not have, a visit of another patient, a date
+   in the future, a bridge with nothing to stand on, and a finding recorded as work.
+
+In the browser, as the administrator: the treatment list, a crown linked to a price-list service,
+a duplicate code refused under its field, and a quick-pick created. As the front desk: a PNG
+uploaded from tooth 16's drawer, tagged 16 and 17, stored in object storage, shown on both teeth and
+not on 15.
+
+**Found along the way:** `next dev` did not start. The instrumentation hook imported the server
+unconditionally, so the edge bundle tried to include argon2's native binding. It is now inside a
+`NEXT_RUNTIME === 'nodejs'` block, which the compiler can drop.
+
+**Not done, and stated plainly:**
+
+- **Which mark hides which is not decided.** `supersedes` in `domain/derive-chart.ts` returns false,
+  so every mark on a tooth is drawn. Whether an extraction hides what came before it, or a new crown
+  an old filling, is a clinical rule to be settled with the practice.
+- **Quick-picks are the clinic's only.** The model and the list query carry a dentist's own
+  presets, but the screen creates clinic-wide ones; nobody can create a personal one yet.
+- **A thumbnail is a download.** Each picture shown asks for a one-minute link and writes a line in
+  the audit log, like any download. There are no reduced-size previews.
+- **A mixed dentition is drawn in 2D only.** The 3D jaw draws one set at a time.
+- **The tooth meshes are built in the browser**, spread over animation frames, not shipped as
+  models built ahead of time. A slow device takes a few seconds the first time the 3D view opens.
+- **A bridge in 3D is its crowns**, with no connectors drawn between them; the 2D chart draws the
+  bar.
+- **On a visit's page, older rows name "a visit"** rather than its number: that page only knows its
+  own visit.
+- **No Playwright test yet**, and the chart's screens are in English on every locale, as the other
+  clinical screens are (Phase 8).
+- The mobile app and the patient portal do not show the chart.
+
+### Phase 12 — A plan the patient can say yes to · after v1 · 🔸
+
+The chart knows what is planned. The patient still has to be shown it — in what order, for how much
+— and has to agree before most of it is done; the practice then chases those who agreed and never
+came back, and bills the work at the price that was agreed.
+
+- **Treatment plans** (ADR-0036). A `treatment_plans` document per plan: phases, and items that
+  each point at a PLANNED row of the chart. Draft → presented → agreed (a name and a drawn
+  signature, kept as a consent document) or declined; cancelled with a reason. Editing a presented
+  plan sends it back to draft.
+- **Priced from the price list.** A treatment linked to a service prices itself; any item can be
+  given another price, a quantity and a discount. Lines are rounded once and summed as an invoice's
+  are (ADR-0027), with the same functions. The seed prices the dental treatments.
+- **The chart says what is done.** Completing or voiding a planned row rewrites every plan holding
+  it from the log: done on which day, in which visit, or dropped. An agreed plan completes itself
+  when the last item is done, and reopens if that work is voided.
+- **Billed by a person, once.** Done work in an agreed plan goes on a visit's invoice at the agreed
+  price from the plan, by somebody with `invoice:create`; the item is claimed in the same
+  transaction as the invoice line.
+- **Presentation mode** — the whole screen, for a tablet facing the patient: the jaw with only this
+  plan's work to do on it, the phases, prices that can be hidden, and the patient's signature.
+- **A plan on paper.** A print page laid out for A4 — letterhead, the flat chart, the priced phases,
+  the signature — printed or saved as PDF by the browser. The portal's chrome is hidden in print.
+- **Recall.** Staff → Plan recall lists agreed plans with work left, longest-waiting first, by
+  default only for patients with nothing booked, with a booking button on each row.
+
+**Exit criteria:**
+
+1. A plan is drawn up from the chart's planned work, shown to the patient, and agreed with a
+   signature; its figures match what an invoice of the same lines would say.
+2. Work done on the chart moves the plan, and done work is billed from it at the agreed price, once.
+3. The front desk can list the agreed plans nobody has come back for, and book the patient in.
+
+**How it came out, so far.** The integration suite prices a plan from the price list, refuses a
+missing price, a phase that does not exist, a row twice, and work that is not open; accepts it;
+follows a completion and a voided completion; bills the done item at 400.00 after a 20.00 discount
+and refuses the second attempt; refuses a second agreed plan for the same crown; and lists the
+agreed plan on recall for the front desk but not for a dentist. Three Playwright journeys draw up a
+plan, present it, sign it on the canvas, complete the work on the chart and bill it once; find the
+seeded plan on recall and print it; and show a dentist the plans without a billing button. The full
+suite ran 95 of 95 green. In the browser: the plans card, presentation mode with the 3D jaw, and the
+print page with letterhead and flat chart were looked at; the print media styles were not.
+
+**Found along the way:** the presentation's messages were first put under `dental.plans.present`,
+which is also the Present button's label — the button showed the key. And leaving presentation mode
+by a client-side link showed the patient page from the router's cache, with the just-signed plan
+still a draft; Close and Done now load the page.
+
+**Not done, and stated plainly:**
+
+- **No invoice line is offered from the tooth drawer.** Completing planned work there makes the item
+  billable; the line is added from the plan card, not from a prompt at the moment of completion.
+- **Prices are shown to anyone who reads the chart.** Every role that does also holds `service:read`
+  by default; a role given the chart without it would still see the plan's prices.
+- **One page of plans on a patient** (twenty), with the truncation notice beyond it.
+- **`defaultQuantity`** prices a bridge per unit and anything else as one; the practice may want a
+  denture priced per tooth.
+- The mobile app and the patient portal do not show plans.
+
+### Phase 13 — The lab and the voice · after v1 · 🔸
+
+Two things a dental practice does every day that the app did not know about: crowns, bridges and
+dentures are made by a lab, and have to be back before the patient is; and a dentist with gloves
+on would rather say what they did than type it.
+
+- **Lab orders.** A `lab_orders` document per piece of work sent out, pointing at the chart rows it
+  is made for, with the lab, the day sent and the day promised. SENT → RECEIVED → FITTED, with
+  REMAKE for work that went back (with the lab's new date) and CANCELLED with a reason; every move is
+  a line in the order's history. Late is worked out on read, from the clinic's today.
+- **Where it shows.** A lab card on the patient page sends planned work a lab makes and moves it on;
+  a chip on the tooth in the chart drawer says "at Beirut Dental Lab, due Thursday"; Staff → Lab
+  work lists everything not finished, soonest due first, late marked.
+- **A day's warning.** The worker's lab sweep reads tomorrow's diary each tick, and for a patient
+  whose work is still at the lab, tells the front desk — the chart permission at clinic scope, so
+  not a doctor who reads only their own patients. Keyed by appointment and order, so it is sent
+  once however often the sweep runs. `usersHolding` gained a minimum scope for this.
+- **Voice charting** (ADR-0037). "Sixteen MOD composite done" fills in the tooth's form — tooth,
+  surfaces, treatment, status — for a person to check and save; nothing is written from speech.
+  Off by default: the administrator turns it on after acknowledging that the browser's speech
+  service sends audio to the browser maker. English only.
+- The seed turns lab orders on for the demo clinic and has the planned crown on 16 at a lab.
+
+**Exit criteria:**
+
+1. Lab work is sent for planned work on the chart, followed to fitted or back for a remake, and
+   seen on the tooth and on a clinic-wide board, late work marked.
+2. The front desk is told, a day ahead and once, about lab work not back for a booked patient.
+3. Voice charting is off until turned on knowingly, and produces a draft, never a record.
+
+**How it came out, so far.** The integration suite sends a crown to a lab, refuses to fit it before
+it is back, sends it back for a remake with a new date, fits it, and reads the five moves in its
+history; refuses work of another patient's, voided work, a future send date and a due date before
+it; shows late work on the board to the front desk and refuses the board to a dentist; and refuses
+to turn voice charting on without the acknowledgement, or for anyone without `dental:configure`.
+The worker's suite sends the late-work notice once to the front desk and not to a dentist, and
+says nothing about work that is back or before the day. The parser's tests cover the sentence it
+was built for, numbers and surfaces written every way, front and back teeth, statuses, a tie
+between two crowns, and no draft without a tooth or a treatment. Playwright journeys cover the
+board, the chip, received and fitted, sending work, and a spoken sentence — through a stand-in for
+the browser's speech service — becoming a saved row.
+
+**Not done, and stated plainly:**
+
+- **Recognition runs in the browser's cloud service.** On-device recognition is the upgrade path
+  (ADR-0037); until then the switch says where the audio goes.
+- **One tooth per sentence.** A span — a bridge "from 45 to 47" — is not parsed.
+- **The lab chip is on the drawer, not on the jaw.** The 2D and 3D pictures do not mark teeth with
+  lab work.
+- **No lab directory.** A lab is a name typed with suggestions from the patient's own orders; there
+  is no list of labs with their contacts.
+- Lab work and voice are in English on every locale, as the other clinical screens are.
+
 ### Sequencing rationale
 
 - **RBAC before features.** Every later phase calls `assertCan`; adding it afterwards means
@@ -3394,8 +3596,11 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0032 | The API client is typed from the contracts, not generated from OpenAPI | **Accepted** | `docs/adr/0032` — the client imports the Zod contracts and validates responses against them, because a round trip through JSON Schema loses the refinements that make a request valid |
 | 0033 | What a phone keeps is encrypted with a key that cannot leave it | **Accepted** | `docs/adr/0033` — an allowlist of reads, at most a day old and owned by one person, sealed with AES-256-GCM in the cache directory under a device-only keychain key, destroyed key-first on sign-out |
 | 0034 | A retried request gets the first answer back | **Accepted** | `docs/adr/0034` — a key claimed at a unique index before the handler runs, scoped to its sender, with the response stored and replayed; a different body is refused, a running request is busy, a server error releases the key, and a day later it is gone |
-| 0035 | A transitive fix is patched only where its parent was read | **Accepted** | `docs/adr/0035` — `image-size@2` for Metro with a patch passing bytes instead of a path, `uuid@11` for `xcode`, both scoped overrides validated by a byte-identical bundle; `decode-uri-component` left at one moderate advisory because every fix is ESM-only |
-| 0036 | The app runs the React Native its Expo SDK expects | **Accepted** | `docs/adr/0036` — React Native 0.85.3 and Hermes V1 for Expo SDK 56 (was 0.83.3 with a classic `hermesc`, which failed on `#private` fields); one Metro, no `image-size`, so ADR-0035's patch is gone |
+| 0035 | A tooth chart is a log, and the picture is derived from it | **Accepted** | `docs/adr/0035` — one `tooth_records` row per thing charted, never edited; a finished plan gets a COMPLETED row pointing at it, a mistake is voided with a reason; the chart is a pure function of the rows, replayable on any day; FDI numbering with a per-patient dentition; patient-wide access for a treating dentist, and the front desk may chart |
+| 0036 | A plan owns the price and the answer; the chart owns the work | **Accepted** | `docs/adr/0036` — `treatment_plans` items point at PLANNED chart rows; prices are snapshots rounded as on an invoice; whether an item is done is rewritten from the chart log on every completion or void; one agreed plan per piece of work; done work is billed by a person with `invoice:create`, once |
+| 0037 | Voice charting is a draft, and the clinic chooses where the audio goes | **Accepted** | `docs/adr/0037` — a spoken sentence fills in the charting form for a person to save, never a row on its own; refuses rather than guesses; off by default, turned on by an administrator who acknowledges that the browser's speech service sends audio to the browser maker, on the audit log; on-device recognition is the upgrade path |
+| 0038 | A transitive fix is patched only where its parent was read | **Accepted** | `docs/adr/0038` — `image-size@2` for Metro with a patch passing bytes instead of a path, `uuid@11` for `xcode`, both scoped overrides validated by a byte-identical bundle; `decode-uri-component` left at one moderate advisory because every fix is ESM-only |
+| 0039 | The app runs the React Native its Expo SDK expects | **Accepted** | `docs/adr/0039` — React Native 0.85.3 and Hermes V1 for Expo SDK 56 (was 0.83.3 with a classic `hermesc`, which failed on `#private` fields); one Metro, no `image-size`, so ADR-0038's patch is gone |
 
 ### The ones to settle next
 

@@ -1,5 +1,11 @@
 /** Money: the price list, invoices, payments and the day's reconciliation (A6, S7, S8, S9, P8). */
-export { listServices, createService, updateService } from './application/catalogue'
+export {
+  listServices,
+  createService,
+  updateService,
+  // Pricing a treatment plan from the price list (Phase 12).
+  findServicesForInvoicing,
+} from './application/catalogue'
 export {
   createInvoice,
   updateInvoice,

@@ -58,6 +58,7 @@ export async function listFiles(
       ownerId: query.ownerId,
       patientId: scope.patientId ?? query.patientId,
       category: query.category,
+      tooth: query.tooth,
       patientVisibleOnly: scope.patientVisibleOnly,
     },
     { cursor: query.cursor, limit: pageLimit(query.limit) },
