@@ -1852,7 +1852,11 @@
       "email": "By email",
       "inAppFor": "In the app: {type}",
       "emailFor": "By email: {type}",
-      "alwaysOn": "Always sent — you would turn up to a closed door.",
+      "alwaysOn": "Always sent — this notice cannot be switched off.",
+      "alwaysOnBecause": {
+        "APPOINTMENT_CANCELLED": "Always sent — so nobody sets out for an appointment that is no longer happening.",
+        "AUDIT_CHAIN_BROKEN": "Always sent — a sign the record may have been tampered with has to reach everyone responsible for it."
+      },
       "saving": "Saving…",
       "savedAutomatically": "Changes save as you make them."
     }

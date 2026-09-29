@@ -81,7 +81,13 @@ export function NotificationPreferences({ rows }: { rows: NotificationPreference
                   <span className="flex flex-col">
                     {tType(row.type)}
                     {row.isLocked ? (
-                      <span className="text-muted-foreground text-xs">{t('alwaysOn')}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {/* Each locked notice says why it is locked (audit F09): a broken audit
+                            chain is not a closed door. */}
+                        {t.has(`alwaysOnBecause.${row.type}`)
+                          ? t(`alwaysOnBecause.${row.type}`)
+                          : t('alwaysOn')}
+                      </span>
                     ) : null}
                   </span>
                 </th>

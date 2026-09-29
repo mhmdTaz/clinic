@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  NOTIFICATION_TYPES,
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
   BLOOD_TYPES,
@@ -23,6 +24,7 @@ import {
 } from '@/components/forms/auto-form-values'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
 import { countryOptions } from '@/lib/format/regions'
+import { isLocked } from '@clinic/core/notifications'
 import messages from '../../../messages/en.json'
 
 const text = (path: string) => getPath(messages, path)
@@ -107,6 +109,18 @@ describe('calendar dates', () => {
     expect(ageOn('1991-03-14', '2026-03-13')).toBe(34)
     expect(ageOn('1991-03-14', '2026-03-14')).toBe(35)
     expect(ageOn('2000-02-29', '2026-02-28')).toBe(25)
+  })
+})
+
+describe('notices that cannot be switched off', () => {
+  // Audit F09: the audit-integrity alert borrowed the cancellation's "closed door".
+  it('say why, each in its own words', () => {
+    const locked = NOTIFICATION_TYPES.filter(isLocked)
+    expect(locked.length).toBeGreaterThan(0)
+    const reasons = locked.map((type) => text(`notifications.preferences.alwaysOnBecause.${type}`))
+    expect(reasons.every((reason) => typeof reason === 'string')).toBe(true)
+    expect(new Set(reasons).size).toBe(reasons.length)
+    expect(text('notifications.preferences.alwaysOn')).not.toMatch(/door|appointment/i)
   })
 })
 
