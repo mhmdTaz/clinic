@@ -2,11 +2,35 @@
 
 Four portals — admin, staff, doctor, patient — behind one login.
 
-**Current state: Phase 2 (Clinic setup and directories).** On top of Phase 1's sign-in,
-permission engine and portal shells: clinic settings (profile, locations, opening hours,
-closures), user management, a roles and permissions editor that changes access with no deploy,
-the patient directory with duplicate warnings, and doctor onboarding with specialties.
-[`ARCHITECTURE.md`](./ARCHITECTURE.md) is the blueprint; the phased plan is section 17.
+**Current state: Phase 10 of section 17 is merged** (the dental chart, treatment plans and lab
+tracking of Phases 11–13 are on their own branches). What works, end to end, in the web portals
+and — for patients and doctors — over the REST API the mobile app uses:
+
+| Area                  | What is there                                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and access   | Sign-in, sessions and devices, invitations, password reset, lockout; roles and permissions editable with no deploy; four portals   |
+| Clinic setup          | Profile, locations, opening hours, closures, booking window; users; the patient directory with duplicate warnings; doctors         |
+| Scheduling            | Staff and patient booking, walk-ins, rescheduling and cancelling with the clinic's cutoff, check-in to completion, reminders       |
+| Clinical record       | Visits with a SOAP note, vitals and ICD-10 diagnoses; signing, addenda, sharing with the patient; prescriptions (PDF); attachments |
+| Billing and stock     | Bills, partial payments, refunds, reconciliation; inventory intake, consumption during a visit, write-offs                         |
+| Support and oversight | Support tickets, notifications, analytics, the audit explorer with its tamper-evident chain                                        |
+| API                   | Every portal capability as REST under `/api/v1`, described by an OpenAPI document that a test checks against every route           |
+
+Each portal's home page leads with that role's next step: the front desk sees today's queue, a
+doctor their day and the notes still to sign, a patient their next appointment and anything
+owed. [`ARCHITECTURE.md`](./ARCHITECTURE.md) is the blueprint; the phased plan is section 17.
+
+**Clinical notes are saved explicitly and never autosaved** (ADR-0024). While the note, vitals or
+diagnoses hold anything unsaved, the visit cannot be signed — the signing dialog says which part
+and takes you there — and leaving the page asks _Save and leave_, _Discard and leave_ or _Stay_.
+Reloading or closing the tab gets the browser's own warning. A signature names the revision the
+doctor was shown; if anything was saved since (another tab, the phone), the server refuses it
+with `NOTE_CHANGED` rather than sign content nobody reviewed.
+
+**Not yet shown to be ready:** native iOS/Android behaviour on a device, a Hermes release build of
+the app (see ADR-0035), load at a real clinic's volume, a full accessibility audit (screen
+readers, 200% zoom, every flow by keyboard), and the Arabic interface, which is incomplete and
+hidden from the language choice. Passing API tests is not evidence for any of these.
 
 ## Running it locally
 
@@ -105,11 +129,19 @@ packages/core      ALL business logic. Zero framework imports.
   modules/identity   credentials, lockout, sessions, resets, invitations, accounts
   modules/access     permission catalogue, policy engine, roles editor, portals, navigation
   modules/session    turns a verified user into a signed-in session
-  modules/clinic     profile, locations, opening hours, closures
+  modules/clinic     profile, locations, opening hours, closures, booking window
   modules/users      user management: invites, roles, suspension, forced resets
   modules/patients   the patient directory, registration, duplicate warnings
   modules/doctors    doctor onboarding and the specialty vocabulary
-  modules/audit      audit recorder and capture
+  modules/scheduling calendar arithmetic, slots, the reservation grid (pure)
+  modules/appointments booking, walk-ins, the appointment lifecycle
+  modules/clinical   visits, notes, vitals, diagnoses, signing
+  modules/prescriptions, files   prescriptions and their PDFs; attachments in object storage
+  modules/billing    bills, payments, refunds, reconciliation
+  modules/inventory  stock, consumption, write-offs
+  modules/support, notifications   tickets; in-app, email and push delivery
+  modules/analytics, audit, audit-explorer   reporting; the audit recorder and its chain
+  modules/outbox, idempotency   reliable delivery; retried requests answered once
 packages/db        Mongoose models, plugins, migrations
 packages/contracts Zod schemas shared by server, web and the mobile app
 packages/api-client The typed client both apps use: cookies for the browser, Bearer for a phone
