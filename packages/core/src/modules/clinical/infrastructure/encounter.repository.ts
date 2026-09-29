@@ -299,6 +299,7 @@ export const encounterRepository = {
       doctorId?: string
       appointmentIds?: readonly string[]
       status?: EncounterStatus
+      noteStatus?: NoteStatus
       from?: Date
       to?: Date
       signedOnly?: boolean
@@ -312,6 +313,7 @@ export const encounterRepository = {
     if (filter.doctorId) where.doctorId = filter.doctorId
     if (filter.appointmentIds) where.appointmentId = { $in: [...filter.appointmentIds] }
     if (filter.status) where.status = filter.status
+    if (filter.noteStatus) where['note.status'] = filter.noteStatus
     if (filter.signedOnly) where['note.status'] = 'SIGNED'
     if (filter.patientVisibleOnly) where['note.isPatientVisible'] = true
     if (filter.from || filter.to) {

@@ -315,6 +315,29 @@ describe('signing what was seen, and only that', () => {
   })
 })
 
+describe('a doctor’s unfinished notes (audit F08)', () => {
+  it('lists only the notes still waiting for a signature', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { actor: doctor } = await portalDoctor()
+    const { patient } = await portalPatient(staff)
+    const signed = await visitWithSignedNote(doctor, patient.id)
+    const draft = await openEncounter(doctor, {
+      patientId: patient.id,
+      appointmentId: null,
+      encounterType: 'CONSULTATION',
+      chiefComplaint: 'Follow-up',
+    })
+
+    const unsigned = await everyPage((page) =>
+      listEncounters(doctor, { noteStatus: 'DRAFT', ...page }),
+    )
+    const ids = unsigned.map((encounter) => encounter.id)
+    expect(ids).toContain(draft.id)
+    expect(ids).not.toContain(signed.id)
+    expect(unsigned.every((encounter) => encounter.noteStatus === 'DRAFT')).toBe(true)
+  })
+})
+
 describe('what a patient may read of their own chart', () => {
   it('shows a signed note only once it has been shared, and never a draft', async () => {
     const { actor: staff } = await signedInActor({ role: 'staff' })

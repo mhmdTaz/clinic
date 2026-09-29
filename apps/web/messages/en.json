@@ -1946,5 +1946,46 @@
       "FAILURE": "Failed",
       "DENIED": "Refused"
     }
+  },
+  "home": {
+    "staff": {
+      "book": "Book an appointment",
+      "register": "Register a patient",
+      "todayTitle": "Today at the clinic",
+      "counts": {
+        "expected": "Expected",
+        "arrived": "Checked in",
+        "withDoctor": "With a doctor",
+        "done": "Seen"
+      },
+      "nextUp": "Next up",
+      "noneToday": "No appointments today.",
+      "allSeen": "Everyone booked for today has been seen.",
+      "seeAll": "All appointments"
+    },
+    "doctor": {
+      "todayTitle": "Your day",
+      "todayCount": "{count, plural, =0 {No one still to see today} one {# patient still to see today} other {# patients still to see today}}",
+      "noneToday": "Nobody else is booked with you today.",
+      "openNote": "Open the note",
+      "recordVisit": "Record the visit",
+      "seeDay": "Your full day",
+      "unsignedTitle": "Notes to sign",
+      "unsignedHint": "Visits whose note is still a draft. Nothing reaches the patient until it is signed.",
+      "noneUnsigned": "Every note is signed.",
+      "startedAt": "{number} · started {when}",
+      "draft": "Draft",
+      "moreUnsigned": "Showing the most recent. Older drafts are on each patient’s chart."
+    },
+    "patient": {
+      "nextTitle": "Your next appointment",
+      "noneBooked": "You have nothing booked.",
+      "book": "Book an appointment",
+      "allAppointments": "All appointments",
+      "billsTitle": "Bills to pay",
+      "noBills": "Nothing is owed.",
+      "overdue": "Overdue",
+      "seeBills": "Bills and payments"
+    }
   }
 }

@@ -194,6 +194,8 @@ export const EncounterListQuery = PaginationQuery.extend({
    */
   appointmentIds: idList(100).optional(),
   status: EncounterStatus.optional(),
+  /** Unsigned notes are a doctor's unfinished work; their home page lists them (audit F08). */
+  noteStatus: NoteStatus.optional(),
   from: LocalDate.optional(),
   to: LocalDate.optional(),
 })

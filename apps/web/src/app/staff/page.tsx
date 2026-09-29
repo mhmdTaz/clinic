@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
-import { getTranslations } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { holds } from '@clinic/core/access'
 import { getClinicProfile, getClinicSessionInfo } from '@clinic/core/clinic'
 import { getMe } from '@clinic/core/session'
 import { ClinicContactCard } from '@/components/portal/clinic-contact-card'
 import { ClinicHoursCard } from '@/components/portal/clinic-hours-card'
+import { StaffToday } from '@/components/home/home-sections'
 import { PageHeader } from '@/components/portal/page-header'
 import { requirePortal } from '@/lib/auth/server-session'
 import { partOfDay } from '@/lib/format/greeting'
@@ -18,11 +19,12 @@ export default async function StaffOverviewPage() {
   const actor = await requirePortal('staff')
   // A portal does not imply clinic:read — a custom role may grant one without the other — so
   // the home page still works without it, just without the clinic cards.
-  const [me, session, clinic, t] = await Promise.all([
+  const [me, session, clinic, t, locale] = await Promise.all([
     getMe(actor),
     getClinicSessionInfo(actor.clinicId),
     holds(actor, 'clinic:read') ? getClinicProfile(actor) : null,
     getTranslations(),
+    getLocale(),
   ])
 
   return (
@@ -31,6 +33,9 @@ export default async function StaffOverviewPage() {
         title={t(`greeting.${partOfDay(session.timezone)}`, { name: me.firstName })}
         subtitle={t('staff.overview.subtitle')}
       />
+      <div className="mb-6">
+        <StaffToday actor={actor} locale={locale} timeZone={session.timezone} />
+      </div>
       {clinic ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <ClinicHoursCard clinic={clinic} />
