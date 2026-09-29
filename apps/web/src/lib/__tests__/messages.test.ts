@@ -23,7 +23,7 @@ import {
   setPath,
 } from '@/components/forms/auto-form-values'
 import { ageOn, formatCalendarDate } from '@/lib/format/dates'
-import { countryOptions } from '@/lib/format/regions'
+import { countryName, countryOptions } from '@/lib/format/regions'
 import { isLocked } from '@clinic/core/notifications'
 import messages from '../../../messages/en.json'
 
@@ -152,5 +152,14 @@ describe('country options', () => {
     // A current or renamed stored code needs nothing extra: it is already a choice.
     expect(countryOptions('en', 'LB')).toBe(countryOptions('en'))
     expect(countryOptions('en', 'UK')).toBe(countryOptions('en'))
+  })
+
+  it('names a stored country without turning a retired code into a current country', () => {
+    expect(countryName('LB', 'en')).toBe('Lebanon')
+    expect(countryName('UK', 'en')).toBe('United Kingdom')
+    expect(countryName('YU', 'en')).toBe('YU')
+    expect(countryName('SU', 'en')).toBe('SU')
+    expect(countryName('AN', 'en')).toBe('AN')
+    expect(countryName(null, 'en')).toBeNull()
   })
 })
