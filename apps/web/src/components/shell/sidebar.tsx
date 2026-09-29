@@ -25,7 +25,7 @@ export function Sidebar({
   const t = useTranslations('shell')
   const active = activeHref(
     pathname,
-    sections.flatMap((section) => section.items.map((item) => item.href)),
+    sections.flatMap((section) => section.items),
   )
 
   return (

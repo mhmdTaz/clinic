@@ -82,7 +82,7 @@ describe('describeUserAgent', () => {
 })
 
 describe('activeHref', () => {
-  const hrefs = ['/admin', '/admin/roles', '/account']
+  const hrefs = ['/admin', '/admin/roles', '/account'].map((href) => ({ href }))
 
   it('picks the most specific item containing the path', () => {
     expect(activeHref('/admin', hrefs)).toBe('/admin')
@@ -96,6 +96,19 @@ describe('activeHref', () => {
 
   it('returns null when nothing matches', () => {
     expect(activeHref('/patient', hrefs)).toBeNull()
+  })
+
+  // A clinical note used to light up the doctor's Overview: it has no item of its own.
+  it('places a page under the item it belongs to, not under the portal home', () => {
+    const doctor = [
+      { href: '/doctor' },
+      { href: '/doctor/patients', activeFor: ['/doctor/encounters'] },
+      { href: '/doctor/appointments' },
+    ]
+    expect(activeHref('/doctor/encounters/e1', doctor)).toBe('/doctor/patients')
+    expect(activeHref('/doctor/patients/p1', doctor)).toBe('/doctor/patients')
+    expect(activeHref('/doctor', doctor)).toBe('/doctor')
+    expect(activeHref('/doctor/encountersmith', doctor)).toBe('/doctor')
   })
 })
 

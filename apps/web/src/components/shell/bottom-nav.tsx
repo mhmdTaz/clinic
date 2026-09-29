@@ -22,10 +22,7 @@ export function BottomNav({ items }: { items: ShellNavItem[] }) {
   const t = useTranslations('shell')
   if (items.length === 0) return null
 
-  const active = activeHref(
-    pathname,
-    items.map((item) => item.href),
-  )
+  const active = activeHref(pathname, items)
 
   return (
     <nav

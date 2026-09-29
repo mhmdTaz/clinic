@@ -41,6 +41,12 @@ export interface NavItemDefinition {
    */
   minScope?: Scope
   flag?: FeatureFlagKey
+  /**
+   * Pages with no menu item of their own that belong under this one: the item is where you are
+   * while on them. A clinical note is part of a patient's chart, so the menu says "My patients"
+   * there rather than falling back to Overview (audit, navigation context).
+   */
+  activeFor?: readonly string[]
 }
 
 export interface NavSectionDefinition {
@@ -210,6 +216,7 @@ export const NAVIGATION: Readonly<Record<PortalKey, readonly NavSectionDefinitio
           href: '/doctor/patients',
           icon: 'contact',
           permission: 'patient:read',
+          activeFor: ['/doctor/encounters'],
         },
         {
           id: 'doctor.appointments',
