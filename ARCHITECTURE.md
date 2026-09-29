@@ -3600,6 +3600,7 @@ Recorded as `docs/adr/NNNN-title.md` as each is settled.
 | 0036 | A plan owns the price and the answer; the chart owns the work | **Accepted** | `docs/adr/0036` — `treatment_plans` items point at PLANNED chart rows; prices are snapshots rounded as on an invoice; whether an item is done is rewritten from the chart log on every completion or void; one agreed plan per piece of work; done work is billed by a person with `invoice:create`, once |
 | 0037 | Voice charting is a draft, and the clinic chooses where the audio goes | **Accepted** | `docs/adr/0037` — a spoken sentence fills in the charting form for a person to save, never a row on its own; refuses rather than guesses; off by default, turned on by an administrator who acknowledges that the browser's speech service sends audio to the browser maker, on the audit log; on-device recognition is the upgrade path |
 | 0038 | A transitive fix is patched only where its parent was read | **Accepted** | `docs/adr/0038` — `image-size@2` for Metro with a patch passing bytes instead of a path, `uuid@11` for `xcode`, both scoped overrides validated by a byte-identical bundle; `decode-uri-component` left at one moderate advisory because every fix is ESM-only |
+| 0039 | The app runs the React Native its Expo SDK expects | **Accepted** | `docs/adr/0039` — React Native 0.85.3 and Hermes V1 for Expo SDK 56 (was 0.83.3 with a classic `hermesc`, which failed on `#private` fields); one Metro, no `image-size`, so ADR-0038's patch is gone |
 
 ### The ones to settle next
 
