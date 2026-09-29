@@ -21,6 +21,7 @@ test.describe('home pages lead with the next thing to do', () => {
     browser,
   }) => {
     const page = await signedInAs(browser, 'patient@clinic.local')
+    await page.goto('/patient/appointments')
     const doctorId = await seededDoctorId()
     const date = workingDate(20)
 
@@ -48,7 +49,9 @@ test.describe('home pages lead with the next thing to do', () => {
     const next = page.getByRole('main')
     await expect(next.getByRole('heading', { name: 'Your next appointment' })).toBeVisible()
     await expect(next.getByText(/Nabil Saad/).first()).toBeVisible()
-    await expect(next.getByText(/You can change or cancel this online until/)).toBeVisible()
+    // Before the cutoff it says until when; inside it, how to change it instead (F06). Which one
+    // depends on what else this run has booked for the patient, so either is right here.
+    await expect(next.getByText(/online until|Changes online closed/)).toBeVisible()
     await expect(next.getByRole('link', { name: 'Book an appointment' })).toBeVisible()
     await expect(next.getByRole('heading', { name: 'Bills to pay' })).toBeVisible()
 
@@ -74,6 +77,7 @@ test.describe('home pages lead with the next thing to do', () => {
     browser,
   }) => {
     const page = await signedInAs(browser, 'doctor@clinic.local')
+    await page.goto('/doctor/patients')
     const patientId = await seededPatientId('Haddad')
     const opened = await page.evaluate(async (patientId) => {
       const response = await fetch('/api/v1/encounters', {
@@ -109,7 +113,7 @@ test.describe('home pages lead with the next thing to do', () => {
     const main = page.getByRole('main')
     await expect(main.getByRole('heading', { name: 'Today at the clinic' })).toBeVisible()
     for (const label of ['Expected', 'Checked in', 'With a doctor', 'Seen']) {
-      await expect(main.getByText(label, { exact: true })).toBeVisible()
+      await expect(main.getByRole('term').filter({ hasText: label })).toBeVisible()
     }
     await main.getByRole('link', { name: 'Register a patient' }).click()
     await expect(page).toHaveURL(/\/staff\/patients\/new$/)

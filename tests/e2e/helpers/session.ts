@@ -41,8 +41,11 @@ export async function fillSignIn(page: Page, email: string, password: string): P
 }
 
 /**
- * Returns once the sign-in request has been answered, successful or not. Returning on the click
- * alone let a following page.goto cancel the request in flight, leaving the page signed out.
+ * Returns once the sign-in request has been answered, successful or not — and, when it succeeded,
+ * once the page has left /login for wherever the app sends the person. Returning on the click
+ * alone let a following page.goto cancel the request in flight, leaving the page signed out;
+ * returning on the answer alone let the app's own redirect to the portal interrupt the test's
+ * next navigation, or destroy the context of its next page.evaluate.
  */
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   await page.goto('/login')
@@ -51,7 +54,11 @@ export async function signIn(page: Page, email: string, password: string): Promi
       response.url().endsWith('/api/v1/auth/login') && response.request().method() === 'POST',
   )
   await fillSignIn(page, email, password)
-  await answered
+  const response = await answered
+  if (response.ok()) {
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'))
+    await page.waitForLoadState('load')
+  }
 }
 
 export async function signOut(page: Page): Promise<void> {

@@ -7,7 +7,8 @@ import { expect, test } from './fixtures'
 
 /** The doctor's open times — named by the clock, so they are found by role, not by text. */
 function openTimes(within: Page | Locator): Locator {
-  return within.getByRole('group', { name: 'Open times' }).getByRole('button')
+  // Exactly: the day picker beside the times is "Days with open times".
+  return within.getByRole('group', { name: 'Open times', exact: true }).getByRole('button')
 }
 
 test.describe('scheduling', () => {
@@ -67,6 +68,13 @@ test.describe('scheduling', () => {
     await page.getByRole('link', { name: 'Book an appointment' }).first().click()
 
     await expect(page.getByRole('heading', { name: 'Book an appointment' })).toBeVisible()
+    // The furthest day offered: well outside the clinic's cutoff, so the booking stays theirs to
+    // change online (a time inside it is correctly not — ADR-0022, audit F06).
+    await page
+      .getByRole('group', { name: 'Days with open times' })
+      .getByRole('button')
+      .last()
+      .click()
     const chosen = await openTimes(page).first().textContent()
     await openTimes(page).first().click()
     await page.getByLabel(/What is it about/).fill('Follow-up on test results')
