@@ -16,11 +16,15 @@ function sourceFiles(directory: string): string[] {
 }
 
 /**
- * The namespaces a module asks for. `useTranslations('a.b')` is `a.b`; a root translator —
+ * The namespaces a module asks for. `useTranslations('a.b')` is `a.b`; a template such as
+ * `` `a.b.${kind}` `` is judged by its fixed prefix `a.b`; a root translator —
  * `useTranslations()` — is followed through its literal keys to their first segment.
  */
 function namespacesOf(source: string): string[] {
   const found = [...source.matchAll(/useTranslations\(\s*'([^']+)'\s*\)/g)].map((m) => m[1] ?? '')
+  for (const match of source.matchAll(/useTranslations\(\s*`([^`$]*)\$\{/g)) {
+    found.push((match[1] ?? '').replace(/\.$/, ''))
+  }
   if (/useTranslations\(\s*\)/.test(source)) {
     for (const match of source.matchAll(/\bt(?:\.rich|\.has)?\(\s*[`']([a-zA-Z]+)/g)) {
       found.push(match[1] ?? '')
@@ -48,7 +52,10 @@ describe('the messages sent to the browser', () => {
   })
 
   it('never pass a namespace to a translator by variable, which this check could not follow', () => {
-    const dynamic = users.filter(({ source }) => /useTranslations\(\s*[^'\s)]/.test(source))
+    // A string literal, or a template whose fixed part names at least a top-level namespace.
+    const dynamic = users.filter(({ source }) =>
+      /useTranslations\(\s*(?!['`)\s])|useTranslations\(\s*`(?:\$\{|\.)/.test(source),
+    )
     expect(dynamic.map(({ path }) => path.slice(SRC.length))).toEqual([])
   })
 
