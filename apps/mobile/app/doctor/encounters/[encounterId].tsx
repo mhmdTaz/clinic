@@ -282,7 +282,10 @@ function NoteEditor({ encounter, canSign }: { encounter: EncounterDetail; canSig
   }
 
   function signNote() {
-    sign.mutate(signature.trim(), { onSuccess: () => setSigning(false) })
+    sign.mutate(
+      { signature: signature.trim(), expectedRevision: encounter.revision },
+      { onSuccess: () => setSigning(false) },
+    )
   }
 
   return (

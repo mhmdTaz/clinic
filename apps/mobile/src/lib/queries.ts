@@ -382,8 +382,14 @@ export const useSaveNote = (encounterId: string) =>
     doctor.updateEncounter(encounterId, input),
   )
 
+/**
+ * The revision is the one on screen: if anything was saved since — at the desk, in another tab —
+ * the server refuses with NOTE_CHANGED rather than sign what this phone never showed.
+ */
 export const useSignNote = (encounterId: string) =>
-  useVisitWrite(encounterId, (signature: string) => doctor.signNote(encounterId, { signature }))
+  useVisitWrite(encounterId, (input: { signature: string; expectedRevision: number }) =>
+    doctor.signNote(encounterId, input),
+  )
 
 export const useAddAddendum = (encounterId: string) =>
   useVisitWrite(encounterId, (input: AddendumRequest) => doctor.addAddendum(encounterId, input))

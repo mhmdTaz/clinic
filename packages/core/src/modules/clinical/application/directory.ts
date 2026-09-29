@@ -63,6 +63,7 @@ export function toEncounterDetail(
       ? { ...encounter.vitals, recordedAt: iso(encounter.vitals.recordedAt) }
       : null,
     createdBy: encounter.createdBy,
+    revision: encounter.revision,
   }
 }
 
