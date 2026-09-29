@@ -22,6 +22,7 @@ export const NotificationType = z.enum([
   'TICKET_ASSIGNED',
   'STOCK_LOW',
   'AUDIT_CHAIN_BROKEN',
+  'LAB_WORK_LATE',
 ])
 export type NotificationType = z.infer<typeof NotificationType>
 

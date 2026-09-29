@@ -1,4 +1,5 @@
-import type { PatientDetail, PatientListQuery, PatientSummary } from '@clinic/contracts'
+import type { Dentition } from '@clinic/config'
+import type { PatientDetail, PatientListQuery, PatientSummary, PersonRef } from '@clinic/contracts'
 import { NotFoundError } from '../../../errors'
 import type { Page } from '../../../pagination'
 import { assertCan, type Actor } from '../../access'
@@ -122,4 +123,31 @@ export async function findPatientForScheduling(
     phone: patient.contact.phone,
     isActive: patient.isActive,
   }
+}
+
+export interface PatientDentalFacts {
+  id: string
+  userId: string | null
+  name: string
+  medicalRecordNo: string
+  dentition: Dentition
+  isActive: boolean
+}
+
+/** What the tooth chart needs to decide access and draw the right teeth. No permission check. */
+export function findPatientForCharting(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientDentalFacts | null> {
+  return patientRepository.findDentalFacts(clinicId, patientId)
+}
+
+/** The dentition is the chart's to set; the dental module checks the caller first. */
+export function setPatientDentition(
+  clinicId: string,
+  patientId: string,
+  dentition: Dentition,
+  by: PersonRef,
+): Promise<boolean> {
+  return patientRepository.setDentition(clinicId, patientId, dentition, by)
 }

@@ -308,3 +308,38 @@ describe('a doctor reaching documents', () => {
     await expect(listFiles(mine, {})).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })
+
+describe('pictures of teeth', () => {
+  it('keeps the teeth a picture shows, and finds it again by any one of them', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { patient } = await portalPatient(staff)
+
+    const presigned = await presignUpload(staff, {
+      ownerType: 'PATIENT',
+      ownerId: patient.id,
+      category: 'IMAGING',
+      fileName: 'bitewing-right.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: PDF.byteLength,
+      isPatientVisible: false,
+      description: null,
+      teeth: ['16', '17'],
+    })
+    expect(await uploadTo(presigned.uploadUrl, presigned.headers)).toBe(200)
+    const stored = await confirmUpload(staff, presigned.fileId, { checksumSha256: null })
+    expect(stored.teeth).toEqual(['16', '17'])
+
+    const ofSeventeen = await listFiles(staff, { patientId: patient.id, tooth: '17', limit: 25 })
+    expect(ofSeventeen.items.map((file) => file.id)).toEqual([stored.id])
+    const ofEighteen = await listFiles(staff, { patientId: patient.id, tooth: '18', limit: 25 })
+    expect(ofEighteen.items).toEqual([])
+
+    // A picture that turned out to show a neighbour as well can be re-tagged.
+    const retagged = await updateFile(staff, stored.id, { teeth: ['15', '16', '17'] })
+    expect(retagged.teeth).toEqual(['15', '16', '17'])
+
+    // A document about no tooth in particular names none.
+    const plain = await uploadedFile(staff, patient.id)
+    expect(plain.teeth).toEqual([])
+  })
+})

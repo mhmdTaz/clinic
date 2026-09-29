@@ -27,7 +27,7 @@ export function BottomNav({ items }: { items: ShellNavItem[] }) {
   return (
     <nav
       aria-label={t('primaryNavigation')}
-      className="border-border bg-card/95 fixed inset-x-0 bottom-0 z-30 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="border-border bg-card/95 fixed inset-x-0 bottom-0 z-30 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden print:hidden"
     >
       <ul className="mx-auto flex max-w-lg snap-x overflow-x-auto">
         {items.map((item) => {

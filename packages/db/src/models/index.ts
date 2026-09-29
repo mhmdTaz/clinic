@@ -68,3 +68,20 @@ export {
   IdempotencyKeySchema,
   type IdempotencyKeyDoc,
 } from './idempotency-key.model'
+export {
+  DentalTreatmentModel,
+  DentalTreatmentSchema,
+  type DentalTreatmentDoc,
+} from './dental-treatment.model'
+export { ToothRecordModel, ToothRecordSchema, type ToothRecordDoc } from './tooth-record.model'
+export {
+  TreatmentPlanModel,
+  TreatmentPlanSchema,
+  type TreatmentPlanDoc,
+} from './treatment-plan.model'
+export {
+  DentalQuickPickModel,
+  DentalQuickPickSchema,
+  type DentalQuickPickDoc,
+} from './dental-quick-pick.model'
+export { LabOrderModel, LabOrderSchema, type LabOrderDoc } from './lab-order.model'

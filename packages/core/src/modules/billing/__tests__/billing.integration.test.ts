@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { env } from '@clinic/config'
+import { localDateIn } from '@clinic/contracts'
 import { DoctorModel, PatientModel, newId } from '@clinic/db'
 import {
   TEST_PASSWORD,
@@ -10,6 +11,7 @@ import {
   everyPage,
 } from '../../../../test/fixtures'
 import type { Actor } from '../../access'
+import { getClinicFacts } from '../../clinic'
 import { openEncounter } from '../../clinical'
 import { registerPatient } from '../../patients'
 import { authenticateAccessToken, login } from '../../session'
@@ -616,7 +618,9 @@ describe('the day’s money', () => {
   it('reconciles takings, refunds and the net, per method and in total', async () => {
     const staff = await staffActor()
     const { patient } = await patientOf(staff)
-    const today = new Date().toISOString().slice(0, 10)
+    // The clinic's day, not UTC's: the report counts payments by the clinic's calendar, and the two
+    // are different days for a few hours around midnight.
+    const today = localDateIn((await getClinicFacts(env().CLINIC_ID)).timezone)
 
     const before = await dailyReconciliation(staff, { date: today })
 

@@ -2,19 +2,19 @@
 
 Four portals — admin, staff, doctor, patient — behind one login.
 
-**Current state: Phase 10 of section 17 is merged** (the dental chart, treatment plans and lab
-tracking of Phases 11–13 are on their own branches). What works, end to end, in the web portals
+**Current state: Phases 1–13 of section 17 are merged.** What works, end to end, in the web portals
 and — for patients and doctors — over the REST API the mobile app uses:
 
-| Area                  | What is there                                                                                                                      |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Identity and access   | Sign-in, sessions and devices, invitations, password reset, lockout; roles and permissions editable with no deploy; four portals   |
-| Clinic setup          | Profile, locations, opening hours, closures, booking window; users; the patient directory with duplicate warnings; doctors         |
-| Scheduling            | Staff and patient booking, walk-ins, rescheduling and cancelling with the clinic's cutoff, check-in to completion, reminders       |
-| Clinical record       | Visits with a SOAP note, vitals and ICD-10 diagnoses; signing, addenda, sharing with the patient; prescriptions (PDF); attachments |
-| Billing and stock     | Bills, partial payments, refunds, reconciliation; inventory intake, consumption during a visit, write-offs                         |
-| Support and oversight | Support tickets, notifications, analytics, the audit explorer with its tamper-evident chain                                        |
-| API                   | Every portal capability as REST under `/api/v1`, described by an OpenAPI document that a test checks against every route           |
+| Area                  | What is there                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Identity and access   | Sign-in, sessions and devices, invitations, password reset, lockout; roles and permissions editable with no deploy; four portals                             |
+| Clinic setup          | Profile, locations, opening hours, closures, booking window; users; the patient directory with duplicate warnings; doctors                                   |
+| Scheduling            | Staff and patient booking, walk-ins, rescheduling and cancelling with the clinic's cutoff, check-in to completion, reminders                                 |
+| Clinical record       | Visits with a SOAP note, vitals and ICD-10 diagnoses; signing, addenda, sharing with the patient; prescriptions (PDF); attachments                           |
+| Billing and stock     | Bills, partial payments, refunds, reconciliation; inventory intake, consumption during a visit, write-offs                                                   |
+| Dental                | A tooth chart kept as a log (2D and 3D, FDI numbering), treatment plans priced and followed into billing, lab orders, opt-in voice charting (ADRs 0035–0037) |
+| Support and oversight | Support tickets, notifications, analytics, the audit explorer with its tamper-evident chain                                                                  |
+| API                   | Every portal capability as REST under `/api/v1`, described by an OpenAPI document that a test checks against every route                                     |
 
 Each portal's home page leads with that role's next step: the front desk sees today's queue, a
 doctor their day and the notes still to sign, a patient their next appointment and anything
@@ -28,7 +28,7 @@ doctor was shown; if anything was saved since (another tab, the phone), the serv
 with `NOTE_CHANGED` rather than sign content nobody reviewed.
 
 **Not yet shown to be ready:** native iOS/Android behaviour on a device, a Hermes release build of
-the app (see ADR-0035), load at a real clinic's volume, a full accessibility audit (screen
+the app (see ADR-0038), load at a real clinic's volume, a full accessibility audit (screen
 readers, 200% zoom, every flow by keyboard), and the Arabic interface, which is incomplete and
 hidden from the language choice. Passing API tests is not evidence for any of these.
 
@@ -152,6 +152,7 @@ packages/core      ALL business logic. Zero framework imports.
   modules/inventory  stock, consumption, write-offs
   modules/support, notifications   tickets; in-app, email and push delivery
   modules/analytics, audit, audit-explorer   reporting; the audit recorder and its chain
+  modules/dental     the tooth chart, treatment plans, lab work, voice drafts
   modules/outbox, idempotency   reliable delivery; retried requests answered once
 packages/db        Mongoose models, plugins, migrations
 packages/contracts Zod schemas shared by server, web and the mobile app

@@ -156,7 +156,10 @@ describe('the analytics overview', () => {
     const day = await today()
     const doctor = await aDoctor(staff, { on: day })
 
-    const [offered] = await offerSlots(staff, doctor.id, { from: day, to: day })
+    // Today's slots as they stood this morning: run late in the evening, the test would otherwise
+    // find every one of today's slots already gone by.
+    const morning = new Date(Date.parse(`${day}T00:00:00Z`) - 12 * 3_600_000)
+    const [offered] = await offerSlots(staff, doctor.id, { from: day, to: day }, morning)
     const slots = offered?.slots ?? []
     expect(slots.length).toBeGreaterThan(1)
 

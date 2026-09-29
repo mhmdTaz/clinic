@@ -40,12 +40,20 @@ export function FileUploadDialog({
   label,
   defaultCategory = 'OTHER',
   canShareWithPatient = true,
+  teeth,
+  onUploaded,
 }: {
   ownerType: 'PATIENT' | 'ENCOUNTER'
   ownerId: string
   label: string
   defaultCategory?: FileCategory
   canShareWithPatient?: boolean
+  /**
+   * The teeth a picture shows, when it is uploaded from the tooth chart. The field starts with the
+   * tooth being looked at and can name its neighbours: one radiograph often shows three teeth.
+   */
+  teeth?: readonly string[]
+  onUploaded?: () => void
 }) {
   const t = useTranslations('clinical.files')
   const tCommon = useTranslations('common')
@@ -59,6 +67,7 @@ export function FileUploadDialog({
   const [category, setCategory] = useState<FileCategory>(defaultCategory)
   const [description, setDescription] = useState('')
   const [shared, setShared] = useState(false)
+  const [teethText, setTeethText] = useState((teeth ?? []).join(' '))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,6 +76,7 @@ export function FileUploadDialog({
     setCategory(defaultCategory)
     setDescription('')
     setShared(false)
+    setTeethText((teeth ?? []).join(' '))
     setError(null)
     if (input.current) input.current.value = ''
   }
@@ -91,8 +101,21 @@ export function FileUploadDialog({
     setFile(chosen)
   }
 
+  /** FDI numbers, separated by spaces or commas; null when one of them is not a tooth. */
+  function parseTeeth(): string[] | null {
+    const parts = teethText.split(/[\s,]+/).filter(Boolean)
+    return parts.every((part) => /^([1-4][1-8]|[5-8][1-5])$/.test(part))
+      ? [...new Set(parts)]
+      : null
+  }
+
   async function upload() {
     if (!file) return
+    const shown = teeth ? parseTeeth() : []
+    if (shown === null) {
+      setError(t('teethInvalid'))
+      return
+    }
     setPending(true)
     setError(null)
     try {
@@ -107,6 +130,7 @@ export function FileUploadDialog({
           sizeBytes: file.size,
           isPatientVisible: shared,
           description: description.trim() || null,
+          teeth: shown,
         },
       })
 
@@ -127,6 +151,7 @@ export function FileUploadDialog({
       setOpen(false)
       reset()
       router.refresh()
+      onUploaded?.()
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -196,6 +221,22 @@ export function FileUploadDialog({
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>
+
+          {teeth ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`${fieldId}-teeth`}>{t('teeth')}</Label>
+              <Input
+                id={`${fieldId}-teeth`}
+                value={teethText}
+                inputMode="numeric"
+                onChange={(event) => {
+                  setTeethText(event.target.value)
+                  setError(null)
+                }}
+              />
+              <p className="text-muted-foreground text-xs">{t('teethHint')}</p>
+            </div>
+          ) : null}
 
           {canShareWithPatient ? (
             <label className="flex items-start gap-3 text-sm">

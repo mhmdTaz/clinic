@@ -1,4 +1,4 @@
-# ADR-0035 — A transitive fix is patched only where its parent was read
+# ADR-0038 — A transitive fix is patched only where its parent was read
 
 **Status:** accepted · audit F03 (29 Sep 2026) · extends the dependency row of §17
 

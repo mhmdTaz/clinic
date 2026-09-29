@@ -179,6 +179,15 @@ export const clinicRepository = {
     return true
   },
 
+  /** One flag on the clinic. Saved through the document, so the audit log records the change. */
+  async setFeatureFlag(clinicId: string, key: string, value: boolean): Promise<boolean> {
+    const doc = await ClinicModel().findById(clinicId)
+    if (!doc) return false
+    doc.set(`featureFlags.${key}`, value)
+    await doc.save()
+    return true
+  },
+
   async countMembers(clinicId: string): Promise<{ users: number; roles: number }> {
     const [users, roles] = await Promise.all([
       UserModel().countDocuments({ clinicId }),

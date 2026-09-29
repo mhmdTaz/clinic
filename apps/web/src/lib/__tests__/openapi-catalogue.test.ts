@@ -164,6 +164,8 @@ const BOUNDED: Record<string, string> = {
   'GET /api/v1/admin/roles': 'A clinic’s roles',
   'GET /api/v1/admin/audit-logs/actors': 'The people who appear in the log, for a filter',
   'GET /api/v1/billing/services': 'The price list',
+  'GET /api/v1/dental/quick-picks': 'A toolbar of charting presets',
+  'GET /api/v1/dental/treatments': 'What can be charted, the clinic’s own list',
   'GET /api/v1/doctors': 'A clinic’s doctors',
   'GET /api/v1/doctors/{doctorId}/slots': 'Bounded by the date range asked for',
   'GET /api/v1/encounters/{encounterId}/consumption': 'What one visit used',

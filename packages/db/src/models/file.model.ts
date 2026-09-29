@@ -41,6 +41,11 @@ export const FileSchema = new Schema(
     scanResult: { type: String, default: null },
     /** Off by default: a patient sees a document because someone decided so (ADR-0025). */
     isPatientVisible: { type: Boolean, default: false },
+    /**
+     * The teeth an X-ray or a photo shows, in FDI notation (Phase 11). Empty for everything else;
+     * the tooth chart reads a tooth's pictures by this, so a radiograph of 16 and 17 is one file.
+     */
+    teeth: { type: [String], default: [] },
 
     uploadedBy: { type: PersonRefSchema, default: null },
     confirmedAt: { type: Date, default: null },
@@ -57,6 +62,7 @@ FileSchema.index({ clinicId: 1, 'owner.type': 1, 'owner.id': 1, createdAt: -1 })
 FileSchema.index({ clinicId: 1, patientId: 1, createdAt: -1 }) // the document vault
 FileSchema.index({ clinicId: 1, category: 1, createdAt: -1 })
 FileSchema.index({ status: 1, createdAt: 1 }) // the PENDING sweep
+FileSchema.index({ clinicId: 1, patientId: 1, teeth: 1 }) // a tooth's pictures (multikey)
 
 export type FileDoc = InferSchemaType<typeof FileSchema> & { _id: string }
 

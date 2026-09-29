@@ -1,5 +1,6 @@
 import { PatientModel, newId, nextFormatted } from '@clinic/db'
 import { escapeRegex } from '@clinic/config'
+import type { Dentition } from '@clinic/config'
 import type { BloodType, Gender, PatientInput, PersonRef } from '@clinic/contracts'
 import { storedCountry } from '@clinic/contracts'
 import { afterCursor, decodeCursor, encodeCursor, type Page } from '../../../pagination'
@@ -209,6 +210,66 @@ export const patientRepository = {
       .setOptions({ skipAudit: true })
       .lean()) as unknown as { _id: string; userId?: string | null; isActive?: boolean } | null
     return doc ? { id: doc._id, userId: doc.userId ?? null, isActive: doc.isActive ?? true } : null
+  },
+
+  /**
+   * What the tooth chart needs to know about a patient: who they are to the access rules, their
+   * name for the heading, and which set of teeth to draw. Not a view of the record.
+   */
+  async findDentalFacts(
+    clinicId: string,
+    patientId: string,
+  ): Promise<{
+    id: string
+    userId: string | null
+    name: string
+    medicalRecordNo: string
+    dentition: Dentition
+    isActive: boolean
+  } | null> {
+    const doc = (await PatientModel()
+      .findOne({ clinicId, _id: patientId })
+      .select({
+        userId: 1,
+        firstName: 1,
+        lastName: 1,
+        medicalRecordNo: 1,
+        dentition: 1,
+        isActive: 1,
+      })
+      .setOptions({ skipAudit: true })
+      .lean()) as unknown as {
+      _id: string
+      userId?: string | null
+      firstName: string
+      lastName: string
+      medicalRecordNo: string
+      dentition?: Dentition | null
+      isActive?: boolean
+    } | null
+    return doc
+      ? {
+          id: doc._id,
+          userId: doc.userId ?? null,
+          name: `${doc.firstName} ${doc.lastName}`,
+          medicalRecordNo: doc.medicalRecordNo,
+          dentition: doc.dentition ?? 'PERMANENT',
+          isActive: doc.isActive ?? true,
+        }
+      : null
+  },
+
+  async setDentition(
+    clinicId: string,
+    patientId: string,
+    dentition: Dentition,
+    by: PersonRef,
+  ): Promise<boolean> {
+    const result = await PatientModel().updateOne(
+      { clinicId, _id: patientId },
+      { $set: { dentition, updatedBy: by } },
+    )
+    return result.matchedCount > 0
   },
 
   async findById(clinicId: string, patientId: string): Promise<StoredPatient | null> {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { PaginationQuery } from './envelope'
 import { IdParam, PersonRef, nullableText, requiredText } from './common'
+import { ToothNumber } from './dental'
 
 /**
  * Contracts for stored documents (section 12). The bytes never pass through the application:
@@ -55,6 +56,15 @@ export const PresignUploadRequest = z.object({
   /** Clinical content a patient may see is a deliberate act, never a default (ADR-0025). */
   isPatientVisible: z.boolean().default(false),
   description: nullableText(200),
+  /**
+   * The teeth an X-ray or photo shows (Phase 11), so the tooth chart can find it. Order does not
+   * matter and a tooth named twice is named once.
+   */
+  teeth: z
+    .array(ToothNumber)
+    .max(32)
+    .transform((teeth) => [...new Set(teeth)])
+    .default([]),
 })
 export type PresignUploadRequest = z.infer<typeof PresignUploadRequest>
 
@@ -88,6 +98,8 @@ export const StoredFile = z.object({
   description: z.string().nullable(),
   uploadedBy: PersonRef.nullable(),
   createdAt: z.string().datetime().nullable(),
+  /** The teeth it shows, in FDI notation. Empty for anything that is not about particular teeth. */
+  teeth: z.array(z.string()),
 })
 export type StoredFile = z.infer<typeof StoredFile>
 
@@ -97,6 +109,8 @@ export const FileListQuery = PaginationQuery.extend({
   /** The vault reads by patient, whatever each document happens to hang off (P6). */
   patientId: z.string().max(64).optional(),
   category: FileCategory.optional(),
+  /** The pictures of one tooth: the tooth chart's drawer reads by this. */
+  tooth: ToothNumber.optional(),
 })
 export type FileListQuery = z.infer<typeof FileListQuery>
 
@@ -104,6 +118,11 @@ export const UpdateFileRequest = z.object({
   category: FileCategory.optional(),
   isPatientVisible: z.boolean().optional(),
   description: nullableText(200).optional(),
+  teeth: z
+    .array(ToothNumber)
+    .max(32)
+    .transform((teeth) => [...new Set(teeth)])
+    .optional(),
 })
 export type UpdateFileRequest = z.infer<typeof UpdateFileRequest>
 

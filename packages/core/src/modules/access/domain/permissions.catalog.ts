@@ -20,6 +20,7 @@ export const PERMISSION_GROUPS = [
   'doctors',
   'scheduling',
   'clinical',
+  'dental',
   'files',
   'billing',
   'inventory',
@@ -93,6 +94,12 @@ export const PERMISSIONS = {
   'encounter:sign': define('clinical', { scopable: true }),
   'prescription:read': define('clinical', { scopable: true, phi: true }),
   'prescription:issue': define('clinical', { scopable: true }),
+
+  // The tooth chart is patient-wide rather than per visit: a doctor who has treated the patient
+  // sees every tooth's history, including a colleague's work (ADR-0035). The front desk writes it.
+  'dental:read': define('dental', { scopable: true, phi: true }),
+  'dental:write': define('dental', { scopable: true }),
+  'dental:configure': define('dental'),
 
   'file:read': define('files', { scopable: true, phi: true }),
   'file:upload': define('files', { scopable: true }),

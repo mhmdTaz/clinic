@@ -28,7 +28,7 @@ export function TopBar({
   const current = items.find((item) => item.href === active)
 
   return (
-    <header className="border-border bg-background/95 sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 backdrop-blur sm:px-6">
+    <header className="border-border bg-background/95 sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 backdrop-blur sm:px-6 print:hidden">
       <nav aria-label={t('breadcrumb')} className="min-w-0 flex-1">
         <ol className="flex min-w-0 items-center gap-2 text-sm">
           <li className="text-muted-foreground shrink-0">
