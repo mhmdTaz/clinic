@@ -1065,9 +1065,12 @@
         "fromDate": "Looking from",
         "horizonHint": "Booking is open up to {date}.",
         "time": "Open times",
+        "timeZoneHint": "Times are in the clinic’s time zone ({zone}).",
         "reason": "What is it about?",
         "reasonHint": "A short note helps the clinic prepare. You can leave it blank.",
         "submit": "Confirm the booking",
+        "chooseTime": "Choose a time to continue.",
+        "summary": "{doctor} · {when}",
         "noDoctors": "No doctors are taking appointments",
         "noDoctorsBody": "Please call the clinic to arrange a time."
       }
@@ -1352,7 +1355,10 @@
       "chooseDoctor": "Choose a doctor to see when they are free.",
       "loading": "Finding open times…",
       "none": "No open times. Try another day.",
-      "groupLabel": "Open times"
+      "groupLabel": "Open times",
+      "days": "Days with open times",
+      "count": "{count, plural, one {# time} other {# times}}",
+      "dayOption": "{date}: {count, plural, one {# open time} other {# open times}}"
     },
     "book": {
       "title": "Book an appointment",

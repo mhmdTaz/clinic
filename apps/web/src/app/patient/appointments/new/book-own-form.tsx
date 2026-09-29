@@ -6,7 +6,7 @@ import { BookOwnAppointmentRequest } from '@clinic/contracts'
 import { Alert, Button, Card, CardContent, Input, Label, Select, Spinner } from '@clinic/ui'
 import { SlotPicker } from '@/components/scheduling/slot-picker'
 import { ApiError, apiFetch } from '@/lib/api/client'
-import { formatCalendarDate, shiftDate } from '@/lib/format/dates'
+import { formatCalendarDate, formatInstant, shiftDate } from '@/lib/format/dates'
 import { useErrorMessage } from '@/lib/i18n/use-error-message'
 import { useRouter } from '@/lib/navigation/use-router'
 
@@ -17,6 +17,10 @@ const WINDOW_DAYS = 6
  * A patient booking for themselves (P5). The server decides who the patient is from the session,
  * so this form never names one, and the clinic's window decides what is offered: times inside the
  * notice period are already absent from the list (ADR-0022).
+ *
+ * On a phone the choice stays in reach (audit F05): the times are one day at a time, and what has
+ * been chosen — doctor, day, time, in the clinic's zone — sits with the confirm button in a bar
+ * held above the tab bar, so choosing a time never means scrolling to find where to confirm it.
  */
 export function BookOwnForm({
   doctors,
@@ -45,6 +49,8 @@ export function BookOwnForm({
   const [reloadKey, setReloadKey] = useState(0)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const doctor = doctors.find((entry) => entry.id === doctorId)
 
   // Never ask for — or show — a day beyond the horizon; booking there would only be refused.
   const windowEnd = [shiftDate(from, WINDOW_DAYS), lastBookableDate].sort()[0] ?? from
@@ -75,7 +81,7 @@ export function BookOwnForm({
 
   return (
     <Card>
-      <CardContent className="flex flex-col gap-5">
+      <CardContent className="flex flex-col gap-5 pt-5">
         {error ? <Alert tone="danger">{error}</Alert> : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -119,6 +125,7 @@ export function BookOwnForm({
 
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">{t('time')}</span>
+          <p className="text-muted-foreground text-xs">{t('timeZoneHint', { zone: timeZone })}</p>
           <SlotPicker
             doctorId={doctorId || null}
             from={from}
@@ -145,18 +152,39 @@ export function BookOwnForm({
           <p className="text-muted-foreground text-xs">{t('reasonHint')}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button disabled={pending || !doctorId || !startsAt} onClick={() => void book()}>
-            {pending ? <Spinner /> : null}
-            {t('submit')}
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={pending}
-            onClick={() => router.push('/patient/appointments')}
-          >
-            {tCommon('cancel')}
-          </Button>
+        <div
+          className="border-border bg-card/95 sticky bottom-[calc(3.5rem+1px+env(safe-area-inset-bottom))] z-20 -mx-5 -mb-5 flex flex-col gap-3 rounded-b-[var(--radius-card)] border-t px-5 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:py-4 md:bottom-0"
+          aria-live="polite"
+        >
+          <p className="text-sm">
+            {startsAt && doctor ? (
+              <span className="font-medium">
+                {t('summary', {
+                  doctor: doctor.name,
+                  when: formatInstant(startsAt, locale, timeZone),
+                })}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{t('chooseTime')}</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button
+              className="flex-1 sm:flex-none"
+              disabled={pending || !doctorId || !startsAt}
+              onClick={() => void book()}
+            >
+              {pending ? <Spinner /> : null}
+              {t('submit')}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => router.push('/patient/appointments')}
+            >
+              {tCommon('cancel')}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
