@@ -12,6 +12,7 @@ import {
   formatCalendarDate,
   formatWhen,
   isCancellable,
+  isPastOnlineCutoff,
   nextUpcoming,
   pastAppointments,
   relativeDay,
@@ -34,6 +35,7 @@ const appointment = (over: Partial<AppointmentSummary> = {}): AppointmentSummary
     patient: { id: 'p1', name: 'Sara Karam', medicalRecordNo: 'MRN-000001', phone: null },
     doctor: { id: 'd1', name: 'Dr Nabil Saad' },
     branchId: null,
+    changeableOnlineUntil: null,
     ...over,
   }) as AppointmentSummary
 
@@ -176,6 +178,21 @@ describe('which appointment is next', () => {
     expect(isCancellable(appointment({ startsAt: '2026-09-25T09:00:00.000Z' }), NOW)).toBe(true)
     expect(isCancellable(appointment({ startsAt: '2026-09-01T09:00:00.000Z' }), NOW)).toBe(false)
     expect(isCancellable(appointment({ status: 'COMPLETED' }), NOW)).toBe(false)
+  })
+
+  // Audit F06: the clinic's cutoff, as the server computed it, closes cancelling before the start.
+  it('stops offering it once the clinic’s cutoff has passed, and says why', () => {
+    const late = appointment({ changeableOnlineUntil: '2026-09-19T09:59:59.000Z' })
+    expect(isCancellable(late, NOW)).toBe(false)
+    expect(isPastOnlineCutoff(late, NOW)).toBe(true)
+
+    const onTheDot = appointment({ changeableOnlineUntil: NOW.toISOString() })
+    expect(isCancellable(onTheDot, NOW)).toBe(true)
+    expect(isPastOnlineCutoff(onTheDot, NOW)).toBe(false)
+
+    const noRule = appointment({ changeableOnlineUntil: null })
+    expect(isCancellable(noRule, NOW)).toBe(true)
+    expect(isPastOnlineCutoff(appointment({ status: 'COMPLETED' }), NOW)).toBe(false)
   })
 })
 

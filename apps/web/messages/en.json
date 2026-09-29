@@ -1426,7 +1426,11 @@
       "reason": "What have they come in for?",
       "internalNote": "Note for the clinic",
       "submit": "Register and check in"
-    }
+    },
+    "changeOpenUntil": "You can change or cancel this online until {until}.",
+    "changeClosed": "Changes online closed at {until}, as the clinic needs notice. To change or cancel it now, please call the clinic.",
+    "callClinic": "Call the clinic ({phone})",
+    "contactClinic": "Please contact the clinic directly."
   },
   "clinical": {
     "chart": {

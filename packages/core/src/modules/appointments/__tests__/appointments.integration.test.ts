@@ -421,6 +421,46 @@ describe('self-service', () => {
     )
     expect(mine.map((appointment) => appointment.id)).toEqual([own.id])
   })
+
+  /**
+   * Audit F06: a patient typed a reason and submitted before learning the appointment was inside
+   * the cutoff. The deadline now travels with the appointment, computed here from the clinic's
+   * window, so a screen can say it before anyone opens a dialog — without a copy of the rule.
+   */
+  it('carries the last moment a patient may change it online, and refuses after it', async () => {
+    const { actor: staff } = await signedInActor({ role: 'staff' })
+    const { date } = await workingDay(staff, 22)
+    const doctor = await scheduledDoctor(staff, date)
+    const { actor: patient } = await portalPatient(staff)
+    const cutoffHours = (await getClinicSettings(staff)).booking.cancellationCutoffHours
+
+    const [day] = await offerSlots(patient, doctor.id, { from: date, to: date })
+    const startsAt = day?.slots[0]?.startsAt ?? ''
+    const booked = await bookOwnAppointment(patient, {
+      doctorId: doctor.id,
+      startsAt,
+      reason: null,
+    })
+    const until = new Date(Date.parse(startsAt) - cutoffHours * 3_600_000).toISOString()
+    expect(booked.changeableOnlineUntil).toBe(until)
+
+    // The patient, who may not read the clinic's settings, is told it on their own list too.
+    const [listed] = await everyPage((page) =>
+      listAppointments(patient, { from: date, to: date, ...page }),
+    )
+    expect(listed?.changeableOnlineUntil).toBe(until)
+
+    // One millisecond after the deadline is too late for the patient — and not for the desk.
+    const tooLate = new Date(Date.parse(until) + 1)
+    await expect(
+      cancelAppointment(patient, booked.id, { reason: 'Feeling better' }, tooLate),
+    ).rejects.toMatchObject({ code: 'TOO_LATE_TO_CHANGE' })
+    const onTheDot = new Date(Date.parse(until))
+    const cancelled = await cancelAppointment(staff, booked.id, { reason: 'Rang in' }, onTheDot)
+    expect(cancelled.status).toBe('CANCELLED')
+    // Holding no time, there is nothing left to change.
+    expect(cancelled.changeableOnlineUntil).toBeNull()
+  })
 })
 
 describe('walk-ins', () => {
